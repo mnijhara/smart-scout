@@ -508,20 +508,29 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     let typeInstructions = "";
+    let criticalGuidelines = "";
     if (interviewType === 'consultant') {
         typeInstructions = `
         INTERVIEW TYPE: Recruitment Consultant Screening Call
         OBJECTIVE: Pre-submission fitment and interest check. This is NOT an interview. No competency or technical questions.
-        ALWAYS ask EXACTLY these 8 questions:
+        You MUST generate EXACTLY these 8 questions, phrased conversationally for the candidate:
         1. Location & commute fit.
         2. Current CTC and expected CTC.
         3. Interest level in this specific role and why.
         4. Notice period.
         5. Earliest possible joining date.
         6. Reason for looking for a change.
-        7. Brief summary of experience in the candidate's own words.
-        8. Why the candidate believes they are a good fit for this role.
-        OUTPUT: Narrative summary of all 8 points + one-line recommendation (Submit / Hold / Reject with reason).
+        7. Brief summary of experience in their own words.
+        8. Why they believe they are a good fit for this role.
+        
+        Do not generate any other questions.
+        `;
+        criticalGuidelines = `
+        CRITICAL GUIDELINES:
+        - Maintain a professional, encouraging, and supportive tone throughout.
+        - The questions should be brief, professional, and conversational.
+        - DO NOT ask competency or technical questions.
+        - Ask the questions directly as if you are the recruiter (e.g., "What are your salary expectations?" or "Are you comfortable commuting to...").
         `;
     } else if (interviewType === 'recruiter') {
         typeInstructions = `
@@ -536,6 +545,15 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
         - What a strong answer looks like (2 lines).
         - What a weak answer looks like (2 lines).
         - Scoring rubric: 1-5 scale with descriptors.
+        `;
+        criticalGuidelines = `
+        CRITICAL GUIDELINES:
+        - Maintain a professional, encouraging, and supportive tone throughout.
+        - The questions should be brief, professional, and conversational.
+        - DO NOT say "The job description states..." or "The company is looking for...".
+        - Ask the questions directly as if you are the interviewer (e.g., "Tell me about a time when you..." or "How would you handle...").
+        - Each question should be a deep dive into a specific skill, experience gap, or strength identified by comparing the JD and Resume.
+        - Avoid generic questions; make them highly specific to this candidate and this role.
         `;
     } else if (interviewType === 'functional') {
         typeInstructions = `
@@ -552,6 +570,15 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
         - What a weak answer looks like (2 lines).
         - Scoring rubric: 1-5 scale with descriptors.
         `;
+        criticalGuidelines = `
+        CRITICAL GUIDELINES:
+        - Maintain a professional, encouraging, and supportive tone throughout.
+        - The questions should be brief, professional, and conversational.
+        - DO NOT say "The job description states..." or "The company is looking for...".
+        - Ask the questions directly as if you are the interviewer (e.g., "Tell me about a time when you..." or "How would you handle...").
+        - Each question should be a deep dive into a specific skill, experience gap, or strength identified by comparing the JD and Resume.
+        - Avoid generic questions; make them highly specific to this candidate and this role.
+        `;
     }
 
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
@@ -562,13 +589,7 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
         
         LANGUAGE: The interview must be conducted in ${language}. Please generate all questions, purposes, and expected answers in ${language}.
         
-        CRITICAL GUIDELINES:
-        - Maintain a professional, encouraging, and supportive tone throughout.
-        - The questions should be brief, professional, and conversational.
-        - DO NOT say "The job description states..." or "The company is looking for...".
-        - Ask the questions directly as if you are the interviewer (e.g., "Tell me about a time when you..." or "How would you handle...").
-        - Each question should be a deep dive into a specific skill, experience gap, or strength identified by comparing the JD and Resume.
-        - Avoid generic questions; make them highly specific to this candidate and this role.
+        ${criticalGuidelines}
         
         JD:
         ${jd}
@@ -700,7 +721,8 @@ export async function transcribeAndGenerateNextQuestion(
     previousExchanges: { question: string, answer: string }[],
     totalQuestionsAsked: number,
     interviewType: InterviewType = 'recruiter',
-    language: string = 'English'
+    language: string = 'English',
+    nextScheduledQuestion: string | null = null
 ): Promise<{ 
     transcription: string, 
     nextQuestion: { question: string, purpose: string, expectedAnswer: string, isFinal: boolean },
@@ -720,7 +742,7 @@ export async function transcribeAndGenerateNextQuestion(
     }
 
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
+        model: 'gemini-3-flash-preview',
         contents: [
             {
                 parts: [
@@ -748,11 +770,13 @@ export async function transcribeAndGenerateNextQuestion(
  
                         TASK:
                         1. Transcribe the candidate's audio response accurately. The candidate may speak in any language; transcribe it into the language they used.
-                        2. Based on the transcription and history, generate the NEXT most relevant question.
+                        2. Based on the transcription and history, determine the NEXT question to ask.
                         - Briefly acknowledge the candidate's response with a positive transition (e.g., "That's a great insight," or "Thank you for that detailed explanation") before asking the next question.
-                        - If the candidate's last answer was vague, ask a follow-up to drill down politely.
-                        - If they answered well, move to a new topic from the JD/Resume.
-                        - Keep the question brief, conversational, and direct.
+                        ${nextScheduledQuestion 
+                            ? `- The next primary question you MUST ask is: "${nextScheduledQuestion}". You may add a brief transition before it, but do not change the core meaning of this question.` 
+                            : `- If the candidate's last answer was vague, ask a follow-up to drill down politely.
+                               - If they answered well, move to a new topic from the JD/Resume.
+                               - Keep the question brief, conversational, and direct.`}
                         - Do not repeat questions.
                         - If this is the last question (TOTAL ASKED is ${MAX_QUESTIONS - 1}), make it a concluding technical or "any questions for us" type question.
                         3. Analyze the candidate's soft skills (confidence, clarity, enthusiasm) based on the audio response.

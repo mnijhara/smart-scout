@@ -184,15 +184,26 @@ ${manualCompany || 'Smart Scout Recruitment'}`;
     }
   };
 
+  const handleQuestionChange = (index: number, newQuestion: string) => {
+    const updatedQuestions = [...questions];
+    updatedQuestions[index].question = newQuestion;
+    setQuestions(updatedQuestions);
+  };
+
   const renderQuestions = () => {
     if (questions.length === 0) return null;
     return (
       <div className="mt-6 p-4 bg-slate-800 rounded-xl">
         <h4 className="text-lg font-bold text-white mb-4">Generated Questions:</h4>
-        <ul className="space-y-2">
+        <ul className="space-y-4">
           {questions.map((q, i) => (
-            <li key={i} className="text-slate-300 text-sm">
-              <span className="font-bold text-indigo-400">{i + 1}.</span> {q.question}
+            <li key={i} className="text-slate-300 text-sm flex flex-col space-y-2">
+              <span className="font-bold text-indigo-400">Question {i + 1}</span>
+              <textarea
+                value={q.question}
+                onChange={(e) => handleQuestionChange(i, e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-300 min-h-[60px] focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all resize-y"
+              />
             </li>
           ))}
         </ul>
@@ -600,7 +611,11 @@ ${manualCompany || 'Smart Scout Recruitment'}`;
                     {questions.map((q, idx) => (
                       <div key={idx} className="p-3 bg-slate-900/50 rounded-xl border border-slate-800/50 group hover:border-indigo-500/30 transition-colors">
                         <p className="text-[9px] font-bold text-indigo-500 mb-1 uppercase tracking-widest">Question 0{idx + 1}</p>
-                        <p className="text-xs text-slate-300 leading-relaxed">{q.question}</p>
+                        <textarea
+                          value={q.question}
+                          onChange={(e) => handleQuestionChange(idx, e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-300 min-h-[60px] focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all resize-y"
+                        />
                       </div>
                     ))}
                   </div>

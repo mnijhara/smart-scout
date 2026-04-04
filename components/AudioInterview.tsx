@@ -96,6 +96,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const ignoreNextAudioRef = useRef(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [silenceProgress, setSilenceProgress] = useState(0);
   const silenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -273,6 +274,11 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
         mediaRecorder.onstop = async () => {
         console.log('MediaRecorder stopped. Chunks:', audioChunksRef.current.length);
+        if (ignoreNextAudioRef.current) {
+          console.log('Ignoring audio processing due to manual transition');
+          ignoreNextAudioRef.current = false;
+          return;
+        }
         if (audioChunksRef.current.length > 0) {
           const blob = new Blob(audioChunksRef.current, { type: mimeType });
           console.log('Created blob:', blob.size, blob.type);
@@ -409,6 +415,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
       console.log('Sending audio to Gemini for transcription and next question...');
       const mimeType = getSupportedMimeType();
+      const nextScheduledQuestion = session.questions[currentQuestionIndex + 1]?.question || null;
       const result = await transcribeAndGenerateNextQuestion(
         base64Audio,
         mimeType,
@@ -417,7 +424,8 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
         responses,
         currentQuestionIndex + 1,
         session.interviewType,
-        session.language || 'English'
+        session.language || 'English',
+        nextScheduledQuestion
       );
 
       console.log('Gemini response received:', result);
@@ -460,6 +468,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
         
         // Speak the next question
         setTimeout(() => {
+          setTranscript('');
           speak(result.nextQuestion.question);
         }, 1000);
       }
@@ -467,6 +476,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       console.error('Error processing audio:', err);
       setError(`Failed to process your answer: ${err instanceof Error ? err.message : 'Unknown error'}. Please try speaking again.`);
       setIsListening(true);
+      startListening();
     } finally {
       setIsThinking(false);
       setIsAnalyzing(false);
@@ -502,6 +512,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       if (isSpeakingRef.current) {
         console.warn('Speech safety timeout reached, forcing end of speaking state');
         setIsSpeaking(false);
+        isSpeakingRef.current = false;
         if (interviewStateRef.current !== 'completed') startListening();
       }
     }, (text.length * 100) + 5000); // Rough estimate of speech duration + buffer
@@ -509,6 +520,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     utterance.onstart = () => {
       console.log('Speech started');
       setIsSpeaking(true);
+      isSpeakingRef.current = true;
       stopListening(); // Stop listening while speaking to avoid feedback
     };
 
@@ -516,6 +528,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       console.log('Speech ended');
       clearTimeout(safetyTimeout);
       setIsSpeaking(false);
+      isSpeakingRef.current = false; // Synchronous update
       // Try to start listening automatically, but handle failure
       if (interviewStateRef.current !== 'completed') {
         try {
@@ -538,11 +551,13 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
         fallbackUtterance.onerror = (err2) => {
           console.error('Fallback speech synthesis error:', err2);
           setIsSpeaking(false);
+          isSpeakingRef.current = false;
           if (interviewStateRef.current !== 'completed') startListening();
         };
         synthesisRef.current?.speak(fallbackUtterance);
       } else {
         setIsSpeaking(false);
+        isSpeakingRef.current = false;
         if (interviewStateRef.current !== 'completed') startListening();
       }
     };
@@ -582,8 +597,8 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     const testMessage = "Hello, this is a test of the Indian female voice. Does it sound correct?";
     const utterance = new SpeechSynthesisUtterance(testMessage);
     utterance.voice = selectedVoice;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
+    utterance.onstart = () => { setIsSpeaking(true); isSpeakingRef.current = true; };
+    utterance.onend = () => { setIsSpeaking(false); isSpeakingRef.current = false; };
     synthesisRef.current.speak(utterance);
   };
 
@@ -1126,6 +1141,11 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                   <button
                     onClick={() => {
                       console.log('Manual consent button clicked');
+                      // Discard any audio recorded during greeting
+                      ignoreNextAudioRef.current = true;
+                      audioChunksRef.current = [];
+                      stopRecording();
+                      
                       setInterviewState('interviewing');
                       setCurrentQuestionIndex(0);
                       const firstQuestion = session.questions[0].question;
