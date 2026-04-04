@@ -66,6 +66,13 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
   ];
 
   useEffect(() => {
+    if (interviewState === 'greeting') {
+      const greeting = `Hello ${session.candidateName}, I am your AI interviewer for the ${session.designation || 'position'} at ${session.company || 'our company'}. Before we begin, I need your consent to record this session for evaluation. Do you accept?`;
+      speak(greeting);
+    }
+  }, [interviewState]);
+
+  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isThinking) {
       let i = 0;
@@ -243,7 +250,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       updateLevel();
 
       // Only start MediaRecorder if we are actually recording an answer/consent
-      if (interviewStateRef.current === 'greeting' || interviewStateRef.current === 'interviewing') {
+      if (interviewStateRef.current !== 'idle' && interviewStateRef.current !== 'healthCheck') {
         const mimeType = getSupportedMimeType();
         console.log('Starting MediaRecorder with mimeType:', mimeType);
         const mediaRecorder = new MediaRecorder(stream, { mimeType });
@@ -545,7 +552,11 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
   };
 
   const startListening = () => {
-    if (isSpeakingRef.current) return;
+    console.log('startListening called. isSpeakingRef.current:', isSpeakingRef.current);
+    if (isSpeakingRef.current) {
+      console.log('Not starting listening because isSpeakingRef.current is true');
+      return;
+    }
     startRecording();
   };
 
@@ -1078,7 +1089,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                   onClick={() => {
                     setInterviewState('greeting');
                     const greeting = `Hello ${session.candidateName}, I am your AI interviewer for the ${session.designation || 'position'} at ${session.company || 'our company'}. Before we begin, I need your consent to record this session for evaluation. Do you accept?`;
-                    speak(greeting);
+                    // speak(greeting); // Removed to prevent double audio
                   }}
                   className="w-full sm:w-auto px-10 py-4 sm:px-12 sm:py-5 rounded-2xl font-bold text-lg sm:text-xl transition-all flex items-center justify-center space-x-4 uppercase tracking-widest bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xl shadow-indigo-500/50 hover:scale-[1.02] active:scale-95 border border-indigo-400/50"
                 >
