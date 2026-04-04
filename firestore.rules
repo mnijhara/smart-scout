@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: jobs
+    // Fields: user_id, title, description, created_at
+    //
+    // Collection: analyses
+    // Fields: user_id, job_id, candidate_name, file_name, score, summary, breakdown, pros, cons, extracted_text, created_at
+    //
+    // Collection: interview_sessions
+    // Fields: id, candidate_name, candidate_email, recruiter_email, jd, cv_text, questions, responses, status, scheduled_at, email_body, report, created_at
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.user_id;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "mnijhara@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidJob(data) {
+      return data.user_id is string && data.title is string && data.description is string;
+    }
+
+    function isValidAnalysis(data) {
+      return data.user_id is string && data.job_id is string && data.candidate_name is string && data.score is number;
+    }
+
+    function isValidInterviewSession(data) {
+      return data.id is string && 
+             (data.user_id == null || data.user_id is string) &&
+             data.candidateName is string && 
+             data.candidateEmail is string && 
+             data.status in ['scheduled', 'completed', 'analyzed'];
+    }
+
+    // Rules
+    match /jobs/{jobId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidJob(request.resource.data) && (request.resource.data.user_id == request.auth.uid || isAdmin());
+      allow update: if isDocOwner() && isValidJob(request.resource.data) && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /analyses/{analysisId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidAnalysis(request.resource.data) && (request.resource.data.user_id == request.auth.uid || isAdmin());
+      allow update: if isDocOwner() && isValidAnalysis(request.resource.data) && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /interview_sessions/{sessionId} {
+      // Allow read if the user is the recruiter or if they have the direct link (id)
+      allow read: if true; 
+      
+      // Allow creation by authenticated recruiters or guests
+      allow create: if isValidInterviewSession(request.resource.data) && 
+                      (request.auth == null || request.resource.data.user_id == request.auth.uid);
+      
+      // Candidates (unauthenticated) can update their responses and status
+      // Recruiters can also update sessions they own
+      allow update: if (request.auth == null && 
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses', 'status', 'report'])) ||
+                       (isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin()));
+                       
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.user_id == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+  }
+}

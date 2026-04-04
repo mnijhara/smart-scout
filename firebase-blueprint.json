@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "Job": {
+      "title": "Job",
+      "description": "Represents a job description created by a recruiter.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "title", "description"]
+    },
+    "Analysis": {
+      "title": "Analysis",
+      "description": "Represents the AI analysis of a candidate's resume against a job.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "candidate_name": { "type": "string" },
+        "file_name": { "type": "string" },
+        "score": { "type": "number" },
+        "summary": { "type": "string" },
+        "breakdown": { "type": "object" },
+        "pros": { "type": "array", "items": { "type": "string" } },
+        "cons": { "type": "array", "items": { "type": "string" } },
+        "extracted_text": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "job_id", "candidate_name", "score"]
+    },
+    "InterviewSession": {
+      "title": "InterviewSession",
+      "description": "Represents an AI-driven interview session for a candidate.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "candidate_name": { "type": "string" },
+        "candidate_email": { "type": "string" },
+        "recruiter_email": { "type": "string" },
+        "jd": { "type": "string" },
+        "cv_text": { "type": "string" },
+        "questions": { "type": "array" },
+        "responses": { "type": "array" },
+        "status": { "type": "string", "enum": ["scheduled", "completed", "analyzed"] },
+        "scheduled_at": { "type": "string" },
+        "email_body": { "type": "string" },
+        "report": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "candidate_name", "candidate_email", "jd", "cv_text", "status"]
+    }
+  },
+  "firestore": {
+    "/jobs/{jobId}": {
+      "schema": "Job",
+      "description": "Collection of job descriptions."
+    },
+    "/analyses/{analysisId}": {
+      "schema": "Analysis",
+      "description": "Collection of resume analyses."
+    },
+    "/interview_sessions/{sessionId}": {
+      "schema": "InterviewSession",
+      "description": "Collection of interview sessions."
+    }
+  }
+}

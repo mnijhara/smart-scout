@@ -1,0 +1,5 @@
+{
+  "name": "smartscout resume scorer",
+  "description": "An elite AI-powered CV analysis and scoring platform. Rank multiple resumes against job descriptions with precision intelligence, interactive visualizations, and executive-level reporting.",
+  "requestFramePermissions": ["microphone"]
+}
