@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Volume2, Play, Square, CheckCircle, AlertCircle, Loader2, FileText, Download, Mail, Send, ChevronRight } from 'lucide-react';
+import { Mic, MicOff, Volume2, Play, Square, CheckCircle, AlertCircle, Loader2, FileText, Download, Mail, Send, ChevronRight, ShieldCheck } from 'lucide-react';
 import { InterviewSession, InterviewQuestion, InterviewReport } from '../types';
-import { analyzeInterviewResponses, generateNextInterviewQuestion, transcribeAndGenerateNextQuestion } from '../services/geminiService';
+import { analyzeInterviewResponses, generateNextInterviewQuestion, transcribeAndGenerateNextQuestion, generateVoiceover } from '../services/geminiService';
 import { updateInterviewSession } from '../services/supabase';
 import jsPDF from 'jspdf';
 
@@ -67,7 +67,12 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
   useEffect(() => {
     if (interviewState === 'greeting') {
-      const greeting = `Hello ${session.candidateName}, I am your AI interviewer for the ${session.designation || 'position'} at ${session.company || 'our company'}. Before we begin, I need your consent to record this session for evaluation. Do you accept?`;
+      let greeting = `Hello ${session.candidateName}, I am your AI interviewer for the ${session.designation || 'position'} at ${session.company || 'our company'}. Before we begin, I need your consent to record this session for evaluation. Do you accept?`;
+      
+      if (session.interviewType === 'consultant') {
+        greeting = `Hello ${session.candidateName}, I am your AI interviewer. Before we begin, I need your consent to record this session for evaluation. Do you accept?`;
+      }
+      
       speak(greeting);
     }
   }, [interviewState]);
@@ -79,7 +84,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       interval = setInterval(() => {
         i = (i + 1) % thinkingMessages.length;
         setThinkingMessage(thinkingMessages[i]);
-      }, 1500);
+      }, 1000); // Faster interval for more dynamic feel
     }
     return () => clearInterval(interval);
   }, [isThinking]);
@@ -87,10 +92,16 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
   const hasStartedRef = useRef(hasStarted);
   const interviewStateRef = useRef(interviewState);
   const isSpeakingRef = useRef(isSpeaking);
+  const currentQuestionIndexRef = useRef(currentQuestionIndex);
+  const responsesRef = useRef(responses);
+  const activeQuestionRef = useRef(activeQuestion);
 
   useEffect(() => { hasStartedRef.current = hasStarted; }, [hasStarted]);
   useEffect(() => { interviewStateRef.current = interviewState; }, [interviewState]);
   useEffect(() => { isSpeakingRef.current = isSpeaking; }, [isSpeaking]);
+  useEffect(() => { currentQuestionIndexRef.current = currentQuestionIndex; }, [currentQuestionIndex]);
+  useEffect(() => { responsesRef.current = responses; }, [responses]);
+  useEffect(() => { activeQuestionRef.current = activeQuestion; }, [activeQuestion]);
 
   const synthesisRef = useRef<SpeechSynthesis | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -331,7 +342,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     setIsAnalyzing(true);
     try {
       const report = await analyzeInterviewResponses(
-        session.jd,
+        session.coreRequirementsMap || session.jd.substring(0, 1000),
         session.cvText || '',
         newResponses,
         session.interviewType
@@ -340,7 +351,10 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       // Trigger Webhook if available
       if (session.webhookUrl) {
         try {
-          await fetch(session.webhookUrl, {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+          
+          const response = await fetch(session.webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -348,8 +362,16 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
               candidate: session.candidateName,
               email: session.candidateEmail,
               report
-            })
+            }),
+            signal: controller.signal
           });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            throw new Error(`Webhook returned status ${response.status}`);
+          }
+          console.log('Webhook triggered successfully');
         } catch (err) {
           console.error('Webhook failed:', err);
         }
@@ -396,6 +418,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     }
     
     setIsThinking(true);
+    setTranscript(''); // Clear transcript while thinking
     const startTime = Date.now();
     console.log('Processing audio answer. Blob size:', blob.size);
 
@@ -415,14 +438,18 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
       console.log('Sending audio to Gemini for transcription and next question...');
       const mimeType = getSupportedMimeType();
-      const nextScheduledQuestion = session.questions[currentQuestionIndex + 1]?.question || null;
+      const currentIndex = currentQuestionIndexRef.current;
+      const nextScheduledQuestion = session.questions[currentIndex + 1]?.question || null;
+      const currentQuestionText = activeQuestionRef.current || session.questions[currentIndex].question;
+
       const result = await transcribeAndGenerateNextQuestion(
         base64Audio,
         mimeType,
-        session.jd,
+        session.coreRequirementsMap || session.jd.substring(0, 1000),
         session.cvText || '',
-        responses,
-        currentQuestionIndex + 1,
+        responsesRef.current,
+        currentQuestionText,
+        currentIndex + 1,
         session.interviewType,
         session.language || 'English',
         nextScheduledQuestion
@@ -431,16 +458,17 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       console.log('Gemini response received:', result);
       setLatency(Date.now() - startTime);
       const candidateAnswer = result.transcription;
-      setTranscript(candidateAnswer);
+      setTranscript(candidateAnswer); // Show the transcription to the user
       if (result.vibeAnalysis) setLastVibe(result.vibeAnalysis);
       
       // Handle consent in greeting stage
-      if (interviewState === 'greeting') {
+      if (interviewStateRef.current === 'greeting') {
         const lowerTranscript = candidateAnswer.toLowerCase();
         const positiveWords = ['yes', 'sure', 'ok', 'okay', 'proceed', 'go ahead', 'ready', 'accept', 'i do', 'yeah', 'yep', 'yup', 'yes please', 'absolutely'];
         const hasConsent = positiveWords.some(word => lowerTranscript.includes(word));
         
         if (hasConsent) {
+          setTranscript(''); // Clear transcript immediately
           setInterviewState('interviewing');
           setCurrentQuestionIndex(0);
           const firstQuestion = session.questions[0].question;
@@ -448,27 +476,27 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
           setResponses([]);
           setTimeout(() => speak(firstQuestion), 500);
         } else {
+          setTranscript(''); // Clear transcript even if no consent to keep it clean
           const repeatGreeting = "I'm sorry, I didn't catch that. Do you accept to proceed with this interview and have it recorded? Please say 'Yes' or 'Accept' to begin.";
           speak(repeatGreeting);
         }
         return;
       }
 
-      const currentQuestionText = activeQuestion || session.questions[currentQuestionIndex].question;
-      const newResponses = [...responses, { question: currentQuestionText, answer: candidateAnswer }];
+      const newResponses = [...responsesRef.current, { question: currentQuestionText, answer: candidateAnswer }];
       setResponses(newResponses);
 
-      if (result.nextQuestion.isFinal || currentQuestionIndex >= 5) {
+      if (result.nextQuestion.isFinal || currentIndex >= 5) {
         stopRecording();
         await finalizeInterview(newResponses);
       } else {
+        setTranscript(''); // Clear transcript immediately
         setActiveQuestion(result.nextQuestion.question);
-        setCurrentQuestionIndex(prev => prev + 1);
+        setCurrentQuestionIndex(currentIndex + 1);
         setIsFinalQuestion(result.nextQuestion.isFinal);
         
         // Speak the next question
         setTimeout(() => {
-          setTranscript('');
           speak(result.nextQuestion.question);
         }, 1000);
       }
@@ -489,8 +517,10 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     }
   }, [transcript, interviewState]);
 
-  const speak = (text: string) => {
-    console.log('Attempting to speak:', text);
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const speakFallback = (text: string) => {
+    console.log('Attempting to speak (fallback):', text);
     if (!synthesisRef.current) {
       console.error('Speech synthesis not supported');
       setError('Your browser does not support speech synthesis. Please use a modern browser like Chrome or Safari.');
@@ -499,6 +529,9 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
       return;
     }
     
+    if (safetyTimeoutRef.current) {
+      clearTimeout(safetyTimeoutRef.current);
+    }
     synthesisRef.current.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     
@@ -508,7 +541,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     
     // Safety timeout to ensure we start listening even if onend doesn't fire
     // (Common issue on some mobile browsers/OS versions)
-    const safetyTimeout = setTimeout(() => {
+    safetyTimeoutRef.current = setTimeout(() => {
       if (isSpeakingRef.current) {
         console.warn('Speech safety timeout reached, forcing end of speaking state');
         setIsSpeaking(false);
@@ -526,7 +559,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
     utterance.onend = () => {
       console.log('Speech ended');
-      clearTimeout(safetyTimeout);
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
       setIsSpeaking(false);
       isSpeakingRef.current = false; // Synchronous update
       // Try to start listening automatically, but handle failure
@@ -541,7 +574,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
     utterance.onerror = (err) => {
       console.error('Speech synthesis error:', err);
-      clearTimeout(safetyTimeout);
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
       // Fallback: try speaking without a specific voice if the first attempt fails
       if (utterance.voice) {
         console.log('Retrying with default voice...');
@@ -565,6 +598,33 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
     console.log('Calling synthesis.speak()');
     synthesisRef.current.speak(utterance);
   };
+
+  const speakAI = async (text: string) => {
+    setIsSpeaking(true);
+    isSpeakingRef.current = true;
+    stopListening();
+    
+    try {
+      const audioBase64 = await generateVoiceover(text);
+      if (audioBase64) {
+        const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+        audio.onended = () => {
+          setIsSpeaking(false);
+          isSpeakingRef.current = false;
+          if (interviewStateRef.current !== 'completed') startListening();
+        };
+        audio.play();
+      } else {
+        // Fallback to window.speechSynthesis
+        speakFallback(text);
+      }
+    } catch (err) {
+      console.error('AI Voiceover failed:', err);
+      speakFallback(text);
+    }
+  };
+
+  const speak = speakAI;
 
   const startListening = () => {
     console.log('startListening called. isSpeakingRef.current:', isSpeakingRef.current);
@@ -611,32 +671,42 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
 
   const generatePDF = (report: InterviewReport) => {
     const doc = new jsPDF();
-    doc.setFontSize(20);
+    
+    // Header
+    doc.setFillColor(63, 81, 181); // Indigo-500
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
     doc.text('Interview Report', 20, 20);
     
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(14);
-    doc.text(`Candidate: ${report.candidateName}`, 20, 35);
-    doc.text(`Overall Score: ${report.overallScore}%`, 20, 45);
-    doc.text(`Status: ${report.status}`, 20, 55);
+    doc.text(`Candidate: ${report.candidateName}`, 20, 45);
+    doc.text(`Overall Score: ${report.overallScore}%`, 20, 55);
+    doc.text(`Status: ${report.status}`, 20, 65);
     
     doc.setFontSize(12);
-    doc.text('Reasoning:', 20, 70);
+    doc.text('Reasoning:', 20, 80);
     const splitReason = doc.splitTextToSize(report.reason, 170);
-    doc.text(splitReason, 20, 80);
+    doc.text(splitReason, 20, 90);
     
     if (report.interestLevel) {
       doc.addPage();
-      doc.setFontSize(16);
+      doc.setFillColor(63, 81, 181); // Indigo-500
+      doc.rect(0, 0, 210, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
       doc.text('Interest Level Assessment', 20, 20);
+      doc.setTextColor(0, 0, 0);
       doc.setFontSize(12);
-      doc.text(`Overall Interest Score: ${report.interestLevel.score}%`, 20, 35);
-      doc.text(`Location Fit: ${report.interestLevel.locationFit}`, 20, 45);
-      doc.text(`Salary Expectation: ${report.interestLevel.salaryExpectation}`, 20, 55);
-      doc.text(`Role Alignment: ${report.interestLevel.roleAlignment}`, 20, 65);
-      doc.text(`Company Alignment: ${report.interestLevel.companyAlignment}`, 20, 75);
-      doc.text('Feedback:', 20, 85);
+      doc.text(`Overall Interest Score: ${report.interestLevel.score}%`, 20, 45);
+      doc.text(`Location Fit: ${report.interestLevel.locationFit}`, 20, 55);
+      doc.text(`Salary Alignment: ${report.interestLevel.salaryAlignment}`, 20, 65);
+      doc.text(`Role Alignment: ${report.interestLevel.roleAlignment}`, 20, 75);
+      doc.text(`Company Alignment: ${report.interestLevel.companyAlignment}`, 20, 85);
+      doc.text('Feedback:', 20, 95);
       const splitInterestFeedback = doc.splitTextToSize(report.interestLevel.feedback, 170);
-      doc.text(splitInterestFeedback, 20, 95);
+      doc.text(splitInterestFeedback, 20, 105);
     }
 
     let y = 100;
@@ -751,7 +821,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                     <div className="grid grid-cols-1 gap-3">
                       {[
                         { label: 'Location Fit', val: report.interestLevel.locationFit },
-                        { label: 'Salary Expectation', val: report.interestLevel.salaryExpectation },
+                        { label: 'Salary Alignment', val: report.interestLevel.salaryAlignment },
                         { label: 'Role Alignment', val: report.interestLevel.roleAlignment },
                         { label: 'Company Alignment', val: report.interestLevel.companyAlignment }
                       ].map((item, i) => (
@@ -889,7 +959,11 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                         <span className="text-[9px] sm:text-[10px] font-bold text-white uppercase tracking-widest">Analysis Summary</span>
                         <span className="w-fit text-[8px] sm:text-[10px] font-bold px-2 py-0.5 bg-slate-900 text-indigo-400 rounded border border-slate-800 uppercase tracking-widest">Score: {res.score}/100</span>
                       </div>
-                      <p className="text-[10px] sm:text-xs text-slate-500 leading-relaxed">{res.feedback}</p>
+                      <p className="text-[10px] sm:text-xs text-slate-500 leading-relaxed mb-2">{res.feedback}</p>
+                      <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Evidence</span>
+                        <p className="text-[10px] sm:text-xs text-slate-300 italic">"{res.evidence}"</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1181,16 +1255,9 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                       <div className="space-y-0.5 sm:space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest">Current Question</span>
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                            <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <span className="text-[6px] sm:text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Live Connection</span>
-                          </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-[8px] sm:text-[10px] font-medium text-indigo-400 uppercase tracking-widest">Question {currentQuestionIndex + 1} of {session.questions.length}</span>
-                          {latency > 0 && (
-                            <span className="text-[6px] sm:text-[8px] text-slate-600 font-mono">AI Latency: {latency}ms</span>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -1217,7 +1284,7 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm sm:text-2xl text-white font-bold leading-snug sm:leading-tight tracking-tight overflow-y-auto max-h-[30vh] font-sans">
+                  <p className="text-sm sm:text-2xl text-white font-medium leading-snug sm:leading-tight tracking-tight overflow-y-auto max-h-[30vh] font-sans">
                     {activeQuestion || session.questions[currentQuestionIndex].question}
                   </p>
                 </div>
@@ -1225,7 +1292,6 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
             )}
   
             <div className="relative group">
-              <div className={`absolute -inset-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 rounded-3xl blur-xl opacity-20 transition-all duration-1000 ${isListening ? 'opacity-60 animate-pulse' : 'opacity-0'}`}></div>
               <div className="relative bg-slate-950 p-4 sm:p-10 rounded-2xl sm:rounded-3xl border border-slate-800 min-h-[120px] sm:min-h-[200px] flex flex-col shadow-2xl">
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
                   <div className="flex items-center space-x-3 sm:space-x-4">
@@ -1237,6 +1303,11 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                       <span className={`text-[8px] sm:text-[10px] font-medium uppercase tracking-widest block ${isListening ? 'text-red-400' : 'text-slate-600'}`}>
                         {isListening ? 'Recording...' : 'Waiting'}
                       </span>
+                    </div>
+                    {/* Privacy Shield Indicator */}
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                      <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                      <span className="text-[7px] font-bold text-emerald-500 uppercase tracking-widest">Privacy Scrubbing Active</span>
                     </div>
                   </div>
 
@@ -1269,7 +1340,15 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
                     )}
                   </div>
                 </div>
-                <div className="flex-1 flex items-center py-4">
+                <div className="flex-1 flex flex-col items-center py-4">
+                  {/* Progress Indicator */}
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 mb-6">
+                    <div 
+                      className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${((currentQuestionIndexRef.current + 1) / 6) * 100}%` }}
+                    ></div>
+                  </div>
+                  
                   {isThinking ? (
                     <div className="flex items-center space-x-3 sm:space-x-4 animate-pulse">
                       <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500 animate-spin" />
@@ -1347,26 +1426,20 @@ const AudioVisualizer: React.FC<{ stream: MediaStream, isListening: boolean }> =
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      const barWidth = (canvas.width / bufferLength) * 2.5;
+      const barWidth = (canvas.width / bufferLength) * 1.5;
       let barHeight;
       let x = 0;
 
       for (let i = 0; i < bufferLength; i++) {
         barHeight = (dataArray[i] / 255) * canvas.height;
         
-        // Digital "Dot" style visualizer
-        const dotCount = 8;
-        const dotGap = 2;
-        const dotHeight = (canvas.height - (dotCount - 1) * dotGap) / dotCount;
-        const activeDots = Math.floor((barHeight / canvas.height) * dotCount);
+        // Fluid, Apple-like visualizer
+        ctx.fillStyle = '#6366f1'; // indigo-500
+        ctx.beginPath();
+        ctx.roundRect(x, canvas.height / 2 - barHeight / 2, barWidth, barHeight, barWidth / 2);
+        ctx.fill();
 
-        for (let j = 0; j < dotCount; j++) {
-          const isActive = j < activeDots;
-          ctx.fillStyle = isActive ? '#6366f1' : '#1e293b'; // indigo-500 or slate-800
-          ctx.fillRect(x, canvas.height - (j + 1) * (dotHeight + dotGap), barWidth, dotHeight);
-        }
-
-        x += barWidth + 2;
+        x += barWidth + 4;
       }
     };
 

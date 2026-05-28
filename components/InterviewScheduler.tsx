@@ -20,6 +20,7 @@ const InterviewScheduler: React.FC<InterviewSchedulerProps> = ({ candidate: init
   const [isJdExtracting, setIsJdExtracting] = useState(false);
   const [isJdDetailsExtracting, setIsJdDetailsExtracting] = useState(false);
   const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [coreRequirementsMap, setCoreRequirementsMap] = useState<string>('');
   const [emailBody, setEmailBody] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
@@ -136,11 +137,16 @@ const InterviewScheduler: React.FC<InterviewSchedulerProps> = ({ candidate: init
 
     setIsGenerating(true);
     try {
-      const qs = await generateInterviewQuestions(activeJd, activeCvText, interviewType);
+      const { questions: qs, coreRequirementsMap } = await generateInterviewQuestions(activeJd, activeCvText, interviewType);
       setQuestions(qs);
       
       const newSessionId = Math.random().toString(36).substring(7);
       setSessionId(newSessionId);
+      
+      // Store coreRequirementsMap in the session object later when saving
+      // For now, we can just keep it in state or pass it to the session creation
+      // Let's add a state for it
+      setCoreRequirementsMap(coreRequirementsMap);
       
       // Generate a nice email body
       const interviewLink = `https://smartscout.online/?interviewId=${newSessionId}`;
@@ -179,6 +185,7 @@ ${manualCompany || 'Smart Scout Recruitment'}`;
       setEmailBody(body);
     } catch (err) {
       console.error(err);
+      alert("Failed to generate questions. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -254,7 +261,8 @@ ${manualCompany || 'Smart Scout Recruitment'}`;
       company: manualCompany,
       language,
       voicePreference,
-      voiceName
+      voiceName,
+      coreRequirementsMap
     };
     
     setIsSent(true);

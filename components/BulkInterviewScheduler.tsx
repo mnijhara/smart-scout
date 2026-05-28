@@ -178,7 +178,7 @@ const BulkInterviewScheduler: React.FC<BulkInterviewSchedulerProps> = ({ initial
         setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, status: 'extracting' } : c)); // Note: 'extracting' is used for the scheduling phase too, maybe rename to 'scheduling' in future
         
         // 1. Generate Questions
-        const questions = await generateInterviewQuestions(jd, candidate.cvText);
+        const { questions, coreRequirementsMap } = await generateInterviewQuestions(jd, candidate.cvText, interviewType, language);
         
         // 2. Create Session
         const sessionId = Math.random().toString(36).substring(7);
@@ -230,7 +230,8 @@ ${company || 'Smart Scout Recruitment'}`;
           interviewType,
           language,
           voicePreference,
-          voiceName
+          voiceName,
+          coreRequirementsMap
         };
 
         // 3. Send Invitation

@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Auth from './components/Auth';
 import JDInput from './components/JDInput';
 import CandidateUploader from './components/CandidateUploader';
+import SourcingAssistant from './components/SourcingAssistant';
 import AnalysisDashboard from './components/AnalysisDashboard';
 import AnalyticsView from './components/AnalyticsView';
 import PoolManagement from './components/PoolManagement';
@@ -338,8 +339,26 @@ const App: React.FC = () => {
     setDemoNarration("I've drafted a hyper-personalized email for Rohan, mentioning his Kubernetes skills.");
     await new Promise(r => setTimeout(r, 8000));
 
-    // Wrap Up
+    // Step 9: Schedule Interview
     setDemoStep('none');
+    setDemoNarration("Scheduling interview with Rohan...");
+    const dummySession: InterviewSession = {
+        id: 'demo-session-123',
+        candidateName: 'Rohan Gupta',
+        candidateEmail: 'rohan.gupta@example.com',
+        status: 'scheduled',
+        questions: [{question: 'Tell me about your experience with Kubernetes.', purpose: 'Technical'}],
+        responses: [],
+        jd: DUMMY_JD,
+        cvText: 'Dummy CV Text',
+        designation: 'Senior Engineer',
+        company: 'Our Company'
+    };
+    setActiveInterviewSession(dummySession);
+    setActiveTab('interview');
+    await new Promise(r => setTimeout(r, 3000));
+
+    // Wrap Up
     setDemoNarration("Demo finished! You can now explore the interactive dashboard or sign up to analyze your own pool.");
     setIsDemoRunning(false);
     
@@ -424,7 +443,7 @@ const App: React.FC = () => {
                 <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
                 <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-[0.3em]">System Ready</span>
               </div>
-              <h2 className="text-3xl font-bold text-white tracking-tighter uppercase">Recruiter Dashboard</h2>
+              <h2 className="text-3xl font-bold text-white tracking-tighter uppercase">CV Scoring & Interview Hub</h2>
               <p className="text-slate-500 text-sm font-medium">AI-Powered Candidate Intelligence & Interview Orchestration</p>
             </div>
             <div className="flex items-center gap-3">
@@ -560,7 +579,23 @@ const App: React.FC = () => {
                     Thank you for your time. Your responses have been securely recorded and sent to the recruitment team for review.
                   </p>
                 </div>
-                <div className="pt-8 border-t border-slate-800">
+                <div className="pt-8 border-t border-slate-800 flex flex-wrap gap-4 justify-center">
+                  <button 
+                    onClick={() => alert("Calendar integration would open here.")}
+                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Add to Calendar
+                  </button>
+                  <button 
+                    onClick={() => alert("Notes integration would open here.")}
+                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Save to Notes
+                  </button>
+                </div>
+                <div className="pt-8">
                   <p className="text-sm text-slate-500">You can now safely close this window.</p>
                 </div>
               </div>

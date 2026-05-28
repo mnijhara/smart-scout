@@ -51,6 +51,7 @@ export interface InterviewResponse {
   answer: string;
   score: number;
   feedback: string;
+  evidence: string;
 }
 
 export interface InterviewReport {
@@ -75,11 +76,16 @@ export interface InterviewReport {
     feedback: string;
     fairnessCheck: string;
   };
+  complianceAudit?: {
+    framework: string;
+    status: string;
+    details: string;
+  };
   interestLevel?: {
     score: number;
     feedback: string;
     locationFit: string;
-    salaryExpectation: string;
+    salaryAlignment: string;
     roleAlignment: string;
     companyAlignment: string;
   };
@@ -111,6 +117,8 @@ export interface InterviewSession {
   language?: string;
   voicePreference?: 'male' | 'female';
   voiceName?: string;
+  persona?: string;
+  coreRequirementsMap?: string;
 }
 
 export interface BulkInterviewCandidate {

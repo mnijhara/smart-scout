@@ -2,6 +2,8 @@
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, ThinkingLevel } from "@google/genai";
 import { ResumeAnalysis, ChatMessage, InterviewPlaybook, PostingContent, TalentDensityReport, InterviewQuestion, InterviewReport, InterviewType } from "../types";
 import JSZip from "jszip";
+import { scrubPII } from "../utils/piiScrubber";
+import { removeFillerWords } from "../utils/fillerHandler";
 
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
@@ -12,15 +14,41 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
-// Helper to reliably extract JSON from markdown code blocks
-const safeJsonParse = (text: string | undefined) => {
+// Helper to reliably extract JSON from markdown code blocks and validate against a simple structure
+const safeJsonParse = <T>(text: string | undefined, validator?: (data: any) => data is T): T | null => {
   if (!text) return null;
   try {
     const cleaned = text.replace(/```json\n?|```/g, "").trim();
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    if (validator && !validator(parsed)) {
+      console.error("JSON Validation Failed:", parsed);
+      return null;
+    }
+    return parsed;
   } catch (e) {
     console.error("JSON Parse Error:", e);
     return null;
+  }
+};
+
+/**
+ * Smart Truncation: Auto-summarizes documents for specific tasks to reduce token usage.
+ */
+export const summarizeDocument = async (text: string, task: string = "Extract only Technical Skills and Core Experience"): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  try {
+    const response = await withRetry(() => ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [{ parts: [{ text: `TASK: ${task}\n\nDOCUMENT:\n${text.substring(0, 5000)}` }] }],
+      config: {
+        systemInstruction: "You are a highly efficient document summarizer. Extract only the most relevant information for the specified task. Keep the output under 300 tokens.",
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+      }
+    }));
+    return response.text.trim();
+  } catch (error) {
+    console.error("Summarization Error:", error);
+    return text.substring(0, 1000); // Fallback to simple truncation
   }
 };
 
@@ -161,7 +189,7 @@ export const extractJobDetails = async (jobDescription: string): Promise<{ compa
             }
         }
     }));
-    const result = safeJsonParse(response.text);
+    const result = safeJsonParse(response.text) as { company: string, role: string };
     return result || { company: "Unknown", role: "Unknown" };
 };
 
@@ -169,12 +197,9 @@ export const analyzeJobDescription = async (jobDescription: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: [{ parts: [{ text: `Analyze this job description. Provide 3-5 short, actionable improvement suggestions focused on clarity, inclusivity, and attracting top talent. Format the output as a JSON object with a "suggestions" key containing an array of strings.
-
-JD:
----
-${jobDescription}` }] }],
+    contents: [{ parts: [{ text: `JD:\n---\n${jobDescription}` }] }],
     config: { 
+      systemInstruction: 'Analyze the provided job description. Provide 3-5 short, actionable improvement suggestions focused on clarity, inclusivity, and attracting top talent. Format the output as a JSON object with a "suggestions" key containing an array of strings.',
       responseMimeType: "application/json", 
       responseSchema: { 
         type: Type.OBJECT, 
@@ -185,7 +210,7 @@ ${jobDescription}` }] }],
       } 
     }
   }));
-  return safeJsonParse(response.text) || { suggestions: [] };
+  return (safeJsonParse(response.text) as { suggestions: string[] }) || { suggestions: [] };
 };
 
 const analysisCache = new Map<string, ResumeAnalysis>();
@@ -262,10 +287,10 @@ const analyzeSingleResume = async (jobDescription: string, file: File): Promise<
       }
     }));
     
-    const result = safeJsonParse(response.text);
+    const result = safeJsonParse(response.text) as any;
     if (!result) throw new Error("Failed to parse analysis result");
     
-    const analysis = {
+    const analysis: ResumeAnalysis = {
         ...result,
         fileName: file.name,
         extractedText: extractedTextRef
@@ -423,26 +448,31 @@ export const generateOutreachEmail = async (jobDescription: string, candidate: R
     return safeJsonParse(response.text) || { subject: "Opportunity", body: "" };
 };
 
-export const generatePostingContent = async (jobDescription: string): Promise<PostingContent> => {
+export const generateSourcingQueries = async (jobDescription: string): Promise<string[]> => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    // Explicitly typing response to GenerateContentResponse to fix 'unknown' type error
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: `Optimize this job posting: ${jobDescription}` }] }],
+        contents: [{ parts: [{ text: `Analyze this Job Description and generate 3 highly optimized Boolean search strings for sourcing candidates on Google/LinkedIn.
+        
+        JD:
+        ${jobDescription.substring(0, 3000)}
+        
+        Return a JSON object with a "queries" key containing an array of strings.
+        Example: ["(site:linkedin.com/in/) AND \"Senior Engineer\" AND \"AWS\" -jobs", ...]
+        ` }] }],
         config: {
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
-                    titles: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    summary: { type: Type.STRING },
-                    keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    queries: { type: Type.ARRAY, items: { type: Type.STRING } }
                 },
-                required: ["titles", "summary", "keywords"]
+                required: ["queries"]
             }
         }
     }));
-    return safeJsonParse(response.text) || { titles: [], summary: "", keywords: [] };
+    const result = safeJsonParse(response.text) as { queries: string[] };
+    return result?.queries || [];
 };
 
 export const analyzeProfileFromUrl = async (url: string): Promise<File> => {
@@ -500,11 +530,42 @@ export const extractCandidateDetails = async (cvText: string): Promise<{ name: s
             }
         }
     }));
-    const result = safeJsonParse(response.text);
-    return result || { name: "", email: "" };
+    const result = (safeJsonParse(response.text) as any) || { name: "", email: "" };
+    return result as { name: string, email: string };
 };
 
-export const generateInterviewQuestions = async (jd: string, cvText: string, interviewType: InterviewType = 'recruiter', language: string = 'English'): Promise<InterviewQuestion[]> => {
+export const generatePostingContent = async (jobDescription: string): Promise<PostingContent> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [{ parts: [{ text: `Analyze this Job Description and generate:
+        1. 3-5 catchy, optimized job titles.
+        2. A concise, engaging social media summary (with hashtags).
+        3. A list of 5-10 key skills/keywords.
+        
+        JD:
+        ${jobDescription.substring(0, 3000)}
+        
+        Return a JSON object with "titles" (array of strings), "summary" (string), and "keywords" (array of strings).
+        ` }] }],
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    titles: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    summary: { type: Type.STRING },
+                    keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ["titles", "summary", "keywords"]
+            }
+        }
+    }));
+    const result = safeJsonParse(response.text) as PostingContent;
+    return result || { titles: [], summary: "", keywords: [] };
+};
+
+export const generateInterviewQuestions = async (jd: string, cvText: string, interviewType: InterviewType = 'recruiter', language: string = 'English'): Promise<{ questions: InterviewQuestion[], coreRequirementsMap: string }> => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     let typeInstructions = "";
@@ -514,9 +575,9 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
         INTERVIEW TYPE: Recruitment Consultant Screening Call
         OBJECTIVE: Pre-submission fitment and interest check. This is NOT an interview. No competency or technical questions.
         You MUST generate EXACTLY these 8 questions, phrased conversationally for the candidate:
-        1. Location & commute fit.
-        2. Current CTC and expected CTC.
-        3. Interest level in this specific role and why.
+        1. Introduction and initial interest check: "We have an opening for this role (mention role name from JD) at this company (mention company name from JD). Are you interested in proceeding?"
+        2. Location & commute fit.
+        3. Current CTC and expected CTC.
         4. Notice period.
         5. Earliest possible joining date.
         6. Reason for looking for a change.
@@ -581,22 +642,23 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
         `;
     }
 
+    const summarizedCv = cvText.length > 2000 ? await summarizeDocument(cvText, "Extract only Technical Skills and Core Experience") : cvText;
+
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: `You are an expert interviewer. Based on the following Job Description and Candidate Resume, generate relevant interview questions.
+        contents: [{ parts: [{ text: `Based on the following Job Description and Candidate Resume, generate relevant interview questions.
         
         ${typeInstructions}
         
         LANGUAGE: The interview must be conducted in ${language}. Please generate all questions, purposes, and expected answers in ${language}.
         
-        ${criticalGuidelines}
-        
         JD:
         ${jd}
         
         RESUME:
-        ${cvText}` }] }],
+        ${summarizedCv}` }] }],
         config: {
+            systemInstruction: `You are an expert interviewer. ${criticalGuidelines}`,
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
@@ -610,36 +672,33 @@ export const generateInterviewQuestions = async (jd: string, cvText: string, int
                                 purpose: { type: Type.STRING },
                                 expectedAnswer: { type: Type.STRING },
                                 strongAnswer: { type: Type.STRING },
-                                weakAnswer: { type: Type.STRING },
-                                scoringRubric: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        1: { type: Type.STRING },
-                                        2: { type: Type.STRING },
-                                        3: { type: Type.STRING },
-                                        4: { type: Type.STRING },
-                                        5: { type: Type.STRING }
-                                    }
-                                }
+                                weakAnswer: { type: Type.STRING }
                             },
                             required: ["question", "purpose"]
                         }
+                    },
+                    coreRequirementsMap: { 
+                        type: Type.STRING,
+                        description: "A concise 300-token summary of the core requirements from the JD."
                     }
                 },
-                required: ["questions"]
+                required: ["questions", "coreRequirementsMap"]
             }
         }
     }));
-    const result = safeJsonParse(response.text);
+    const result = safeJsonParse(response.text) as any;
     const questions = result?.questions || [];
-    return questions.map((q: any) => ({
-        ...q,
-        id: Math.random().toString(36).substring(7)
-    }));
+    return {
+        questions: questions.map((q: any) => ({
+            ...q,
+            id: Math.random().toString(36).substring(7)
+        })),
+        coreRequirementsMap: result?.coreRequirementsMap || jd.substring(0, 1000)
+    };
 };
 
 export const generateNextInterviewQuestion = async (
-    jd: string, 
+    coreRequirementsMap: string, 
     cvText: string, 
     previousExchanges: { question: string, answer: string }[],
     totalQuestionsAsked: number,
@@ -661,17 +720,15 @@ export const generateNextInterviewQuestion = async (
         typeContext = "You are in a Functional Round (Hiring Manager Technical). Be rigorous and analytical. Focus on deep technical/functional expertise and problem-solving as per the JD.";
     }
 
+    const summarizedCv = cvText.length > 2000 ? await summarizeDocument(cvText, "Extract only Technical Skills and Core Experience") : cvText;
+
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ parts: [{ text: `You are an expert interviewer conducting a live audio interview. Maintain a professional, encouraging, and supportive tone.
-        
-        ${typeContext}
-        
-        LANGUAGE: The interview is being conducted in ${language}. Please ensure the 'question' you generate is in ${language}.
+        contents: [{ parts: [{ text: `LANGUAGE: The interview is being conducted in ${language}. Please ensure the 'question' you generate is in ${language}.
         
         CONTEXT:
-        JD: ${jd.substring(0, 1500)}
-        RESUME: ${cvText.substring(0, 1500)}
+        CORE REQUIREMENTS MAP: ${coreRequirementsMap}
+        RESUME: ${summarizedCv}
         HISTORY: ${JSON.stringify(previousExchanges)}
         TOTAL ASKED: ${totalQuestionsAsked}
         MAX QUESTIONS: ${MAX_QUESTIONS}
@@ -683,6 +740,7 @@ export const generateNextInterviewQuestion = async (
         - If they answered well, move to a new topic from the JD/Resume.
         - Keep the question brief, conversational, and direct.
         - Do not repeat questions.
+        - If the candidate explicitly expresses that they are NOT interested in the role or cannot proceed (e.g., "I'm not interested," "I've already accepted another offer"), set "isFinal" to true and provide a polite closing as the "question".
         - If this is the last question (TOTAL ASKED is ${MAX_QUESTIONS - 1}), make it a concluding technical or "any questions for us" type question.
 
         CRITICAL:
@@ -690,6 +748,7 @@ export const generateNextInterviewQuestion = async (
         - The "question" should be what you speak to the candidate.
         - The "isFinal" flag should be true if this is the absolute last question.` }] }],
         config: {
+            systemInstruction: `You are an expert interviewer conducting a live audio interview. Maintain a professional, encouraging, and supportive tone. ${typeContext}`,
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
@@ -704,7 +763,7 @@ export const generateNextInterviewQuestion = async (
         }
     }));
 
-    const result = safeJsonParse(response.text);
+    const result = safeJsonParse(response.text) as any;
     return {
         question: result?.question || "Could you tell me more about your experience with similar projects?",
         purpose: result?.purpose || "Follow up",
@@ -716,9 +775,10 @@ export const generateNextInterviewQuestion = async (
 export async function transcribeAndGenerateNextQuestion(
     audioBase64: string,
     mimeType: string,
-    jd: string,
+    coreRequirementsMap: string,
     cvText: string,
     previousExchanges: { question: string, answer: string }[],
+    currentQuestion: string,
     totalQuestionsAsked: number,
     interviewType: InterviewType = 'recruiter',
     language: string = 'English',
@@ -741,6 +801,8 @@ export async function transcribeAndGenerateNextQuestion(
         typeContext = "You are in a Functional Round (Hiring Manager Technical). Be rigorous and analytical. Focus on deep technical/functional expertise and problem-solving as per the JD.";
     }
 
+    const summarizedCv = cvText.length > 2000 ? await summarizeDocument(cvText, "Extract only Technical Skills and Core Experience") : cvText;
+
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: [
@@ -753,31 +815,32 @@ export async function transcribeAndGenerateNextQuestion(
                         }
                     },
                     {
-                        text: `You are an expert interviewer conducting a live audio interview. Maintain a professional, encouraging, and supportive tone.
+                        text: `LANGUAGE: The interview is being conducted in ${language}. Please ensure the 'question' you generate is in ${language}. If the candidate speaks in ${language}, transcribe it correctly.
                         
-                        ${typeContext}
-                        
-                        LANGUAGE: The interview is being conducted in ${language}. Please ensure the 'question' you generate is in ${language}. If the candidate speaks in ${language}, transcribe it correctly.
-                        
-                        INPUT: The attached audio is the candidate's last response.
+                        INPUT: The attached audio is the candidate's response to the following question:
+                        "${currentQuestion}"
                         
                         CONTEXT:
-                        JD: ${jd.substring(0, 1500)}
-                        RESUME: ${cvText.substring(0, 1500)}
-                        HISTORY: ${JSON.stringify(previousExchanges)}
+                        CORE REQUIREMENTS MAP: ${coreRequirementsMap}
+                        RESUME: ${summarizedCv}
+                        HISTORY OF PREVIOUS EXCHANGES: ${JSON.stringify(previousExchanges)}
                         TOTAL ASKED: ${totalQuestionsAsked}
                         MAX QUESTIONS: ${MAX_QUESTIONS}
  
                         TASK:
-                        1. Transcribe the candidate's audio response accurately. The candidate may speak in any language; transcribe it into the language they used.
+                        1. Transcribe the candidate's audio response accurately.
                         2. Based on the transcription and history, determine the NEXT question to ask.
+                        - You are an expert interviewer. Your goal is to deeply understand the candidate's capability.
+                        - If the candidate's answer is interesting, technical, or needs clarification, PRIORITIZE a follow-up question to probe deeper into their experience.
+                        - Only move to a new topic from the JD/Resume if you have sufficiently probed the current topic or if the candidate's answer was comprehensive.
                         - Briefly acknowledge the candidate's response with a positive transition (e.g., "That's a great insight," or "Thank you for that detailed explanation") before asking the next question.
                         ${nextScheduledQuestion 
-                            ? `- The next primary question you MUST ask is: "${nextScheduledQuestion}". You may add a brief transition before it, but do not change the core meaning of this question.` 
+                            ? `- If you decide to move to a new topic, the next primary question you MUST ask is: "${nextScheduledQuestion}". You may add a brief transition before it, but do not change the core meaning of this question.` 
                             : `- If the candidate's last answer was vague, ask a follow-up to drill down politely.
                                - If they answered well, move to a new topic from the JD/Resume.
                                - Keep the question brief, conversational, and direct.`}
                         - Do not repeat questions.
+                        - If the candidate explicitly expresses that they are NOT interested in the role or cannot proceed (e.g., "I'm not interested," "I've already accepted another offer"), set "isFinal" to true and provide a polite closing as the "question".
                         - If this is the last question (TOTAL ASKED is ${MAX_QUESTIONS - 1}), make it a concluding technical or "any questions for us" type question.
                         3. Analyze the candidate's soft skills (confidence, clarity, enthusiasm) based on the audio response.
 
@@ -792,6 +855,7 @@ export async function transcribeAndGenerateNextQuestion(
             }
         ],
         config: {
+            systemInstruction: `You are an expert interviewer conducting a live audio interview. Maintain a professional, encouraging, and supportive tone. ${typeContext}`,
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
@@ -816,9 +880,10 @@ export async function transcribeAndGenerateNextQuestion(
         }
     }));
 
-    const result = safeJsonParse(response.text);
+    const result = safeJsonParse(response.text) as any;
+    const scrubbedTranscription = scrubPII(removeFillerWords(result?.transcription || "..."));
     return {
-        transcription: result?.transcription || "...",
+        transcription: scrubbedTranscription,
         nextQuestion: {
             question: result?.question || "Could you tell me more about your experience with similar projects?",
             purpose: result?.purpose || "Follow up",
@@ -829,11 +894,22 @@ export async function transcribeAndGenerateNextQuestion(
     };
 };
 
-export const analyzeInterviewResponses = async (jd: string, cvText: string, responses: { question: string, answer: string }[], interviewType: InterviewType = 'recruiter'): Promise<InterviewReport> => {
+export const analyzeInterviewResponses = async (coreRequirementsMap: string, cvText: string, responses: { question: string, answer: string }[], interviewType: InterviewType = 'recruiter'): Promise<InterviewReport> => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const summarizedCv = cvText.length > 2000 ? await summarizeDocument(cvText, "Extract only Technical Skills and Core Experience") : cvText;
+
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: [{ parts: [{ text: `Evaluate the candidate's interview performance with high precision for a ${interviewType} round.
+        
+        CONTEXT:
+        CORE REQUIREMENTS MAP: ${coreRequirementsMap}
+        RESUME: ${summarizedCv}
+        INTERVIEW: ${JSON.stringify(responses)}
+        
+        Provide a concise, professional evaluation. Be critical but fair. Status must be "Selected", "Rejected", or "Waitlisted".` }] }],
+        config: {
+            systemInstruction: `Evaluate the candidate's interview performance with high precision for a ${interviewType} round.
         
         CRITERIA:
         1. Technical Mastery: Depth of knowledge in required stack.
@@ -846,23 +922,17 @@ export const analyzeInterviewResponses = async (jd: string, cvText: string, resp
         - Check for any potential unconscious bias in the evaluation process.
         - Ensure the candidate was evaluated solely on merit and potential.
         - Provide a "Fairness Check" summary that confirms the objectivity of this assessment.
+        - Perform a "Compliance Audit" against global hiring regulations (GDPR, EEOC, etc.).
+        - Provide a summary of the compliance status and details.
 
         INTEREST LEVEL ASSESSMENT (CRITICAL for Consultant Round):
         - Evaluate the candidate's interest level for the job.
         - Specifically check and report on:
             - Location Fit: Their comfort with the job location.
-            - Salary Expectation: Their expected compensation and if it aligns with the JD.
+            - Salary Alignment: Their expected compensation and if it aligns with the JD.
             - Role Alignment: How well the role matches their career goals.
             - Company Alignment: Their alignment with the company's values and mission.
-        - Provide an overall "Interest Level" score (0-100) and feedback.
-
-        CONTEXT:
-        JD: ${jd.substring(0, 2000)}
-        RESUME: ${cvText.substring(0, 2000)}
-        INTERVIEW: ${JSON.stringify(responses)}
-        
-        Provide a concise, professional evaluation. Be critical but fair. Status must be "Selected", "Rejected", or "Waitlisted".` }] }],
-        config: {
+        - Provide an overall "Interest Level" score (0-100) and feedback.`,
             thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
             responseMimeType: "application/json",
             responseSchema: {
@@ -892,9 +962,10 @@ export const analyzeInterviewResponses = async (jd: string, cvText: string, resp
                                 question: { type: Type.STRING },
                                 answer: { type: Type.STRING },
                                 score: { type: Type.NUMBER },
-                                feedback: { type: Type.STRING }
+                                feedback: { type: Type.STRING },
+                                evidence: { type: Type.STRING }
                             },
-                            required: ["question", "answer", "score", "feedback"]
+                            required: ["question", "answer", "score", "feedback", "evidence"]
                         }
                     },
                     softSkills: {
@@ -922,18 +993,18 @@ export const analyzeInterviewResponses = async (jd: string, cvText: string, resp
                             score: { type: Type.NUMBER },
                             feedback: { type: Type.STRING },
                             locationFit: { type: Type.STRING },
-                            salaryExpectation: { type: Type.STRING },
+                            salaryAlignment: { type: Type.STRING },
                             roleAlignment: { type: Type.STRING },
                             companyAlignment: { type: Type.STRING }
                         },
-                        required: ["score", "feedback", "locationFit", "salaryExpectation", "roleAlignment", "companyAlignment"]
+                        required: ["score", "feedback", "locationFit", "salaryAlignment", "roleAlignment", "companyAlignment"]
                     }
                 },
                 required: ["candidateName", "overallScore", "status", "reason", "parameters", "responses", "softSkills", "biasAudit", "interestLevel"]
             }
         }
     }));
-    const result = safeJsonParse(response.text);
+    const result = safeJsonParse(response.text) as any;
     if (!result) throw new Error("Failed to analyze interview responses");
-    return result;
+    return result as InterviewReport;
 };
