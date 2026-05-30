@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "scripts": {
     "dev": "tsx server.ts",
@@ -14,7 +14,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "latest",
+    "@google/genai": "2.7.0",
     "@stripe/stripe-js": "^9.0.1",
     "@supabase/supabase-js": "2.47.10",
     "express": "^5.2.1",
@@ -44,5 +44,13 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",
     "vite": "^6.4.2"
+  },
+  "overrides": {
+    "@tailwindcss/postcss": {
+      "tailwindcss": "$tailwindcss"
+    },
+    "@tailwindcss/typography": {
+      "tailwindcss": "$tailwindcss"
+    }
   }
 }
