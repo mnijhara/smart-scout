@@ -34,7 +34,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
-    "@tailwindcss/typography": "^0.5.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "@vitejs/plugin-react": "^5.2.0",
@@ -44,13 +43,5 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",
     "vite": "^6.4.2"
-  },
-  "overrides": {
-    "@tailwindcss/postcss": {
-      "tailwindcss": "$tailwindcss"
-    },
-    "@tailwindcss/typography": {
-      "tailwindcss": "$tailwindcss"
-    }
   }
 }
