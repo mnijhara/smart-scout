@@ -20,6 +20,7 @@ export interface ResumeAnalysis {
     feedback: string;
     fairnessCheck: string;
   };
+  selfie?: string;
 }
 
 export interface ChatMessage {
@@ -89,6 +90,7 @@ export interface InterviewReport {
     roleAlignment: string;
     companyAlignment: string;
   };
+  selfie?: string;
 }
 
 export interface InterviewSession {

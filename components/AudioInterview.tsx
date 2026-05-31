@@ -4,6 +4,7 @@ import { InterviewSession, InterviewQuestion, InterviewReport } from '../types';
 import { analyzeInterviewResponses, generateNextInterviewQuestion, transcribeAndGenerateNextQuestion, generateVoiceover } from '../services/geminiService';
 import { updateInterviewSession } from '../services/supabase';
 import jsPDF from 'jspdf';
+import { SelfieCapture } from './SelfieCapture';
 
 interface AudioInterviewProps {
   session: InterviewSession;
@@ -20,6 +21,8 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
   const [error, setError] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
+  const [showSelfieCapture, setShowSelfieCapture] = useState(false);
+  const [verifiedSelfie, setVerifiedSelfie] = useState<string | null>(null);
   const [interviewState, setInterviewState] = useState<'idle' | 'healthCheck' | 'greeting' | 'interviewing' | 'completed'>('idle');
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
   const [micLevel, setMicLevel] = useState(0);
@@ -399,10 +402,10 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
         }
       }
       
-      // Mark interview as completed
-      await updateInterviewSession(session.id, { status: 'completed' });
+      // Mark interview as completed with verification selfie
+      await updateInterviewSession(session.id, { status: 'completed', selfie: verifiedSelfie });
       
-      onComplete(report);
+      onComplete({ ...report, selfie: verifiedSelfie });
     } catch (err) {
       setError('Failed to analyze interview responses.');
       console.error(err);
@@ -663,10 +666,8 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
   };
 
   const startInterview = () => {
-    console.log("startInterview called. Current hasStarted:", hasStarted);
-    setHasStarted(true);
-    setInterviewState('healthCheck');
-    startRecording();
+    console.log("startInterview called. Requesting selfie capture.");
+    setShowSelfieCapture(true);
   };
 
   const generatePDF = (report: InterviewReport) => {
@@ -1043,7 +1044,20 @@ const AudioInterview: React.FC<AudioInterviewProps> = ({ session, onComplete }) 
           </div>
         )}
 
-        {!hasStarted && (
+        {showSelfieCapture && (
+          <SelfieCapture 
+            candidateName={session.candidateName}
+            onCapture={(base64Photo) => {
+              setVerifiedSelfie(base64Photo);
+              setShowSelfieCapture(false);
+              setHasStarted(true);
+              setInterviewState('healthCheck');
+              startRecording();
+            }}
+          />
+        )}
+
+        {!hasStarted && !showSelfieCapture && (
           <div className="text-center py-6 sm:py-16 px-2 animate-fadeIn max-w-3xl mx-auto space-y-8 sm:space-y-10">
             <div className="space-y-6 sm:space-y-8">
               <div className="flex flex-col items-center space-y-4 sm:space-y-6">

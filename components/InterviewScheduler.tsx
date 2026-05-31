@@ -336,14 +336,24 @@ ${manualCompany || 'Smart Scout Recruitment'}`;
                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                </button>
              </div>
-             <div className="flex space-x-4">
-               <button 
-                 onClick={() => setIsSent(false)}
-                 className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-slate-400 rounded-xl transition-all border border-slate-800 text-[10px] font-bold uppercase tracking-widest"
-               >
-                 Schedule Another
-               </button>
-             </div>
+              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md justify-center">
+                <button 
+                  onClick={() => {
+                    const inviteText = encodeURIComponent(`Hi ${activeName}, you have been invited to complete your AI Audio Interview for the ${manualDesignation || 'position'} role at ${manualCompany || 'our company'}. Please click this link to verify your identity and start your interview: https://smartscout.online/?interviewId=${sessionId}`);
+                    window.open(`https://api.whatsapp.com/send?text=${inviteText}`, '_blank');
+                  }}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all border border-emerald-400/30 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 w-full sm:w-auto"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.802.001-2.618-1.01-5.08-2.86-6.931-1.85-1.85-4.311-2.862-6.93-2.863-5.41 0-9.808 4.397-9.81 9.81-.001 1.73.457 3.42 1.32 4.927l-.994 3.634 3.733-.979zm11.233-7.234c.3-.15.495-.247.585-.397.09-.15.09-.87-.075-1.35-.165-.48-.675-.675-.975-.825-.3-.15-1.275-.47-2.43-.15-1.155.32-2.13 1.055-2.85 1.775-.72.72-2.31 3.54-2.31 5.34 0 1.8 1.17 2.685 1.59 3.135.42.45.825.375 1.125.225.3-.15.675-.675.825-.975.15-.3.225-.6.075-.9-.15-.3-.675-.825-.975-1.125-.3-.3-.63-.45-.3-.975.33-.525.96-1.545 1.395-2.025.435-.48.675-.375.975-.225z"/></svg>
+                  <span>Invite via WhatsApp</span>
+                </button>
+                <button 
+                  onClick={() => setIsSent(false)}
+                  className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-400 rounded-xl transition-all border border-slate-800 text-[10px] font-bold uppercase tracking-widest w-full sm:w-auto"
+                >
+                  Schedule Another
+                </button>
+              </div>
           </div>
         </div>
       </div>

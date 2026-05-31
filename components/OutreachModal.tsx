@@ -90,7 +90,19 @@ const OutreachModal: React.FC<OutreachModalProps> = ({ jobDescription, candidate
                     ) : <p className="text-center text-slate-400">Could not generate email content.</p>}
                 </div>
 
-                <div className="p-4 border-t border-border flex justify-end shrink-0 bg-surface/50">
+                <div className="p-4 border-t border-border flex justify-end gap-3 shrink-0 bg-surface/50">
+                    {emailContent && (
+                        <button 
+                            onClick={() => {
+                                const text = encodeURIComponent(`Subject: ${emailContent.subject}\n\n${emailContent.body}`);
+                                window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+                            }}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                        >
+                            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.394 9.806-9.802.001-2.618-1.01-5.08-2.86-6.931-1.85-1.85-4.311-2.862-6.93-2.863-5.41 0-9.808 4.397-9.81 9.81-.001 1.73.457 3.42 1.32 4.927l-.994 3.634 3.733-.979zm11.233-7.234c.3-.15.495-.247.585-.397.09-.15.09-.87-.075-1.35-.165-.48-.675-.675-.975-.825-.3-.15-1.275-.47-2.43-.15-1.155.32-2.13 1.055-2.85 1.775-.72.72-2.31 3.54-2.31 5.34 0 1.8 1.17 2.685 1.59 3.135.42.45.825.375 1.125.225.3-.15.675-.675.825-.975.15-.3.225-.6.075-.9-.15-.3-.675-.825-.975-1.125-.3-.3-.63-.45-.3-.975.33-.525.96-1.545 1.395-2.025.435-.48.675-.375.975-.225z"/></svg>
+                            Share on WhatsApp
+                        </button>
+                    )}
                     <button onClick={onClose} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-lg shadow-indigo-500/20">
                         Done
                     </button>

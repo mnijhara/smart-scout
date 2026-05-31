@@ -72,8 +72,15 @@ const CandidateCard: React.FC<{
             <div className="flex flex-col sm:flex-row gap-6 justify-between items-start sm:items-center">
                 <div className="flex items-center gap-6 flex-1 min-w-0">
                      <input type="checkbox" checked={isSelected} onChange={() => onSelect(result)} className="w-6 h-6 rounded-lg bg-slate-900 border-slate-800 text-indigo-500 focus:ring-indigo-500/50 cursor-pointer shrink-0 transition-all hover:scale-110" />
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold border-2 shrink-0 shadow-lg transition-all group-hover:scale-105 ${result.overallScore >= 80 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : result.overallScore >= 50 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
-                        {result.overallScore}
+                    <div className="relative shrink-0">
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold border-2 shadow-lg transition-all group-hover:scale-105 ${result.overallScore >= 80 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : result.overallScore >= 50 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
+                          {result.overallScore}
+                      </div>
+                      {result.selfie && (
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full overflow-hidden border-2 border-slate-950 shadow-md" title="Candidate Identity Verified">
+                          <img src={result.selfie} alt="Verified" className="w-full h-full object-cover" />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
