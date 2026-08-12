@@ -9,7 +9,7 @@ lerna-debug.log*
 
 node_modules
 package-lock.json
-dist
+# dist is intentionally tracked for Hostinger deployments
 dist-ssr
 *.local
 
