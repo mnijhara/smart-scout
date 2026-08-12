@@ -3,13 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "server.js",
   "engines": {
     "node": "22.x"
   },
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.cjs",
-    "build": "vite build && esbuild server.ts --platform=node --format=esm --outfile=server.js --packages=external",
+    "start": "node server.js",
+    "build": "vite build",
+    "build:server": "esbuild server.ts --platform=node --format=esm --outfile=server.js --packages=external",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
