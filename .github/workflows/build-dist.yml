@@ -1,4 +1,4 @@
-name: Build production frontend
+name: Build production frontend and server
 
 on:
   push:
@@ -23,20 +23,23 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Vite frontend
+      - name: Build Vite frontend and production server
         run: npm run build
 
       - name: Verify production build
-        run: test -f dist/index.html
+        run: |
+          test -f dist/index.html
+          test -f server.js
+          node --check server.js
 
-      - name: Commit production dist
+      - name: Commit production build
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f dist
+          git add -f dist server.js
           if git diff --cached --quiet; then
-            echo "dist is already up to date"
+            echo "production build is already up to date"
             exit 0
           fi
-          git commit -m "chore: update production dist [skip ci]"
+          git commit -m "chore: update production build [skip ci]"
           git push
