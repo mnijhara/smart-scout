@@ -1,5 +1,6 @@
 // Hostinger-compatible CommonJS entry point.
-// Hostinger is configured to start server.cjs, while the application server
-// remains TypeScript/ESM in server.ts. tsx handles the TypeScript runtime.
+// Hostinger starts this file with Node. Load tsx's CommonJS runtime first,
+// then start the existing TypeScript/ESM application server.
 require('tsx/cjs');
+
 require('./server.ts');
