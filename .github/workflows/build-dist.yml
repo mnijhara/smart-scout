@@ -23,8 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Vite frontend and production server
+      - name: Build Vite frontend
         run: npm run build
+
+      - name: Build production Node server
+        run: npm run build:server
 
       - name: Verify production build
         run: |
