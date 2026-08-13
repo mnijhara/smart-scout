@@ -12,11 +12,20 @@ export type StoredCredential = {
 };
 
 function getVaultKey(): Buffer {
-  const raw = process.env.SMARTSCOUT_VAULT_KEY;
-  if (!raw) throw new Error('SMARTSCOUT_VAULT_KEY is not configured');
-  const key = Buffer.from(raw, 'base64');
-  if (key.length !== 32) throw new Error('SMARTSCOUT_VAULT_KEY must be a base64-encoded 32-byte key');
-  return key;
+  const explicit = process.env.SMARTSCOUT_VAULT_KEY;
+  if (explicit) {
+    const key = Buffer.from(explicit, 'base64');
+    if (key.length !== 32) throw new Error('SMARTSCOUT_VAULT_KEY must be a base64-encoded 32-byte key');
+    return key;
+  }
+
+  // Production-safe fallback: derive a deterministic 32-byte encryption key from
+  // an existing server-only secret. This avoids making the first AI connection
+  // depend on an additional Hostinger variable while keeping the credential out
+  // of the browser and database plaintext.
+  const rootSecret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.GEMINI_API_KEY;
+  if (!rootSecret) throw new Error('No server secret is available for credential encryption');
+  return crypto.createHash('sha256').update(`smartscout:vault:${rootSecret}`).digest();
 }
 
 export function encryptCredential(credential: string, tenantId: string, provider: string): StoredCredential {
