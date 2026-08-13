@@ -127,43 +127,29 @@ async function generateAI(request) {
 }
 
 // services/recruiting/jdAgent.ts
-var fallback = (text) => ({
-  title: "Untitled role",
-  description: text.slice(0, 4e3),
-  mustHave: [],
-  niceToHave: [],
-  location: void 0,
-  experienceMin: void 0,
-  experienceMax: void 0,
-  compensationMin: void 0,
-  compensationMax: void 0,
-  department: void 0,
-  competencies: [],
-  interviewFocus: [],
-  sourcingKeywords: [],
-  redFlags: [],
-  questions: []
-});
 async function analyzeJD(jdText, provider, apiKey, model) {
   const prompt = `Analyze this job description for a recruiting operating system. Return ONLY valid JSON matching this schema: {"title":string,"description":string,"mustHave":string[],"niceToHave":string[],"location":string|null,"experienceMin":number|null,"experienceMax":number|null,"compensationMin":number|null,"compensationMax":number|null,"department":string|null,"competencies":string[],"interviewFocus":string[],"sourcingKeywords":string[],"redFlags":string[],"questions":string[]}. Do not invent compensation if absent. Extract measurable requirements and separate must-have from nice-to-have.
 
 JD:
 ${jdText}`;
+  const result = await generateAI({
+    provider,
+    apiKey,
+    model,
+    system: "You are Smart Scout Job Intelligence. Be conservative and evidence based. Never fabricate missing requirements.",
+    prompt,
+    temperature: 0,
+    maxTokens: 3500
+  });
+  const cleaned = result.text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  let parsed;
   try {
-    const result = await generateAI({
-      provider,
-      apiKey,
-      model,
-      system: "You are Smart Scout Job Intelligence. Be conservative and evidence based.",
-      prompt,
-      temperature: 0,
-      maxTokens: 3500
-    });
-    const cleaned = result.text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
-    return JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned);
   } catch {
-    return fallback(jdText);
+    throw new Error("Gemini returned an invalid hiring blueprint. Please retry the JD request.");
   }
+  if (!parsed.title || !parsed.description) throw new Error("Gemini returned an incomplete hiring blueprint. Please retry the JD request.");
+  return parsed;
 }
 
 // services/recruiting/candidateScoring.ts
@@ -310,14 +296,21 @@ async function searchWebCandidates(apiKey, role, limit = 8) {
   return Array.isArray(parsed?.candidates) ? parsed.candidates.filter((c) => c?.name && c?.profileUrl) : [];
 }
 
+// services/recruiting/credentialStore.ts
+import { createClient } from "@supabase/supabase-js";
+
 // services/recruiting/credentialVault.ts
 import * as crypto from "crypto";
 function getVaultKey() {
-  const raw = process.env.SMARTSCOUT_VAULT_KEY;
-  if (!raw) throw new Error("SMARTSCOUT_VAULT_KEY is not configured");
-  const key = Buffer.from(raw, "base64");
-  if (key.length !== 32) throw new Error("SMARTSCOUT_VAULT_KEY must be a base64-encoded 32-byte key");
-  return key;
+  const explicit = process.env.SMARTSCOUT_VAULT_KEY;
+  if (explicit) {
+    const key = Buffer.from(explicit, "base64");
+    if (key.length !== 32) throw new Error("SMARTSCOUT_VAULT_KEY must be a base64-encoded 32-byte key");
+    return key;
+  }
+  const rootSecret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.GEMINI_API_KEY;
+  if (!rootSecret) throw new Error("No server secret is available for credential encryption");
+  return crypto.createHash("sha256").update(`smartscout:vault:${rootSecret}`).digest();
 }
 function encryptCredential(credential, tenantId2, provider) {
   if (!credential || credential.length < 8) throw new Error("Credential is invalid");
@@ -338,67 +331,174 @@ function decryptCredential(stored) {
   return Buffer.concat([decipher.update(Buffer.from(stored.ciphertext, "base64")), decipher.final()]).toString("utf8");
 }
 
+// services/recruiting/credentialStore.ts
+function getAdminClient() {
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) throw new Error("Supabase server credentials are not configured");
+  return createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+function asStored(row) {
+  return {
+    tenantId: row.tenant_id,
+    provider: row.provider,
+    ciphertext: row.ciphertext,
+    iv: row.iv,
+    tag: row.tag,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+async function saveAICredential(tenantId2, provider, apiKey) {
+  if (!tenantId2) throw new Error("tenantId is required");
+  const encrypted = encryptCredential(apiKey, tenantId2, provider);
+  const { error } = await getAdminClient().from("tenant_ai_credentials").upsert({
+    tenant_id: encrypted.tenantId,
+    provider: encrypted.provider,
+    ciphertext: encrypted.ciphertext,
+    iv: encrypted.iv,
+    tag: encrypted.tag,
+    updated_at: encrypted.updatedAt
+  }, { onConflict: "tenant_id,provider" });
+  if (error) throw new Error(`Unable to store AI credential: ${error.message}`);
+  return { tenantId: tenantId2, provider, updatedAt: encrypted.updatedAt };
+}
+async function getAICredential(tenantId2, provider) {
+  const { data, error } = await getAdminClient().from("tenant_ai_credentials").select("tenant_id,provider,ciphertext,iv,tag,created_at,updated_at").eq("tenant_id", tenantId2).eq("provider", provider).maybeSingle();
+  if (error) throw new Error(`Unable to load AI credential: ${error.message}`);
+  return data ? decryptCredential(asStored(data)) : null;
+}
+async function deleteAICredential(tenantId2, provider) {
+  const { error } = await getAdminClient().from("tenant_ai_credentials").delete().eq("tenant_id", tenantId2).eq("provider", provider);
+  if (error) throw new Error(`Unable to delete AI credential: ${error.message}`);
+}
+async function listAIProviders(tenantId2) {
+  const { data, error } = await getAdminClient().from("tenant_ai_credentials").select("provider").eq("tenant_id", tenantId2);
+  if (error) throw new Error(`Unable to list AI credentials: ${error.message}`);
+  return Array.from(new Set((data || []).map((row) => row.provider)));
+}
+
 // services/recruiting/api.ts
 var router = Router();
-var credentials = /* @__PURE__ */ new Map();
+var sessions = /* @__PURE__ */ new Map();
 function tenantId(req) {
   return String(req.header("x-tenant-id") || "demo-tenant");
 }
-function getCredential(req) {
-  const stored = credentials.get(tenantId(req));
-  if (!stored) throw new Error("Connect an AI provider first");
-  return { provider: stored.provider, apiKey: decryptCredential(stored), model: stored.model };
+async function getCredential(req) {
+  const tenant = tenantId(req);
+  const session = sessions.get(tenant);
+  if (session) return session;
+  const provider = process.env.GEMINI_API_KEY ? "gemini" : (await listAIProviders(tenant))[0];
+  if (provider) {
+    const apiKey = await getAICredential(tenant, provider);
+    if (apiKey) {
+      const credential = { provider, apiKey, model: provider === "gemini" ? "gemini-3.6-flash" : void 0 };
+      sessions.set(tenant, credential);
+      return credential;
+    }
+  }
+  if (process.env.GEMINI_API_KEY) {
+    const credential = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-3.6-flash" };
+    sessions.set(tenant, credential);
+    return credential;
+  }
+  throw new Error("Connect an AI provider first");
+}
+async function validateCredential(provider, apiKey, model) {
+  await generateAI({
+    provider,
+    apiKey,
+    model: model || (provider === "gemini" ? "gemini-3.6-flash" : void 0),
+    system: "You are a connectivity check. Reply with OK only.",
+    prompt: "OK",
+    temperature: 0,
+    maxTokens: 8
+  });
 }
 router.get("/health", (_req, res) => res.json({ ok: true, service: "recruiting-os" }));
 router.post("/ai/connect", async (req, res) => {
   try {
     const { provider, apiKey, model } = req.body || {};
     if (!["gemini", "openai", "anthropic"].includes(provider)) return res.status(400).json({ error: "Unsupported provider" });
-    if (!apiKey || String(apiKey).length < 8) return res.status(400).json({ error: "API key is required" });
+    const secret = String(apiKey || "").trim();
+    if (secret.length < 8) return res.status(400).json({ error: "API key is required" });
+    const selectedModel = model || (provider === "gemini" ? "gemini-3.6-flash" : void 0);
+    await validateCredential(provider, secret, selectedModel);
     const tenant = tenantId(req);
-    const stored = encryptCredential(String(apiKey), tenant, String(provider));
-    credentials.set(tenant, { ...stored, model });
-    res.json({ connected: true, provider, masked: `${String(apiKey).slice(0, 4)}\u2022\u2022\u2022\u2022${String(apiKey).slice(-4)}` });
+    const credential = { provider, apiKey: secret, model: selectedModel };
+    sessions.set(tenant, credential);
+    let persistent = false;
+    try {
+      await saveAICredential(tenant, provider, secret);
+      persistent = true;
+    } catch (persistenceError) {
+      console.warn("AI credential persistence unavailable:", persistenceError?.message || persistenceError);
+    }
+    res.json({
+      connected: true,
+      provider,
+      model: selectedModel,
+      persistent,
+      masked: `${secret.slice(0, 4)}\u2022\u2022\u2022\u2022${secret.slice(-4)}`
+    });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "Unable to connect AI provider" });
   }
 });
-router.get("/ai/status", (req, res) => {
-  const c = credentials.get(tenantId(req));
-  res.json({ connected: !!c, provider: c?.provider || null, model: c?.model || null });
+router.get("/ai/status", async (req, res) => {
+  try {
+    const tenant = tenantId(req);
+    const session = sessions.get(tenant);
+    if (session) return res.json({ connected: true, provider: session.provider, model: session.model });
+    const providers = await listAIProviders(tenant).catch(() => []);
+    if (providers.length) return res.json({ connected: true, provider: providers[0], model: providers[0] === "gemini" ? "gemini-3.6-flash" : null });
+    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-3.6-flash", source: "environment" });
+    return res.json({ connected: false, provider: null, model: null });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to read AI status" });
+  }
 });
-router.delete("/ai/disconnect", (req, res) => {
-  credentials.delete(tenantId(req));
+router.delete("/ai/disconnect", async (req, res) => {
+  const tenant = tenantId(req);
+  const session = sessions.get(tenant);
+  sessions.delete(tenant);
+  if (session) {
+    try {
+      await deleteAICredential(tenant, session.provider);
+    } catch (error) {
+      console.warn("AI credential delete unavailable:", error?.message || error);
+    }
+  }
   res.json({ connected: false });
 });
 router.post("/jd/analyze", async (req, res) => {
   try {
     const { text } = req.body || {};
     if (!text?.trim()) return res.status(400).json({ error: "Job description text is required" });
-    const c = getCredential(req);
+    const c = await getCredential(req);
     res.json(await analyzeJD(text, c.provider, c.apiKey, c.model));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "JD analysis failed" });
   }
 });
 router.post("/source/search", async (req, res) => {
   try {
-    const c = getCredential(req);
+    const c = await getCredential(req);
     if (c.provider !== "gemini") return res.status(400).json({ error: "Candidate web sourcing currently requires Gemini" });
     const candidates = await searchWebCandidates(c.apiKey, req.body?.role, Number(req.body?.limit) || 8);
     res.json({ candidates });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "Candidate sourcing failed" });
   }
 });
 router.post("/candidate/score", async (req, res) => {
   try {
     const { candidate, requirement } = req.body || {};
     if (!candidate || !requirement) return res.status(400).json({ error: "candidate and requirement are required" });
-    const c = getCredential(req);
+    const c = await getCredential(req);
     res.json(await scoreCandidate(candidate, requirement, c.provider, c.apiKey, c.model));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "Candidate scoring failed" });
   }
 });
 router.post("/interview/plan", (req, res) => {
@@ -409,21 +509,21 @@ router.post("/decision", (req, res) => {
   try {
     res.json(makeHiringDecision(req.body));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "Decision failed" });
   }
 });
 router.post("/compensation/recommend", (req, res) => {
   try {
     res.json(recommendCompensation(req.body?.observations || [], req.body?.internalComparable));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "Compensation analysis failed" });
   }
 });
 router.post("/offer/draft", (req, res) => {
   try {
     res.json(createOffer(req.body));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error?.message || "Offer draft failed" });
   }
 });
 router.post("/engagement/plan", (req, res) => res.json(buildEngagementPlan(String(req.body?.candidateName || "there"))));
