@@ -30,7 +30,7 @@ jobs:
         run: npm run build
 
       - name: Build production Node server
-        run: npm run build:server
+        run: npx esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external
 
       - name: Verify production build
         run: |
