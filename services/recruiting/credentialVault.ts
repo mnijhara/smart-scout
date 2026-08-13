@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 export type StoredCredential = {
   tenantId: string;
   provider: string;
+  model?: string;
   ciphertext: string;
   iv: string;
   tag: string;
@@ -27,15 +28,7 @@ export function encryptCredential(credential: string, tenantId: string, provider
   const ciphertext = Buffer.concat([cipher.update(credential, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   const now = new Date().toISOString();
-  return {
-    tenantId,
-    provider,
-    ciphertext: ciphertext.toString('base64'),
-    iv: iv.toString('base64'),
-    tag: tag.toString('base64'),
-    createdAt: now,
-    updatedAt: now,
-  };
+  return { tenantId, provider, ciphertext: ciphertext.toString('base64'), iv: iv.toString('base64'), tag: tag.toString('base64'), createdAt: now, updatedAt: now };
 }
 
 export function decryptCredential(stored: StoredCredential): string {
@@ -43,10 +36,7 @@ export function decryptCredential(stored: StoredCredential): string {
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(stored.iv, 'base64'));
   decipher.setAAD(Buffer.from(`${stored.tenantId}:${stored.provider}`));
   decipher.setAuthTag(Buffer.from(stored.tag, 'base64'));
-  return Buffer.concat([
-    decipher.update(Buffer.from(stored.ciphertext, 'base64')),
-    decipher.final(),
-  ]).toString('utf8');
+  return Buffer.concat([decipher.update(Buffer.from(stored.ciphertext, 'base64')), decipher.final()]).toString('utf8');
 }
 
 export function maskCredential(stored: StoredCredential): string {
