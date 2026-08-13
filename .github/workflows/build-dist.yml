@@ -32,6 +32,13 @@ jobs:
       - name: Build production Node server
         run: npx esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external
 
+      - name: Apply production Gemini compatibility
+        run: |
+          # The current gateway uses generateContent with sampling parameters;
+          # normalize the UI/backend model selection to the stable model for this build.
+          sed -i 's/gemini-3\.6-flash/gemini-2.5-flash/g' server.js
+          find dist -type f -name '*.js' -print0 | xargs -0 sed -i 's/gemini-3\.6-flash/gemini-2.5-flash/g'
+
       - name: Verify production build
         run: |
           test -f dist/index.html
@@ -43,6 +50,10 @@ jobs:
           fi
           if ! grep -q "recruiting-os" server.js; then
             echo "ERROR: recruiting API was not bundled into production server.js"
+            exit 1
+          fi
+          if grep -R -q "gemini-3.6-flash" server.js dist --include='*.js'; then
+            echo "ERROR: unsupported production Gemini model reference remains"
             exit 1
           fi
 
