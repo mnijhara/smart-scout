@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { analyzeJD } from './jdAgent';
-import { scoreCandidate } from './candidateScoring';
-import { buildInterviewPlan } from './interview';
-import { makeHiringDecision } from './decision';
-import { recommendCompensation } from './compensation';
-import { createOffer, buildEngagementPlan, buildOnboardingPlan } from './lifecycle';
-import { encryptCredential, decryptCredential, type StoredCredential } from './credentialVault';
-import type { AIProvider } from './aiGateway';
+import { analyzeJD } from './jdAgent.js';
+import { scoreCandidate } from './candidateScoring.js';
+import { buildInterviewPlan } from './interview.js';
+import { makeHiringDecision } from './decision.js';
+import { recommendCompensation } from './compensation.js';
+import { createOffer, buildEngagementPlan, buildOnboardingPlan } from './lifecycle.js';
+import { encryptCredential, decryptCredential, type StoredCredential } from './credentialVault.js';
+import type { AIProvider } from './aiGateway.js';
 
 const router = Router();
 const credentials = new Map<string, StoredCredential>();
