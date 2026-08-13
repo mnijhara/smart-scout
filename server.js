@@ -388,7 +388,13 @@ async function getCredential(req) {
   const tenant = tenantId(req);
   const session = sessions.get(tenant);
   if (session) return session;
-  const provider = process.env.GEMINI_API_KEY ? "gemini" : (await listAIProviders(tenant))[0];
+  if (process.env.GEMINI_API_KEY) {
+    const credential = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-3.6-flash" };
+    sessions.set(tenant, credential);
+    return credential;
+  }
+  const providers = await listAIProviders(tenant).catch(() => []);
+  const provider = providers[0];
   if (provider) {
     const apiKey = await getAICredential(tenant, provider);
     if (apiKey) {
@@ -397,23 +403,10 @@ async function getCredential(req) {
       return credential;
     }
   }
-  if (process.env.GEMINI_API_KEY) {
-    const credential = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-3.6-flash" };
-    sessions.set(tenant, credential);
-    return credential;
-  }
   throw new Error("Connect an AI provider first");
 }
 async function validateCredential(provider, apiKey, model) {
-  await generateAI({
-    provider,
-    apiKey,
-    model: model || (provider === "gemini" ? "gemini-3.6-flash" : void 0),
-    system: "You are a connectivity check. Reply with OK only.",
-    prompt: "OK",
-    temperature: 0,
-    maxTokens: 8
-  });
+  await generateAI({ provider, apiKey, model: model || (provider === "gemini" ? "gemini-3.6-flash" : void 0), system: "You are a connectivity check. Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
 }
 router.get("/health", (_req, res) => res.json({ ok: true, service: "recruiting-os" }));
 router.post("/ai/connect", async (req, res) => {
@@ -425,8 +418,7 @@ router.post("/ai/connect", async (req, res) => {
     const selectedModel = model || (provider === "gemini" ? "gemini-3.6-flash" : void 0);
     await validateCredential(provider, secret, selectedModel);
     const tenant = tenantId(req);
-    const credential = { provider, apiKey: secret, model: selectedModel };
-    sessions.set(tenant, credential);
+    sessions.set(tenant, { provider, apiKey: secret, model: selectedModel });
     let persistent = false;
     try {
       await saveAICredential(tenant, provider, secret);
@@ -434,13 +426,7 @@ router.post("/ai/connect", async (req, res) => {
     } catch (persistenceError) {
       console.warn("AI credential persistence unavailable:", persistenceError?.message || persistenceError);
     }
-    res.json({
-      connected: true,
-      provider,
-      model: selectedModel,
-      persistent,
-      masked: `${secret.slice(0, 4)}\u2022\u2022\u2022\u2022${secret.slice(-4)}`
-    });
+    res.json({ connected: true, provider, model: selectedModel, persistent, masked: `${secret.slice(0, 4)}\u2022\u2022\u2022\u2022${secret.slice(-4)}` });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Unable to connect AI provider" });
   }
@@ -485,8 +471,7 @@ router.post("/source/search", async (req, res) => {
   try {
     const c = await getCredential(req);
     if (c.provider !== "gemini") return res.status(400).json({ error: "Candidate web sourcing currently requires Gemini" });
-    const candidates = await searchWebCandidates(c.apiKey, req.body?.role, Number(req.body?.limit) || 8);
-    res.json({ candidates });
+    res.json({ candidates: await searchWebCandidates(c.apiKey, req.body?.role, Number(req.body?.limit) || 8) });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Candidate sourcing failed" });
   }
@@ -501,10 +486,7 @@ router.post("/candidate/score", async (req, res) => {
     res.status(400).json({ error: error?.message || "Candidate scoring failed" });
   }
 });
-router.post("/interview/plan", (req, res) => {
-  const { role, competencies } = req.body || {};
-  res.json(buildInterviewPlan(String(role || "the role"), Array.isArray(competencies) ? competencies : []));
-});
+router.post("/interview/plan", (req, res) => res.json(buildInterviewPlan(String(req.body?.role || "the role"), Array.isArray(req.body?.competencies) ? req.body.competencies : [])));
 router.post("/decision", (req, res) => {
   try {
     res.json(makeHiringDecision(req.body));
