@@ -5,76 +5,23 @@ import { buildInterviewPlan } from './interview.js';
 import { makeHiringDecision } from './decision.js';
 import { recommendCompensation } from './compensation.js';
 import { createOffer, buildEngagementPlan, buildOnboardingPlan } from './lifecycle.js';
+import { searchWebCandidates } from './webSourcing.js';
 import { encryptCredential, decryptCredential, type StoredCredential } from './credentialVault.js';
 import type { AIProvider } from './aiGateway.js';
-
-const router = Router();
-const credentials = new Map<string, StoredCredential>();
-
+const router = Router(); const credentials = new Map<string, StoredCredential>();
 function tenantId(req: any): string { return String(req.header('x-tenant-id') || 'demo-tenant'); }
-function getCredential(req: any) {
-  const stored = credentials.get(tenantId(req));
-  if (!stored) throw new Error('Connect an AI provider first');
-  return { provider: stored.provider as AIProvider, apiKey: decryptCredential(stored), model: stored.model };
-}
-
-router.get('/health', (_req, res) => res.json({ ok: true, service: 'recruiting-os' }));
-
-router.post('/ai/connect', async (req, res) => {
-  try {
-    const { provider, apiKey, model } = req.body || {};
-    if (!['gemini', 'openai', 'anthropic'].includes(provider)) return res.status(400).json({ error: 'Unsupported provider' });
-    if (!apiKey || String(apiKey).length < 8) return res.status(400).json({ error: 'API key is required' });
-    const tenant = tenantId(req);
-    const stored = encryptCredential(String(apiKey), tenant, String(provider));
-    credentials.set(tenant, { ...stored, model });
-    res.json({ connected: true, provider, masked: `${String(apiKey).slice(0, 4)}••••${String(apiKey).slice(-4)}` });
-  } catch (error: any) { res.status(400).json({ error: error.message }); }
-});
-
-router.get('/ai/status', (req, res) => {
-  const c = credentials.get(tenantId(req));
-  res.json({ connected: !!c, provider: c?.provider || null, model: c?.model || null });
-});
-
-router.delete('/ai/disconnect', (req, res) => { credentials.delete(tenantId(req)); res.json({ connected: false }); });
-
-router.post('/jd/analyze', async (req, res) => {
-  try {
-    const { text } = req.body || {};
-    if (!text?.trim()) return res.status(400).json({ error: 'Job description text is required' });
-    const c = getCredential(req);
-    res.json(await analyzeJD(text, c.provider, c.apiKey, c.model));
-  } catch (error: any) { res.status(400).json({ error: error.message }); }
-});
-
-router.post('/candidate/score', async (req, res) => {
-  try {
-    const { candidate, requirement } = req.body || {};
-    if (!candidate || !requirement) return res.status(400).json({ error: 'candidate and requirement are required' });
-    const c = getCredential(req);
-    res.json(await scoreCandidate(candidate, requirement, c.provider, c.apiKey, c.model));
-  } catch (error: any) { res.status(400).json({ error: error.message }); }
-});
-
-router.post('/interview/plan', (req, res) => {
-  const { role, competencies } = req.body || {};
-  res.json(buildInterviewPlan(String(role || 'the role'), Array.isArray(competencies) ? competencies : []));
-});
-
-router.post('/decision', (req, res) => {
-  try { res.json(makeHiringDecision(req.body)); } catch (error: any) { res.status(400).json({ error: error.message }); }
-});
-
-router.post('/compensation/recommend', (req, res) => {
-  try { res.json(recommendCompensation(req.body?.observations || [], req.body?.internalComparable)); } catch (error: any) { res.status(400).json({ error: error.message }); }
-});
-
-router.post('/offer/draft', (req, res) => {
-  try { res.json(createOffer(req.body)); } catch (error: any) { res.status(400).json({ error: error.message }); }
-});
-
-router.post('/engagement/plan', (req, res) => res.json(buildEngagementPlan(String(req.body?.candidateName || 'there'))));
-router.post('/onboarding/plan', (req, res) => res.json(buildOnboardingPlan(req.body || {})));
-
+function getCredential(req: any) { const stored=credentials.get(tenantId(req)); if(!stored) throw new Error('Connect an AI provider first'); return {provider:stored.provider as AIProvider,apiKey:decryptCredential(stored),model:stored.model}; }
+router.get('/health',(_req,res)=>res.json({ok:true,service:'recruiting-os'}));
+router.post('/ai/connect',async(req,res)=>{try{const{provider,apiKey,model}=req.body||{};if(!['gemini','openai','anthropic'].includes(provider))return res.status(400).json({error:'Unsupported provider'});if(!apiKey||String(apiKey).length<8)return res.status(400).json({error:'API key is required'});const tenant=tenantId(req);const stored=encryptCredential(String(apiKey),tenant,String(provider));credentials.set(tenant,{...stored,model});res.json({connected:true,provider,masked:`${String(apiKey).slice(0,4)}••••${String(apiKey).slice(-4)}`});}catch(error:any){res.status(400).json({error:error.message});}});
+router.get('/ai/status',(req,res)=>{const c=credentials.get(tenantId(req));res.json({connected:!!c,provider:c?.provider||null,model:c?.model||null});});
+router.delete('/ai/disconnect',(req,res)=>{credentials.delete(tenantId(req));res.json({connected:false});});
+router.post('/jd/analyze',async(req,res)=>{try{const{text}=req.body||{};if(!text?.trim())return res.status(400).json({error:'Job description text is required'});const c=getCredential(req);res.json(await analyzeJD(text,c.provider,c.apiKey,c.model));}catch(error:any){res.status(400).json({error:error.message});}});
+router.post('/source/search',async(req,res)=>{try{const c=getCredential(req);if(c.provider!=='gemini')return res.status(400).json({error:'Candidate web sourcing currently requires Gemini'});const candidates=await searchWebCandidates(c.apiKey,req.body?.role,Number(req.body?.limit)||8);res.json({candidates});}catch(error:any){res.status(400).json({error:error.message});}});
+router.post('/candidate/score',async(req,res)=>{try{const{candidate,requirement}=req.body||{};if(!candidate||!requirement)return res.status(400).json({error:'candidate and requirement are required'});const c=getCredential(req);res.json(await scoreCandidate(candidate,requirement,c.provider,c.apiKey,c.model));}catch(error:any){res.status(400).json({error:error.message});}});
+router.post('/interview/plan',(req,res)=>{const{role,competencies}=req.body||{};res.json(buildInterviewPlan(String(role||'the role'),Array.isArray(competencies)?competencies:[]));});
+router.post('/decision',(req,res)=>{try{res.json(makeHiringDecision(req.body));}catch(error:any){res.status(400).json({error:error.message});}});
+router.post('/compensation/recommend',(req,res)=>{try{res.json(recommendCompensation(req.body?.observations||[],req.body?.internalComparable));}catch(error:any){res.status(400).json({error:error.message});}});
+router.post('/offer/draft',(req,res)=>{try{res.json(createOffer(req.body));}catch(error:any){res.status(400).json({error:error.message});}});
+router.post('/engagement/plan',(req,res)=>res.json(buildEngagementPlan(String(req.body?.candidateName||'there'))));
+router.post('/onboarding/plan',(req,res)=>res.json(buildOnboardingPlan(req.body||{})));
 export default router;
