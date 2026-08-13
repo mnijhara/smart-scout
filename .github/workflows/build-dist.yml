@@ -37,6 +37,14 @@ jobs:
           test -f dist/index.html
           test -f server.js
           node --check server.js
+          if grep -q "services/recruiting/api" server.js; then
+            echo "ERROR: production server.js still contains an external recruiting API import"
+            exit 1
+          fi
+          if ! grep -q "recruiting-os" server.js; then
+            echo "ERROR: recruiting API was not bundled into production server.js"
+            exit 1
+          fi
 
       - name: Commit production build
         run: |
