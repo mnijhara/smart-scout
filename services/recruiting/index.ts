@@ -6,4 +6,7 @@ export * from './jdAgent';
 export * from './candidateScoring';
 export * from './sourcing';
 export * from './compensation';
+export * from './decision';
+export * from './interview';
 export * from './lifecycle';
+export * from './hris';
