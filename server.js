@@ -292,6 +292,24 @@ function buildOnboardingPlan(input) {
   };
 }
 
+// services/recruiting/webSourcing.ts
+function cleanJson(text) {
+  return text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+}
+async function searchWebCandidates(apiKey, role, limit = 8) {
+  const prompt = `Find real public professional profiles suitable for this hiring role using Google Search. Return ONLY JSON, no markdown: {"candidates":[{"name":string,"headline":string,"location":string,"profileUrl":string,"source":string,"summary":string,"evidence":string[]}]}. Do not invent people, URLs, employers, or evidence. Only include candidates whose public profile/search result provides enough evidence to justify relevance. Prefer LinkedIn and credible public professional pages. Maximum ${limit} candidates. ROLE: ${JSON.stringify(role)}`;
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1, maxOutputTokens: 5e3 } })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error?.message || `Candidate search failed (${response.status})`);
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text).filter(Boolean).join("") || "";
+  const parsed = JSON.parse(cleanJson(text));
+  return Array.isArray(parsed?.candidates) ? parsed.candidates.filter((c) => c?.name && c?.profileUrl) : [];
+}
+
 // services/recruiting/credentialVault.ts
 import * as crypto from "crypto";
 function getVaultKey() {
@@ -359,6 +377,16 @@ router.post("/jd/analyze", async (req, res) => {
     if (!text?.trim()) return res.status(400).json({ error: "Job description text is required" });
     const c = getCredential(req);
     res.json(await analyzeJD(text, c.provider, c.apiKey, c.model));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+router.post("/source/search", async (req, res) => {
+  try {
+    const c = getCredential(req);
+    if (c.provider !== "gemini") return res.status(400).json({ error: "Candidate web sourcing currently requires Gemini" });
+    const candidates = await searchWebCandidates(c.apiKey, req.body?.role, Number(req.body?.limit) || 8);
+    res.json({ candidates });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
