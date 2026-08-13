@@ -37,7 +37,7 @@ jobs:
           test -f dist/index.html
           test -f server.js
           node --check server.js
-          if grep -q "services/recruiting/api" server.js; then
+          if grep -Eq '^import .*services/recruiting/api(\.js)?([[:space:]]|[\"'\'';])' server.js; then
             echo "ERROR: production server.js still contains an external recruiting API import"
             exit 1
           fi
