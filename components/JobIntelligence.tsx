@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, FileText, Loader2, Sparkles, Target, Wand2 } from 'lucide-react';
 
-type Analysis = { title?: string; description?: string; mustHave?: string[]; niceToHave?: string[]; location?: string; experienceMin?: number; experienceMax?: number; compensationMin?: number; compensationMax?: number; department?: string; competencies?: string[]; interviewFocus?: string[]; sourcingKeywords?: string[]; redFlags?: string[]; questions?: string[] };
+type Analysis = { title?: string; description?: string; mustHave?: string[]; niceToHave?: string[]; location?: string; experienceMin?: number; experienceMax?: number; compensationMin?: number; compensationMax?: number; department?: string; competencies?: string[]; responsibilities?: string[]; interviewFocus?: string[]; sourcingKeywords?: string[]; redFlags?: string[]; questions?: string[] };
 type Requisition = { id: string; title: string; jd: string; analysis?: Analysis; status: string; createdAt: string };
 const STORAGE_KEY = 'smartscout.requisitions.v1';
 function loadJobs(): Requisition[] { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
