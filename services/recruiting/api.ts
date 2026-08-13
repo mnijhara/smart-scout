@@ -5,16 +5,17 @@ import { buildInterviewPlan } from './interview';
 import { makeHiringDecision } from './decision';
 import { recommendCompensation } from './compensation';
 import { createOffer, buildEngagementPlan, buildOnboardingPlan } from './lifecycle';
+import { encryptCredential, decryptCredential, type StoredCredential } from './credentialVault';
 import type { AIProvider } from './aiGateway';
 
 const router = Router();
-const credentials = new Map<string, { provider: AIProvider; apiKey: string; model?: string }>();
+const credentials = new Map<string, StoredCredential>();
 
 function tenantId(req: any): string { return String(req.header('x-tenant-id') || 'demo-tenant'); }
 function getCredential(req: any) {
-  const credential = credentials.get(tenantId(req));
-  if (!credential) throw new Error('Connect an AI provider first');
-  return credential;
+  const stored = credentials.get(tenantId(req));
+  if (!stored) throw new Error('Connect an AI provider first');
+  return { provider: stored.provider as AIProvider, apiKey: decryptCredential(stored), model: stored.model };
 }
 
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'recruiting-os' }));
@@ -24,7 +25,9 @@ router.post('/ai/connect', async (req, res) => {
     const { provider, apiKey, model } = req.body || {};
     if (!['gemini', 'openai', 'anthropic'].includes(provider)) return res.status(400).json({ error: 'Unsupported provider' });
     if (!apiKey || String(apiKey).length < 8) return res.status(400).json({ error: 'API key is required' });
-    credentials.set(tenantId(req), { provider, apiKey: String(apiKey), model });
+    const tenant = tenantId(req);
+    const stored = encryptCredential(String(apiKey), tenant, String(provider));
+    credentials.set(tenant, { ...stored, model });
     res.json({ connected: true, provider, masked: `${String(apiKey).slice(0, 4)}••••${String(apiKey).slice(-4)}` });
   } catch (error: any) { res.status(400).json({ error: error.message }); }
 });
@@ -72,7 +75,6 @@ router.post('/offer/draft', (req, res) => {
 });
 
 router.post('/engagement/plan', (req, res) => res.json(buildEngagementPlan(String(req.body?.candidateName || 'there'))));
-
 router.post('/onboarding/plan', (req, res) => res.json(buildOnboardingPlan(req.body || {})));
 
 export default router;
