@@ -389,7 +389,7 @@ async function getCredential(req) {
   const session = sessions.get(tenant);
   if (session) return session;
   if (process.env.GEMINI_API_KEY) {
-    const credential = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-3.6-flash" };
+    const credential = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-2.5-flash" };
     sessions.set(tenant, credential);
     return credential;
   }
@@ -398,7 +398,7 @@ async function getCredential(req) {
   if (provider) {
     const apiKey = await getAICredential(tenant, provider);
     if (apiKey) {
-      const credential = { provider, apiKey, model: provider === "gemini" ? "gemini-3.6-flash" : void 0 };
+      const credential = { provider, apiKey, model: provider === "gemini" ? "gemini-2.5-flash" : void 0 };
       sessions.set(tenant, credential);
       return credential;
     }
@@ -406,7 +406,7 @@ async function getCredential(req) {
   throw new Error("Connect an AI provider first");
 }
 async function validateCredential(provider, apiKey, model) {
-  await generateAI({ provider, apiKey, model: model || (provider === "gemini" ? "gemini-3.6-flash" : void 0), system: "You are a connectivity check. Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
+  await generateAI({ provider, apiKey, model: model || (provider === "gemini" ? "gemini-2.5-flash" : void 0), system: "You are a connectivity check. Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
 }
 router.get("/health", (_req, res) => res.json({ ok: true, service: "recruiting-os" }));
 router.post("/ai/connect", async (req, res) => {
@@ -415,7 +415,7 @@ router.post("/ai/connect", async (req, res) => {
     if (!["gemini", "openai", "anthropic"].includes(provider)) return res.status(400).json({ error: "Unsupported provider" });
     const secret = String(apiKey || "").trim();
     if (secret.length < 8) return res.status(400).json({ error: "API key is required" });
-    const selectedModel = model || (provider === "gemini" ? "gemini-3.6-flash" : void 0);
+    const selectedModel = model || (provider === "gemini" ? "gemini-2.5-flash" : void 0);
     await validateCredential(provider, secret, selectedModel);
     const tenant = tenantId(req);
     sessions.set(tenant, { provider, apiKey: secret, model: selectedModel });
@@ -437,8 +437,8 @@ router.get("/ai/status", async (req, res) => {
     const session = sessions.get(tenant);
     if (session) return res.json({ connected: true, provider: session.provider, model: session.model });
     const providers = await listAIProviders(tenant).catch(() => []);
-    if (providers.length) return res.json({ connected: true, provider: providers[0], model: providers[0] === "gemini" ? "gemini-3.6-flash" : null });
-    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-3.6-flash", source: "environment" });
+    if (providers.length) return res.json({ connected: true, provider: providers[0], model: providers[0] === "gemini" ? "gemini-2.5-flash" : null });
+    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-2.5-flash", source: "environment" });
     return res.json({ connected: false, provider: null, model: null });
   } catch (error) {
     res.status(500).json({ error: error?.message || "Unable to read AI status" });
