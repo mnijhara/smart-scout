@@ -56,6 +56,7 @@ jobs:
             echo "ERROR: unsupported production Gemini model reference remains"
             exit 1
           fi
+          echo "Production artifact verification passed for commit ${GITHUB_SHA}"
 
       - name: Smoke test production APIs
         run: |
