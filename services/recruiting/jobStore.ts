@@ -19,7 +19,7 @@ async function readAll(): Promise<SavedJob[]> {
   catch { return []; }
 }
 
-export async function saveJob(tenantId: string, prompt: string, analysis: any): Promise<SavedJob> {
+export async function createJob(tenantId: string, prompt: string, analysis: any): Promise<SavedJob> {
   const now = new Date().toISOString();
   const job: SavedJob = { id: `job_${crypto.randomUUID()}`, tenantId, prompt, analysis, createdAt: now, updatedAt: now };
   writeQueue = writeQueue.then(async () => {
@@ -30,6 +30,8 @@ export async function saveJob(tenantId: string, prompt: string, analysis: any): 
   await writeQueue;
   return job;
 }
+
+export const saveJob = createJob;
 
 export async function getJob(tenantId: string, id: string): Promise<SavedJob | null> {
   return (await readAll()).find(job => job.tenantId === tenantId && job.id === id) || null;
