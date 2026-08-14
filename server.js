@@ -245,6 +245,18 @@ function recommendCompensation(observations, internalComparable) {
 function createOffer(input) {
   return { ...input, status: "pending_approval", generatedAt: (/* @__PURE__ */ new Date()).toISOString() };
 }
+var OFFER_TRANSITIONS = {
+  draft: ["pending_approval"],
+  pending_approval: ["approved", "declined"],
+  approved: ["sent", "declined"],
+  sent: ["accepted", "declined"],
+  accepted: [],
+  declined: []
+};
+function transitionOffer(input, nextStatus) {
+  if (!OFFER_TRANSITIONS[input.status]?.includes(nextStatus)) throw new Error(`Invalid offer transition: ${input.status} \u2192 ${nextStatus}`);
+  return { ...input, status: nextStatus, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+}
 function buildEngagementPlan(candidateName) {
   return [
     { id: "welcome", timing: "Immediately after acceptance", channel: "email", subject: `Welcome to the team, ${candidateName}`, objective: "Confirm acceptance and establish a warm relationship.", required: true },
@@ -267,14 +279,7 @@ function buildOnboardingPlan(input) {
       { id: "team", due: "Day 1", owner: input.manager || "Hiring Manager", task: "Introduce candidate to team" },
       { id: "30-60-90", due: "First week", owner: input.manager || "Hiring Manager", task: "Agree 30/60/90 day plan" }
     ],
-    hrisPayload: {
-      name: input.candidateName,
-      jobTitle: input.role,
-      department: input.department,
-      location: input.location,
-      manager: input.manager,
-      startDate: start
-    }
+    hrisPayload: { name: input.candidateName, jobTitle: input.role, department: input.department, location: input.location, manager: input.manager, startDate: start }
   };
 }
 
@@ -740,6 +745,21 @@ router.post("/offer/draft", async (req, res) => {
     res.json({ ...payload, state: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Offer drafting failed" });
+  }
+});
+router.post("/offer/transition", async (req, res) => {
+  try {
+    const jobId = String(req.body?.jobId || "");
+    const candidateId = req.body?.candidateId ? String(req.body.candidateId) : void 0;
+    if (!jobId) return res.status(400).json({ error: "jobId is required" });
+    const states = await listHiringStates(tenantId(req), jobId, "offer");
+    const latest = states[0]?.payload;
+    if (!latest) return res.status(404).json({ error: "Offer not found" });
+    const payload = transitionOffer(latest, req.body?.status);
+    const saved = await saveHiringState(tenantId(req), jobId, "offer", payload, candidateId);
+    res.json({ ...payload, state: saved });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Offer transition failed" });
   }
 });
 router.post("/engagement/plan", async (req, res) => {
