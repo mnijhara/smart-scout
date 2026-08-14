@@ -1,6 +1,6 @@
 // server.ts
 import express from "express";
-import path3 from "path";
+import path4 from "path";
 import { fileURLToPath } from "url";
 import { Resend } from "resend";
 import * as ics from "ics";
@@ -445,6 +445,71 @@ async function updateCandidateScore(tenantId2, id, score) {
   return all[index];
 }
 
+// services/recruiting/interviewStore.ts
+import { promises as fs3 } from "node:fs";
+import path3 from "node:path";
+import crypto4 from "node:crypto";
+var filePath3 = process.env.SMARTSCOUT_INTERVIEW_STORE || path3.join(process.cwd(), ".smartscout-interviews.json");
+var writeQueue3 = Promise.resolve();
+async function readAll3() {
+  try {
+    return JSON.parse(await fs3.readFile(filePath3, "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function writeAll(items) {
+  await fs3.writeFile(filePath3, JSON.stringify(items.slice(0, 5e3), null, 2), "utf8");
+}
+async function createInterview(tenantId2, jobId, candidateId, plan) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const interview = {
+    id: `interview_${crypto4.randomUUID()}`,
+    tenantId: tenantId2,
+    jobId,
+    candidateId,
+    plan,
+    answers: [],
+    status: "planned",
+    createdAt: now,
+    updatedAt: now
+  };
+  writeQueue3 = writeQueue3.then(async () => {
+    const all = await readAll3();
+    await writeAll([interview, ...all.filter((x) => !(x.tenantId === tenantId2 && x.jobId === jobId && x.candidateId === candidateId))]);
+  });
+  await writeQueue3;
+  return interview;
+}
+async function getInterview(tenantId2, interviewId) {
+  return (await readAll3()).find((x) => x.tenantId === tenantId2 && x.id === interviewId) || null;
+}
+async function listInterviews(tenantId2, jobId) {
+  return (await readAll3()).filter((x) => x.tenantId === tenantId2 && x.jobId === jobId);
+}
+async function recordInterviewAnswer(tenantId2, interviewId, questionId, answer) {
+  const all = await readAll3();
+  const index = all.findIndex((x) => x.tenantId === tenantId2 && x.id === interviewId);
+  if (index < 0) return null;
+  const existing = all[index];
+  all[index] = {
+    ...existing,
+    answers: [...existing.answers, { questionId, answer, capturedAt: (/* @__PURE__ */ new Date()).toISOString() }],
+    status: "in_progress",
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  await writeAll(all);
+  return all[index];
+}
+async function completeInterview(tenantId2, interviewId, evidence) {
+  const all = await readAll3();
+  const index = all.findIndex((x) => x.tenantId === tenantId2 && x.id === interviewId);
+  if (index < 0) return null;
+  all[index] = { ...all[index], evidence, status: "completed", updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+  await writeAll(all);
+  return all[index];
+}
+
 // services/recruiting/api.ts
 var router = Router();
 var sessions = /* @__PURE__ */ new Map();
@@ -571,7 +636,54 @@ router.post("/candidate/score", async (req, res) => {
     res.status(400).json({ error: error?.message || "Candidate scoring failed" });
   }
 });
-router.post("/interview/plan", (req, res) => res.json(buildInterviewPlan(String(req.body?.role || "the role"), Array.isArray(req.body?.competencies) ? req.body.competencies : [])));
+router.post("/interview/plan", async (req, res) => {
+  try {
+    const jobId = String(req.body?.jobId || "");
+    const candidateId = String(req.body?.candidateId || "");
+    const plan = buildInterviewPlan(String(req.body?.role || "the role"), Array.isArray(req.body?.competencies) ? req.body.competencies : []);
+    const interview = jobId && candidateId ? await createInterview(tenantId(req), jobId, candidateId, plan) : null;
+    res.json({ plan, interview });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Interview planning failed" });
+  }
+});
+router.get("/jobs/:id/interviews", async (req, res) => {
+  try {
+    res.json({ interviews: await listInterviews(tenantId(req), String(req.params.id)) });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to list interviews" });
+  }
+});
+router.get("/interviews/:id", async (req, res) => {
+  try {
+    const interview = await getInterview(tenantId(req), String(req.params.id));
+    if (!interview) return res.status(404).json({ error: "Interview not found" });
+    res.json(interview);
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to load interview" });
+  }
+});
+router.post("/interviews/:id/answers", async (req, res) => {
+  try {
+    const questionId = String(req.body?.questionId || "");
+    const answer = String(req.body?.answer || "");
+    if (!questionId || !answer) return res.status(400).json({ error: "questionId and answer are required" });
+    const interview = await recordInterviewAnswer(tenantId(req), String(req.params.id), questionId, answer);
+    if (!interview) return res.status(404).json({ error: "Interview not found" });
+    res.json(interview);
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Unable to save interview answer" });
+  }
+});
+router.post("/interviews/:id/complete", async (req, res) => {
+  try {
+    const interview = await completeInterview(tenantId(req), String(req.params.id), req.body?.evidence || {});
+    if (!interview) return res.status(404).json({ error: "Interview not found" });
+    res.json(interview);
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Unable to complete interview" });
+  }
+});
 router.post("/decision", (req, res) => {
   try {
     res.json(makeHiringDecision(req.body));
@@ -611,7 +723,7 @@ var api_default = router;
 
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path3.dirname(__filename);
+var __dirname = path4.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
@@ -733,9 +845,9 @@ ${emailBody}`,
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path3.join(process.cwd(), "dist");
+    const distPath = path4.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*all", (req, res) => res.sendFile(path3.join(distPath, "index.html")));
+    app.get("*all", (req, res) => res.sendFile(path4.join(distPath, "index.html")));
   }
   app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
 }
