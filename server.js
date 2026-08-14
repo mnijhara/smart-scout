@@ -1,6 +1,6 @@
 // server.ts
 import express from "express";
-import path from "path";
+import path3 from "path";
 import { fileURLToPath } from "url";
 import { Resend } from "resend";
 import * as ics from "ics";
@@ -378,6 +378,73 @@ async function listAIProviders(tenantId2) {
   return Array.from(new Set((data || []).map((row) => row.provider)));
 }
 
+// services/recruiting/jobStore.ts
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import crypto2 from "node:crypto";
+var filePath = process.env.SMARTSCOUT_JOB_STORE || path.join(process.cwd(), ".smartscout-jobs.json");
+var writeQueue = Promise.resolve();
+async function readAll() {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function createJob(tenantId2, prompt, analysis) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const job = { id: `job_${crypto2.randomUUID()}`, tenantId: tenantId2, prompt, analysis, createdAt: now, updatedAt: now };
+  writeQueue = writeQueue.then(async () => {
+    const jobs = await readAll();
+    jobs.unshift(job);
+    await fs.writeFile(filePath, JSON.stringify(jobs.slice(0, 500), null, 2), "utf8");
+  });
+  await writeQueue;
+  return job;
+}
+async function getJob(tenantId2, id) {
+  return (await readAll()).find((job) => job.tenantId === tenantId2 && job.id === id) || null;
+}
+async function listJobs(tenantId2) {
+  return (await readAll()).filter((job) => job.tenantId === tenantId2);
+}
+
+// services/recruiting/candidateStore.ts
+import { promises as fs2 } from "node:fs";
+import path2 from "node:path";
+import crypto3 from "node:crypto";
+var filePath2 = process.env.SMARTSCOUT_CANDIDATE_STORE || path2.join(process.cwd(), ".smartscout-candidates.json");
+var writeQueue2 = Promise.resolve();
+async function readAll2() {
+  try {
+    return JSON.parse(await fs2.readFile(filePath2, "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function saveCandidates(tenantId2, jobId, candidates) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const saved = candidates.map((candidate) => ({ id: `candidate_${crypto3.randomUUID()}`, tenantId: tenantId2, jobId, candidate, createdAt: now, updatedAt: now }));
+  writeQueue2 = writeQueue2.then(async () => {
+    const all = await readAll2();
+    const kept = all.filter((x) => !(x.tenantId === tenantId2 && x.jobId === jobId));
+    await fs2.writeFile(filePath2, JSON.stringify([...saved, ...kept].slice(0, 5e3), null, 2), "utf8");
+  });
+  await writeQueue2;
+  return saved;
+}
+async function listCandidates(tenantId2, jobId) {
+  return (await readAll2()).filter((x) => x.tenantId === tenantId2 && x.jobId === jobId);
+}
+async function updateCandidateScore(tenantId2, id, score) {
+  const all = await readAll2();
+  const index = all.findIndex((x) => x.tenantId === tenantId2 && x.id === id);
+  if (index < 0) return null;
+  all[index] = { ...all[index], score, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+  await fs2.writeFile(filePath2, JSON.stringify(all, null, 2), "utf8");
+  return all[index];
+}
+
 // services/recruiting/api.ts
 var router = Router();
 var sessions = /* @__PURE__ */ new Map();
@@ -389,44 +456,37 @@ async function getCredential(req) {
   const session = sessions.get(tenant);
   if (session) return session;
   if (process.env.GEMINI_API_KEY) {
-    const credential = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-2.5-flash" };
-    sessions.set(tenant, credential);
-    return credential;
+    const c = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-2.5-flash" };
+    sessions.set(tenant, c);
+    return c;
   }
   const providers = await listAIProviders(tenant).catch(() => []);
   const provider = providers[0];
   if (provider) {
     const apiKey = await getAICredential(tenant, provider);
     if (apiKey) {
-      const credential = { provider, apiKey, model: provider === "gemini" ? "gemini-2.5-flash" : void 0 };
-      sessions.set(tenant, credential);
-      return credential;
+      const c = { provider, apiKey, model: provider === "gemini" ? "gemini-2.5-flash" : void 0 };
+      sessions.set(tenant, c);
+      return c;
     }
   }
   throw new Error("Connect an AI provider first");
-}
-async function validateCredential(provider, apiKey, model) {
-  await generateAI({ provider, apiKey, model: model || (provider === "gemini" ? "gemini-2.5-flash" : void 0), system: "You are a connectivity check. Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
 }
 router.get("/health", (_req, res) => res.json({ ok: true, service: "recruiting-os" }));
 router.post("/ai/connect", async (req, res) => {
   try {
     const { provider, apiKey, model } = req.body || {};
     if (!["gemini", "openai", "anthropic"].includes(provider)) return res.status(400).json({ error: "Unsupported provider" });
-    const secret = String(apiKey || "").trim();
-    if (secret.length < 8) return res.status(400).json({ error: "API key is required" });
+    if (!String(apiKey || "").trim()) return res.status(400).json({ error: "API key is required" });
     const selectedModel = model || (provider === "gemini" ? "gemini-2.5-flash" : void 0);
-    await validateCredential(provider, secret, selectedModel);
+    await generateAI({ provider, apiKey: String(apiKey).trim(), model: selectedModel, system: "Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
     const tenant = tenantId(req);
-    sessions.set(tenant, { provider, apiKey: secret, model: selectedModel });
-    let persistent = false;
+    sessions.set(tenant, { provider, apiKey: String(apiKey).trim(), model: selectedModel });
     try {
-      await saveAICredential(tenant, provider, secret);
-      persistent = true;
-    } catch (persistenceError) {
-      console.warn("AI credential persistence unavailable:", persistenceError?.message || persistenceError);
+      await saveAICredential(tenant, provider, String(apiKey).trim());
+    } catch {
     }
-    res.json({ connected: true, provider, model: selectedModel, persistent, masked: `${secret.slice(0, 4)}\u2022\u2022\u2022\u2022${secret.slice(-4)}` });
+    res.json({ connected: true, provider, model: selectedModel });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Unable to connect AI provider" });
   }
@@ -436,52 +496,77 @@ router.get("/ai/status", async (req, res) => {
     const tenant = tenantId(req);
     const session = sessions.get(tenant);
     if (session) return res.json({ connected: true, provider: session.provider, model: session.model });
-    const providers = await listAIProviders(tenant).catch(() => []);
-    if (providers.length) return res.json({ connected: true, provider: providers[0], model: providers[0] === "gemini" ? "gemini-2.5-flash" : null });
     if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-2.5-flash", source: "environment" });
-    return res.json({ connected: false, provider: null, model: null });
+    res.json({ connected: false, provider: null, model: null });
   } catch (error) {
     res.status(500).json({ error: error?.message || "Unable to read AI status" });
   }
 });
 router.delete("/ai/disconnect", async (req, res) => {
   const tenant = tenantId(req);
-  const session = sessions.get(tenant);
   sessions.delete(tenant);
-  if (session) {
-    try {
-      await deleteAICredential(tenant, session.provider);
-    } catch (error) {
-      console.warn("AI credential delete unavailable:", error?.message || error);
-    }
+  try {
+    await deleteAICredential(tenant, "gemini");
+    await deleteAICredential(tenant, "openai");
+    await deleteAICredential(tenant, "anthropic");
+  } catch {
   }
-  res.json({ connected: false });
+  res.json({ disconnected: true });
 });
 router.post("/jd/analyze", async (req, res) => {
   try {
-    const { text } = req.body || {};
-    if (!text?.trim()) return res.status(400).json({ error: "Job description text is required" });
     const c = await getCredential(req);
-    res.json(await analyzeJD(text, c.provider, c.apiKey, c.model));
+    const prompt = String(req.body?.text || "");
+    const analysis = await analyzeJD(prompt, c.provider, c.apiKey, c.model);
+    const job = await createJob(tenantId(req), prompt, analysis);
+    res.json({ ...analysis, jobId: job.id, job });
   } catch (error) {
     res.status(400).json({ error: error?.message || "JD analysis failed" });
+  }
+});
+router.get("/jobs", async (req, res) => {
+  try {
+    res.json({ jobs: await listJobs(tenantId(req)) });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to list jobs" });
+  }
+});
+router.get("/jobs/:id", async (req, res) => {
+  try {
+    const job = await getJob(tenantId(req), String(req.params.id));
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json(job);
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to load job" });
   }
 });
 router.post("/source/search", async (req, res) => {
   try {
     const c = await getCredential(req);
-    if (c.provider !== "gemini") return res.status(400).json({ error: "Candidate web sourcing currently requires Gemini" });
-    res.json({ candidates: await searchWebCandidates(c.apiKey, req.body?.role, Number(req.body?.limit) || 8) });
+    const role = req.body?.role || {};
+    const jobId = role.jobId || req.body?.jobId;
+    const candidates = await searchWebCandidates(c.apiKey, role, Number(req.body?.limit) || 8);
+    const saved = jobId ? await saveCandidates(tenantId(req), String(jobId), candidates) : [];
+    res.json({ jobId: jobId || null, candidates, savedCandidates: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Candidate sourcing failed" });
   }
 });
+router.get("/jobs/:id/candidates", async (req, res) => {
+  try {
+    res.json({ candidates: await listCandidates(tenantId(req), String(req.params.id)) });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to list candidates" });
+  }
+});
 router.post("/candidate/score", async (req, res) => {
   try {
-    const { candidate, requirement } = req.body || {};
+    const { candidate, requirement, jobId, candidateId } = req.body || {};
     if (!candidate || !requirement) return res.status(400).json({ error: "candidate and requirement are required" });
     const c = await getCredential(req);
-    res.json(await scoreCandidate(candidate, requirement, c.provider, c.apiKey, c.model));
+    const score = await scoreCandidate(candidate, requirement, c.provider, c.apiKey, c.model);
+    if (jobId && candidateId) await updateCandidateScore(tenantId(req), String(candidateId), score);
+    res.json(score);
   } catch (error) {
     res.status(400).json({ error: error?.message || "Candidate scoring failed" });
   }
@@ -505,16 +590,28 @@ router.post("/offer/draft", (req, res) => {
   try {
     res.json(createOffer(req.body));
   } catch (error) {
-    res.status(400).json({ error: error?.message || "Offer draft failed" });
+    res.status(400).json({ error: error?.message || "Offer drafting failed" });
   }
 });
-router.post("/engagement/plan", (req, res) => res.json(buildEngagementPlan(String(req.body?.candidateName || "there"))));
-router.post("/onboarding/plan", (req, res) => res.json(buildOnboardingPlan(req.body || {})));
+router.post("/engagement/plan", (req, res) => {
+  try {
+    res.json(buildEngagementPlan(req.body));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Engagement planning failed" });
+  }
+});
+router.post("/onboarding/plan", (req, res) => {
+  try {
+    res.json(buildOnboardingPlan(req.body));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Onboarding planning failed" });
+  }
+});
 var api_default = router;
 
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
+var __dirname = path3.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
@@ -636,9 +733,9 @@ ${emailBody}`,
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path3.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*all", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    app.get("*all", (req, res) => res.sendFile(path3.join(distPath, "index.html")));
   }
   app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
 }
