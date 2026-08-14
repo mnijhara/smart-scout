@@ -10,18 +10,16 @@ import { generateAI } from './aiGateway.js';
 import { deleteAICredential, getAICredential, listAIProviders, saveAICredential } from './credentialStore.js';
 import type { AIProvider } from './aiGateway.js';
 import { createJob, getJob, listJobs } from './jobStore.js';
+import { saveCandidates, listCandidates, updateCandidateScore } from './candidateStore.js';
 
 const router = Router();
 type SessionCredential = { provider: AIProvider; apiKey: string; model?: string };
 const sessions = new Map<string, SessionCredential>();
 function tenantId(req: any): string { return String(req.header('x-tenant-id') || 'demo-tenant'); }
 async function getCredential(req: any): Promise<SessionCredential> {
-  const tenant = tenantId(req);
-  const session = sessions.get(tenant);
-  if (session) return session;
+  const tenant = tenantId(req); const session = sessions.get(tenant); if (session) return session;
   if (process.env.GEMINI_API_KEY) { const c = { provider: 'gemini' as AIProvider, apiKey: process.env.GEMINI_API_KEY, model: 'gemini-3.6-flash' }; sessions.set(tenant, c); return c; }
-  const providers = await listAIProviders(tenant).catch(() => [] as AIProvider[]);
-  const provider = providers[0];
+  const providers = await listAIProviders(tenant).catch(() => [] as AIProvider[]); const provider = providers[0];
   if (provider) { const apiKey = await getAICredential(tenant, provider); if (apiKey) { const c = { provider, apiKey, model: provider === 'gemini' ? 'gemini-3.6-flash' : undefined }; sessions.set(tenant, c); return c; } }
   throw new Error('Connect an AI provider first');
 }
@@ -32,8 +30,9 @@ router.delete('/ai/disconnect', async (req, res) => { const tenant = tenantId(re
 router.post('/jd/analyze', async (req, res) => { try { const c = await getCredential(req); const prompt = String(req.body?.text || ''); const analysis = await analyzeJD(prompt, c.provider, c.apiKey, c.model); const job = await createJob(tenantId(req), prompt, analysis); res.json({ ...analysis, jobId: job.id, job }); } catch (error: any) { res.status(400).json({ error: error?.message || 'JD analysis failed' }); } });
 router.get('/jobs', async (req, res) => { try { res.json({ jobs: await listJobs(tenantId(req)) }); } catch (error: any) { res.status(500).json({ error: error?.message || 'Unable to list jobs' }); } });
 router.get('/jobs/:id', async (req, res) => { try { const job = await getJob(tenantId(req), String(req.params.id)); if (!job) return res.status(404).json({ error: 'Job not found' }); res.json(job); } catch (error: any) { res.status(500).json({ error: error?.message || 'Unable to load job' }); } });
-router.post('/source/search', async (req, res) => { try { const c = await getCredential(req); const role = req.body?.role || {}; const jobId = role.jobId || req.body?.jobId; res.json({ jobId: jobId || null, candidates: await searchWebCandidates(c.apiKey, role, Number(req.body?.limit) || 8) }); } catch (error: any) { res.status(400).json({ error: error?.message || 'Candidate sourcing failed' }); } });
-router.post('/candidate/score', async (req, res) => { try { const { candidate, requirement } = req.body || {}; if (!candidate || !requirement) return res.status(400).json({ error: 'candidate and requirement are required' }); const c = await getCredential(req); res.json(await scoreCandidate(candidate, requirement, c.provider, c.apiKey, c.model)); } catch (error: any) { res.status(400).json({ error: error?.message || 'Candidate scoring failed' }); } });
+router.post('/source/search', async (req, res) => { try { const c = await getCredential(req); const role = req.body?.role || {}; const jobId = role.jobId || req.body?.jobId; const candidates = await searchWebCandidates(c.apiKey, role, Number(req.body?.limit) || 8); const saved = jobId ? await saveCandidates(tenantId(req), String(jobId), candidates) : []; res.json({ jobId: jobId || null, candidates, savedCandidates: saved }); } catch (error: any) { res.status(400).json({ error: error?.message || 'Candidate sourcing failed' }); } });
+router.get('/jobs/:id/candidates', async (req, res) => { try { res.json({ candidates: await listCandidates(tenantId(req), String(req.params.id)) }); } catch (error: any) { res.status(500).json({ error: error?.message || 'Unable to list candidates' }); } });
+router.post('/candidate/score', async (req, res) => { try { const { candidate, requirement, jobId, candidateId } = req.body || {}; if (!candidate || !requirement) return res.status(400).json({ error: 'candidate and requirement are required' }); const c = await getCredential(req); const score = await scoreCandidate(candidate, requirement, c.provider, c.apiKey, c.model); if (jobId && candidateId) await updateCandidateScore(tenantId(req), String(candidateId), score); res.json(score); } catch (error: any) { res.status(400).json({ error: error?.message || 'Candidate scoring failed' }); } });
 router.post('/interview/plan', (req, res) => res.json(buildInterviewPlan(String(req.body?.role || 'the role'), Array.isArray(req.body?.competencies) ? req.body.competencies : [])));
 router.post('/decision', (req, res) => { try { res.json(makeHiringDecision(req.body)); } catch (error: any) { res.status(400).json({ error: error?.message || 'Decision failed' }); } });
 router.post('/compensation/recommend', (req, res) => { try { res.json(recommendCompensation(req.body?.observations || [], req.body?.internalComparable)); } catch (error: any) { res.status(400).json({ error: error?.message || 'Compensation analysis failed' }); } });
