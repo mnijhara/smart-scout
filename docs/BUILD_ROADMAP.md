@@ -1,6 +1,10 @@
 # Smart Scout — Recruiting OS Build Roadmap
 
-The new Recruiting OS is being shipped feature-by-feature behind `?os=1`. The existing root experience remains unchanged until the complete product is production-ready.
+The Recruiting OS is being shipped feature-by-feature. The current product journey is:
+
+**Landing → Hiring prompt → AI JD → Saved job → Sourcing → Candidate intelligence → Audio interview → Decision → Compensation → Offer → Engagement → Onboarding**
+
+A feature is marked **[x]** only when the capability exists in the repository. Production execution/integration items remain explicitly open until they are connected to real infrastructure and verified.
 
 ## Phase 1 — Product foundation
 - [x] Premium light UI system
@@ -10,70 +14,83 @@ The new Recruiting OS is being shipped feature-by-feature behind `?os=1`. The ex
 - [x] New Job interaction
 
 ## Phase 2 — Job Intelligence
-- [ ] Create requisition
+- [x] Hiring prompt / JD parsing and structured requirements
+- [x] Must-have vs nice-to-have extraction
+- [ ] Create requisition with explicit recruiter approval workflow
 - [ ] JD upload / paste / URL ingestion
-- [ ] AI JD parsing and structured requirements
-- [ ] Must-have vs nice-to-have extraction
-- [ ] Bias / quality checks
-- [ ] Human approval gate
+- [ ] Bias / quality checks surfaced in the hiring UI
+- [ ] Human approval gate wired into the JD stage
 
 ## Phase 3 — Talent Sourcing
-- [ ] Candidate source connectors
-- [ ] Search strategy generation
-- [ ] Candidate normalization and deduplication
-- [ ] Evidence-backed candidate profiles
-- [ ] Outreach workflow
+- [x] Candidate normalization and deduplication primitives
+- [x] Search strategy / sourcing foundation
+- [x] Candidate persistence against the saved Job
+- [ ] Production candidate source connectors using official APIs
+- [ ] Evidence-backed candidate profiles with source attribution
+- [ ] Outreach workflow and delivery tracking
 
 ## Phase 4 — Candidate Intelligence
-- [ ] CV / profile parsing
-- [ ] Explainable candidate scoring
-- [ ] Knockout criteria
-- [ ] Shortlist and recruiter review
-- [ ] Candidate comparison
+- [x] Candidate / profile scoring foundation
+- [x] Explainable scoring evidence
+- [ ] CV / profile ingestion across supported document formats in the OS flow
+- [ ] Knockout criteria engine
+- [x] Recruiter shortlist / interview selection
+- [ ] Side-by-side candidate comparison workspace
 
 ## Phase 5 — AI Interviews
-- [ ] Interview plan generation
-- [ ] Candidate scheduling
-- [ ] Secure interview links
-- [ ] Audio interview experience
-- [ ] Transcription and structured scoring
-- [ ] Human review and approval
+- [x] Interview plan generation
+- [x] Persistent interview records
+- [x] Audio interview experience
+- [x] Answer persistence and structured evidence
+- [ ] Production scheduling/calendar integration
+- [ ] Secure candidate interview links
+- [ ] Production transcription provider and resilient retry path
+- [ ] Human review and approval UI
 
 ## Phase 6 — Hiring Decision
-- [ ] Evidence aggregation
-- [ ] Interview + profile scorecard
-- [ ] Decision recommendation
-- [ ] Approval workflow
-- [ ] Audit trail
+- [x] Evidence aggregation foundation
+- [x] Profile + interview decision payload
+- [x] Decision recommendation foundation
+- [x] Approval/audit control-plane primitives
+- [ ] Decision approval UI integrated into the lifecycle
+- [ ] Immutable production audit trail
 
 ## Phase 7 — Compensation
-- [ ] Market benchmark inputs
-- [ ] Internal parity checks
-- [ ] Compensation recommendation
-- [ ] Approval gate
+- [x] Market/internal benchmark input foundation
+- [x] Compensation recommendation
+- [x] Approval control-plane primitive
+- [ ] Production market-data connector
+- [ ] Internal parity data integration
+- [ ] Compensation approval UI and policy rules
 
 ## Phase 8 — Offer & Engagement
-- [ ] Offer generation
-- [ ] Approval and versioning
-- [ ] Candidate communication
-- [ ] Offer acceptance tracking
+- [x] Offer generation
+- [x] Persisted offer lifecycle transitions
+- [x] Engagement plan generation
+- [ ] Offer versioning and approval UI
+- [ ] Real email/SMS/WhatsApp candidate communication
+- [ ] Offer acceptance webhook/status integration
+- [ ] Candidate engagement delivery tracking
 
 ## Phase 9 — Onboarding
-- [ ] Onboarding plan
+- [x] Onboarding plan foundation
 - [ ] HRIS integrations
-- [ ] Employee creation
+- [ ] Employee creation execution
 - [ ] Document / task orchestration
-- [ ] Handoff confirmation
+- [ ] Handoff confirmation and retry handling
 
 ## Phase 10 — Production hardening
-- [ ] Authentication and tenant isolation
-- [ ] Secure AI credential handling
-- [ ] Persistent data layer
-- [ ] Observability and error handling
-- [ ] Usage / credits metering
-- [ ] End-to-end tests
+- [ ] Authentication and real tenant identity / isolation
+- [x] BYOK AI credential handling foundation
+- [ ] Persistent production database for all Recruiting OS state
+- [x] Control-plane API foundation for approvals, audit, scheduling and metering
+- [x] Production build smoke tests for recruiting/control-plane APIs
+- [ ] Observability and centralized error handling
+- [x] Usage / credits metering foundation
+- [ ] End-to-end tests across the complete hiring journey
 - [ ] Mobile polish
 - [ ] Performance and accessibility pass
+- [ ] Security review and secrets/configuration audit
 
 ## Final release
-Only after the phases above are complete and tested will the Recruiting OS replace the legacy experience at `/`. The `?os=1` route remains the controlled preview until then.
+The Recruiting OS becomes the root `/` experience only after the remaining production integrations and hardening gates above are complete and verified. Until then, the controlled OS route remains the release boundary.
