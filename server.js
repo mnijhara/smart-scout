@@ -818,7 +818,8 @@ async function append(name, value) {
 var now = () => (/* @__PURE__ */ new Date()).toISOString();
 async function requestApproval(input) {
   const t = now();
-  return append(files.approvals, { ...input, id: `approval_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t, status: "pending" });
+  const value = { ...input, id: `approval_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t, status: "pending" };
+  return append(files.approvals, value);
 }
 async function decideApproval(id, status, actor, note) {
   const all = await read(files.approvals);
@@ -837,7 +838,8 @@ async function listApprovals(tenantId2, jobId) {
 }
 async function audit(input) {
   const t = now();
-  return append(files.audit, { ...input, id: `audit_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t });
+  const value = { ...input, id: `audit_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t };
+  return append(files.audit, value);
 }
 async function listAudit(tenantId2, jobId) {
   return (await read(files.audit)).filter((x) => x.tenantId === tenantId2 && (!jobId || x.jobId === jobId));
@@ -848,7 +850,8 @@ async function scheduleInterview(input) {
   const clash = existing.find((x) => x.tenantId === input.tenantId && x.status !== "cancelled" && new Date(input.startsAt) < new Date(x.endsAt) && new Date(input.endsAt) > new Date(x.startsAt));
   if (clash) throw new Error("Interview time overlaps an existing booking");
   const t = now();
-  return append(files.schedules, { ...input, id: `schedule_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t });
+  const value = { ...input, id: `schedule_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t };
+  return append(files.schedules, value);
 }
 async function updateSchedule(id, status) {
   const all = await read(files.schedules);
@@ -864,7 +867,8 @@ async function listSchedules(tenantId2, jobId) {
 }
 async function recordUsage(input) {
   const t = now();
-  return append(files.usage, { ...input, id: `usage_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t });
+  const value = { ...input, id: `usage_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t };
+  return append(files.usage, value);
 }
 async function usageSummary(tenantId2, period) {
   const rows = await read(files.usage);
