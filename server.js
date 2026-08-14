@@ -1,6 +1,6 @@
 // server.ts
 import express from "express";
-import path4 from "path";
+import path5 from "path";
 import { fileURLToPath } from "url";
 import { Resend } from "resend";
 import * as ics from "ics";
@@ -510,6 +510,35 @@ async function completeInterview(tenantId2, interviewId, evidence) {
   return all[index];
 }
 
+// services/recruiting/hiringStateStore.ts
+import { promises as fs4 } from "node:fs";
+import path4 from "node:path";
+import crypto5 from "node:crypto";
+var filePath4 = process.env.SMARTSCOUT_HIRING_STATE_STORE || path4.join(process.cwd(), ".smartscout-hiring-state.json");
+var writeQueue4 = Promise.resolve();
+async function readAll4() {
+  try {
+    return JSON.parse(await fs4.readFile(filePath4, "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function saveHiringState(tenantId2, jobId, type, payload, candidateId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const state = { id: `state_${crypto5.randomUUID()}`, tenantId: tenantId2, jobId, candidateId, type, payload, createdAt: now, updatedAt: now };
+  writeQueue4 = writeQueue4.then(async () => {
+    const all = await readAll4();
+    all.unshift(state);
+    await fs4.writeFile(filePath4, JSON.stringify(all.slice(0, 2e3), null, 2), "utf8");
+  });
+  await writeQueue4;
+  return state;
+}
+async function listHiringStates(tenantId2, jobId, type) {
+  const all = await readAll4();
+  return all.filter((x) => x.tenantId === tenantId2 && x.jobId === jobId && (!type || x.type === type));
+}
+
 // services/recruiting/api.ts
 var router = Router();
 var sessions = /* @__PURE__ */ new Map();
@@ -582,6 +611,7 @@ router.post("/jd/analyze", async (req, res) => {
   try {
     const c = await getCredential(req);
     const prompt = String(req.body?.text || "");
+    if (!prompt.trim()) return res.status(400).json({ error: "Hiring prompt is required" });
     const analysis = await analyzeJD(prompt, c.provider, c.apiKey, c.model);
     const job = await createJob(tenantId(req), prompt, analysis);
     res.json({ ...analysis, jobId: job.id, job });
@@ -610,9 +640,10 @@ router.post("/source/search", async (req, res) => {
     const c = await getCredential(req);
     const role = req.body?.role || {};
     const jobId = role.jobId || req.body?.jobId;
+    if (!jobId) return res.status(400).json({ error: "jobId is required before sourcing" });
     const candidates = await searchWebCandidates(c.apiKey, role, Number(req.body?.limit) || 8);
-    const saved = jobId ? await saveCandidates(tenantId(req), String(jobId), candidates) : [];
-    res.json({ jobId: jobId || null, candidates, savedCandidates: saved });
+    const saved = await saveCandidates(tenantId(req), String(jobId), candidates);
+    res.json({ jobId, candidates, savedCandidates: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Candidate sourcing failed" });
   }
@@ -684,46 +715,64 @@ router.post("/interviews/:id/complete", async (req, res) => {
     res.status(400).json({ error: error?.message || "Unable to complete interview" });
   }
 });
-router.post("/decision", (req, res) => {
+router.post("/decision", async (req, res) => {
   try {
-    res.json(makeHiringDecision(req.body));
+    const payload = makeHiringDecision(req.body);
+    const saved = await saveHiringState(tenantId(req), String(req.body?.jobId || ""), "decision", payload, req.body?.candidateId);
+    res.json({ ...payload, state: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Decision failed" });
   }
 });
-router.post("/compensation/recommend", (req, res) => {
+router.post("/compensation/recommend", async (req, res) => {
   try {
-    res.json(recommendCompensation(req.body?.observations || [], req.body?.internalComparable));
+    const payload = recommendCompensation(req.body?.observations || [], req.body?.internalComparable);
+    const saved = await saveHiringState(tenantId(req), String(req.body?.jobId || ""), "compensation", payload, req.body?.candidateId);
+    res.json({ ...payload, state: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Compensation analysis failed" });
   }
 });
-router.post("/offer/draft", (req, res) => {
+router.post("/offer/draft", async (req, res) => {
   try {
-    res.json(createOffer(req.body));
+    const payload = createOffer(req.body);
+    const saved = await saveHiringState(tenantId(req), String(req.body?.jobId || ""), "offer", payload, req.body?.candidateId);
+    res.json({ ...payload, state: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Offer drafting failed" });
   }
 });
-router.post("/engagement/plan", (req, res) => {
+router.post("/engagement/plan", async (req, res) => {
   try {
-    res.json(buildEngagementPlan(req.body));
+    const candidateName = String(req.body?.candidateName || "Candidate");
+    const payload = buildEngagementPlan(candidateName);
+    const saved = await saveHiringState(tenantId(req), String(req.body?.jobId || ""), "engagement", payload, req.body?.candidateId);
+    res.json({ payload, state: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Engagement planning failed" });
   }
 });
-router.post("/onboarding/plan", (req, res) => {
+router.post("/onboarding/plan", async (req, res) => {
   try {
-    res.json(buildOnboardingPlan(req.body));
+    const payload = buildOnboardingPlan(req.body);
+    const saved = await saveHiringState(tenantId(req), String(req.body?.jobId || ""), "onboarding", payload, req.body?.candidateId);
+    res.json({ payload, state: saved });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Onboarding planning failed" });
+  }
+});
+router.get("/jobs/:id/hiring-state", async (req, res) => {
+  try {
+    res.json({ states: await listHiringStates(tenantId(req), String(req.params.id)) });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Unable to load hiring state" });
   }
 });
 var api_default = router;
 
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path4.dirname(__filename);
+var __dirname = path5.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
@@ -845,9 +894,9 @@ ${emailBody}`,
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path4.join(process.cwd(), "dist");
+    const distPath = path5.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*all", (req, res) => res.sendFile(path4.join(distPath, "index.html")));
+    app.get("*all", (req, res) => res.sendFile(path5.join(distPath, "index.html")));
   }
   app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
 }
