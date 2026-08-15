@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  /* Microsoft Fluent / Fabric uses Segoe UI as its primary typeface. */
   --font-sans: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Cascadia Code", "Segoe UI Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-html, body, #root {
-  min-height: 100%;
+html, body, #root { min-height: 100%; }
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -20,23 +23,27 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Fluent/Fabric-like typography: compact, readable and less marketing-heavy. */
-button, input, textarea, select {
-  font-family: inherit;
-}
+button, input, textarea, select { font-family: inherit; }
 
-.font-black { font-weight: 700 !important; }
-.font-extrabold { font-weight: 700 !important; }
+/* Microsoft Fluent/Fabric-like type scale: Segoe UI Variable, semibold headings, restrained weights. */
+.font-black { font-weight: 600 !important; }
+.font-extrabold { font-weight: 600 !important; }
 .font-bold { font-weight: 600 !important; }
+.font-semibold { font-weight: 600 !important; }
 
-/* Keep Smart Scout's purple brand while adopting Fluent's restrained surfaces. */
+/* Fluent neutral palette while preserving Smart Scout purple as the accent. */
 .border-slate-200 { border-color: #e1dfdd !important; }
+.border-slate-100 { border-color: #edebe9 !important; }
 .text-slate-950 { color: #242424 !important; }
+.text-slate-900 { color: #323130 !important; }
+.text-slate-700 { color: #484644 !important; }
+.text-slate-600 { color: #605e5c !important; }
 .text-slate-500 { color: #605e5c !important; }
 .text-slate-400 { color: #797775 !important; }
 .bg-slate-50 { background-color: #faf9f8 !important; }
 
-/* Fabric/Fluent controls generally use small, crisp radii rather than pill-heavy cards. */
+/* Crisp Fluent controls instead of oversized pill shapes. */
 button.rounded-xl, button.rounded-2xl { border-radius: 4px !important; }
+input.rounded-xl, textarea.rounded-xl, select.rounded-xl { border-radius: 4px !important; }
 
 .terminal-text { font-family: var(--font-mono); }
