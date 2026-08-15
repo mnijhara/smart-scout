@@ -17,6 +17,13 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '50mb' }));
+
+  // Public liveness endpoint used by deployment health checks. Keep this outside
+  // tenant authentication: it only reports that the process is alive.
+  app.get('/api/recruiting/health', (_req, res) => {
+    res.json({ ok: true, service: 'smartscout-recruiting' });
+  });
+
   const tenantId = (req: any) => authenticatedTenantId(req);
   app.use('/api/recruiting', requireFirebaseAuth, recruitingRouter);
   app.use('/api/control-plane', requireFirebaseAuth, createControlPlaneRouter(tenantId));
