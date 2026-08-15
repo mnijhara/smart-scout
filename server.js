@@ -12,7 +12,7 @@ import { Router } from "express";
 
 // services/recruiting/aiGateway.ts
 var DEFAULT_MODELS = {
-  gemini: "gemini-2.5-flash",
+  gemini: "gemini-3.6-flash",
   openai: "gpt-4.1-mini",
   anthropic: "claude-3-5-haiku-latest"
 };
@@ -21,16 +21,18 @@ function cleanText(value) {
 }
 async function callGemini(request) {
   const model = request.model || DEFAULT_MODELS.gemini;
+  const isGemini3 = /^gemini-3(?:\.|-)/.test(model);
+  const generationConfig = {
+    maxOutputTokens: request.maxTokens ?? 2e3
+  };
+  if (!isGemini3) generationConfig.temperature = request.temperature ?? 0.2;
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(request.apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       systemInstruction: request.system ? { parts: [{ text: request.system }] } : void 0,
       contents: [{ role: "user", parts: [{ text: request.prompt }] }],
-      generationConfig: {
-        temperature: request.temperature ?? 0.2,
-        maxOutputTokens: request.maxTokens ?? 2e3
-      }
+      generationConfig
     })
   });
   const data = await response.json();
@@ -555,7 +557,7 @@ async function getCredential(req) {
   const session = sessions.get(tenant);
   if (session) return session;
   if (process.env.GEMINI_API_KEY) {
-    const c = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-2.5-flash" };
+    const c = { provider: "gemini", apiKey: process.env.GEMINI_API_KEY, model: "gemini-3.6-flash" };
     sessions.set(tenant, c);
     return c;
   }
@@ -564,7 +566,7 @@ async function getCredential(req) {
   if (provider) {
     const apiKey = await getAICredential(tenant, provider);
     if (apiKey) {
-      const c = { provider, apiKey, model: provider === "gemini" ? "gemini-2.5-flash" : void 0 };
+      const c = { provider, apiKey, model: provider === "gemini" ? "gemini-3.6-flash" : void 0 };
       sessions.set(tenant, c);
       return c;
     }
@@ -577,7 +579,7 @@ router.post("/ai/connect", async (req, res) => {
     const { provider, apiKey, model } = req.body || {};
     if (!["gemini", "openai", "anthropic"].includes(provider)) return res.status(400).json({ error: "Unsupported provider" });
     if (!String(apiKey || "").trim()) return res.status(400).json({ error: "API key is required" });
-    const selectedModel = model || (provider === "gemini" ? "gemini-2.5-flash" : void 0);
+    const selectedModel = model || (provider === "gemini" ? "gemini-3.6-flash" : void 0);
     await generateAI({ provider, apiKey: String(apiKey).trim(), model: selectedModel, system: "Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
     const tenant = tenantId(req);
     sessions.set(tenant, { provider, apiKey: String(apiKey).trim(), model: selectedModel });
@@ -595,7 +597,7 @@ router.get("/ai/status", async (req, res) => {
     const tenant = tenantId(req);
     const session = sessions.get(tenant);
     if (session) return res.json({ connected: true, provider: session.provider, model: session.model });
-    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-2.5-flash", source: "environment" });
+    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-3.6-flash", source: "environment" });
     res.json({ connected: false, provider: null, model: null });
   } catch (error) {
     res.status(500).json({ error: error?.message || "Unable to read AI status" });
