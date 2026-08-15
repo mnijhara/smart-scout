@@ -12,14 +12,13 @@
       if (!window.process.env.API_KEY) window.process.env.API_KEY = "";
     </script>
     <link rel="stylesheet" href="/src/index.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
     "react-dom": "https://esm.sh/react-dom@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.3/jsx-runtime",
     "@google/genai": "https://esm.sh/@google/genai",
     "marked": "https://esm.sh/marked@15.0.0",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
@@ -31,14 +30,14 @@
 </script>
     <style>
       html, body, #root { min-height: 100%; }
-      body { margin: 0; font-family: 'Inter', sans-serif; background: #f8fafc; color: #0f172a; position: relative; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
-      body::before { content: ""; position: fixed; inset: 0; background: radial-gradient(circle at 80% 0%, rgba(124,58,237,.035), transparent 34%); pointer-events: none; z-index: -1; }
+      body { margin: 0; font-family: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif; background: #faf9f8; color: #242424; position: relative; overflow-x: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+      body::before { content: ""; position: fixed; inset: 0; background: radial-gradient(circle at 80% 0%, rgba(124,58,237,.025), transparent 34%); pointer-events: none; z-index: -1; }
       .custom-scrollbar::-webkit-scrollbar { width: 6px; }
       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-      .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-      .glass-panel { background: rgba(255,255,255,.92); backdrop-filter: blur(12px); border: 1px solid rgba(226,232,240,.9); box-shadow: 0 8px 32px rgba(15,23,42,.05); }
-      .terminal-text { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #c8c6c4; border-radius: 3px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a19f9d; }
+      .glass-panel { background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border: 1px solid rgba(225,223,221,.95); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+      .terminal-text { font-family: "Cascadia Code", "Segoe UI Mono", ui-monospace, monospace; letter-spacing: -0.01em; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
       .animate-fadeIn { animation: fadeIn .35s ease-out forwards; }
       @keyframes slideUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
@@ -49,7 +48,7 @@
   </head>
   <body>
     <div id="root"></div>
-    <button id="smart-scout-home" aria-label="Back to Smart Scout home" onclick="window.location.assign('/')" style="position:fixed;left:20px;bottom:20px;z-index:99999;border:1px solid #e2e8f0;border-radius:14px;background:rgba(255,255,255,.96);box-shadow:0 10px 30px rgba(15,23,42,.12);padding:11px 16px;color:#0f172a;font:700 12px Inter,sans-serif;cursor:pointer">← Smart Scout Home</button>
+    <button id="smart-scout-home" aria-label="Back to Smart Scout home" onclick="window.location.assign('/')" style="position:fixed;left:20px;bottom:20px;z-index:99999;border:1px solid #e1dfdd;border-radius:4px;background:rgba(255,255,255,.98);box-shadow:0 4px 16px rgba(0,0,0,.12);padding:11px 16px;color:#242424;font:600 12px 'Segoe UI Variable','Segoe UI',sans-serif;cursor:pointer">← Smart Scout Home</button>
     <script>
       (function(){
         var b=document.getElementById('smart-scout-home');
