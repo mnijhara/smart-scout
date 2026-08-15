@@ -21,6 +21,9 @@ export async function requireFirebaseAuth(req:Request,res:Response,next:NextFunc
     if(!token)return res.status(401).json({error:'Authentication required'});
     const identity=await verifyFirebaseIdToken(token);
     (req as any).firebaseUser=identity;
+    // Existing recruiting stores consume x-tenant-id. Populate it only after
+    // the Firebase token has been verified so callers cannot spoof a tenant.
+    req.headers['x-tenant-id']=identity.uid;
     next();
   }catch(error:any){res.status(401).json({error:error?.message||'Authentication failed'});}
 }
