@@ -1,4 +1,4 @@
-name: Refresh tracked frontend dist
+name: Refresh tracked production artifacts
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-dist:
+  build-artifacts:
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'github-actions[bot]' }}
     steps:
@@ -27,14 +27,27 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Commit refreshed dist
+      - name: Build production server
+        run: npx esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external
+
+      - name: Verify production server
+        run: |
+          test -f dist/index.html
+          test -f server.js
+          test -f server.cjs
+          node --check server.js
+          node --check server.cjs
+          grep -q "workspaceSessionInfo" server.js
+          grep -q "requireWorkspaceAuth" server.js
+
+      - name: Commit refreshed production artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dist
+          git add dist server.js
           if git diff --cached --quiet; then
-            echo "dist is already current"
+            echo "production artifacts are already current"
             exit 0
           fi
-          git commit -m "build: refresh tracked frontend dist"
+          git commit -m "build: refresh tracked production artifacts"
           git push
