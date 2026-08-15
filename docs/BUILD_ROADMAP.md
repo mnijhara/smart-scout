@@ -26,7 +26,7 @@ A feature is marked **[x]** only when the capability exists in the repository. P
 - [x] Search strategy / sourcing foundation
 - [x] Candidate persistence against the saved Job
 - [ ] Production candidate source connectors using official APIs
-- [ ] Evidence-backed candidate profiles with source attribution
+- [x] Evidence-backed candidate profiles with source attribution
 - [ ] Outreach workflow and delivery tracking
 
 ## Phase 4 — Candidate Intelligence
