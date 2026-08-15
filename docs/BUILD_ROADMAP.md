@@ -18,7 +18,7 @@ A feature is marked **[x]** only when the capability exists in the repository. P
 - [x] Must-have vs nice-to-have extraction
 - [x] Create requisition with explicit recruiter approval workflow
 - [x] JD upload / paste / URL ingestion
-- [ ] Bias / quality checks surfaced in the hiring UI
+- [x] Bias / quality checks surfaced in the hiring UI
 - [x] Human approval gate wired into the JD stage
 
 ## Phase 3 — Talent Sourcing
