@@ -289,8 +289,15 @@ function buildOnboardingPlan(input) {
 function cleanJson(text) {
   return text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
 }
+function hostname(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
 async function searchWebCandidates(apiKey, role, limit = 8) {
-  const prompt = `Find real public professional profiles suitable for this hiring role using Google Search. Return ONLY JSON, no markdown: {"candidates":[{"name":string,"headline":string,"location":string,"profileUrl":string,"source":string,"summary":string,"evidence":string[]}]}. Do not invent people, URLs, employers, or evidence. Only include candidates whose public profile/search result provides enough evidence to justify relevance. Prefer LinkedIn and credible public professional pages. Maximum ${limit} candidates. ROLE: ${JSON.stringify(role)}`;
+  const prompt = `Find real public professional profiles suitable for this hiring role using Google Search. Return ONLY JSON, no markdown: {"candidates":[{"name":string,"headline":string,"location":string,"profileUrl":string,"source":string,"summary":string,"evidence":string[]}]}. Do not invent people, URLs, employers, or evidence. Only include candidates whose public profile/search result provides enough evidence to justify relevance. Prefer LinkedIn and credible public professional pages. Every candidate MUST have a real public profileUrl, a source hostname or publisher, and at least one concrete evidence item tied to the role. Maximum ${limit} candidates. ROLE: ${JSON.stringify(role)}`;
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -300,7 +307,13 @@ async function searchWebCandidates(apiKey, role, limit = 8) {
   if (!response.ok) throw new Error(data?.error?.message || `Candidate search failed (${response.status})`);
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text).filter(Boolean).join("") || "";
   const parsed = JSON.parse(cleanJson(text));
-  return Array.isArray(parsed?.candidates) ? parsed.candidates.filter((c) => c?.name && c?.profileUrl) : [];
+  const seen = /* @__PURE__ */ new Set();
+  return (Array.isArray(parsed?.candidates) ? parsed.candidates : []).map((c) => ({ ...c, profileUrl: String(c?.profileUrl || "").trim(), source: String(c?.source || "").trim() || hostname(String(c?.profileUrl || "")), evidence: Array.isArray(c?.evidence) ? c.evidence.map((x) => String(x).trim()).filter(Boolean) : [] })).filter((c) => {
+    const key = c.profileUrl.toLowerCase();
+    if (!c.name || !key || !c.source || !c.evidence.length || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
 }
 
 // services/recruiting/credentialStore.ts
@@ -578,15 +591,13 @@ router.post("/ai/connect", async (req, res) => {
   try {
     const { provider, apiKey, model } = req.body || {};
     if (!["gemini", "openai", "anthropic"].includes(provider)) return res.status(400).json({ error: "Unsupported provider" });
-    if (!String(apiKey || "").trim()) return res.status(400).json({ error: "API key is required" });
+    const credential = String(apiKey || "").trim();
+    if (!credential) return res.status(400).json({ error: "API key is required" });
     const selectedModel = model || (provider === "gemini" ? "gemini-3.6-flash" : void 0);
-    await generateAI({ provider, apiKey: String(apiKey).trim(), model: selectedModel, system: "Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
+    await generateAI({ provider, apiKey: credential, model: selectedModel, system: "Reply with OK only.", prompt: "OK", temperature: 0, maxTokens: 8 });
     const tenant = tenantId(req);
-    sessions.set(tenant, { provider, apiKey: String(apiKey).trim(), model: selectedModel });
-    try {
-      await saveAICredential(tenant, provider, String(apiKey).trim());
-    } catch {
-    }
+    await saveAICredential(tenant, provider, credential);
+    sessions.set(tenant, { provider, apiKey: credential, model: selectedModel });
     res.json({ connected: true, provider, model: selectedModel });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Unable to connect AI provider" });
@@ -596,8 +607,10 @@ router.get("/ai/status", async (req, res) => {
   try {
     const tenant = tenantId(req);
     const session = sessions.get(tenant);
-    if (session) return res.json({ connected: true, provider: session.provider, model: session.model });
-    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-3.6-flash", source: "environment" });
+    if (session) return res.json({ connected: true, provider: session.provider, model: session.model, source: "secure-vault" });
+    if (process.env.GEMINI_API_KEY) return res.json({ connected: true, provider: "gemini", model: "gemini-3.6-flash", source: "server-environment" });
+    const providers = await listAIProviders(tenant).catch(() => []);
+    if (providers[0]) return res.json({ connected: true, provider: providers[0], model: providers[0] === "gemini" ? "gemini-3.6-flash" : void 0, source: "secure-vault" });
     res.json({ connected: false, provider: null, model: null });
   } catch (error) {
     res.status(500).json({ error: error?.message || "Unable to read AI status" });
@@ -917,8 +930,40 @@ function createControlPlaneRouter(tenantId2) {
 }
 
 // services/recruiting/firebaseAuth.ts
+import { createHmac, randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
 var FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0431516636";
 var FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || "AIzaSyCK2ESnkH49-h9lUenEsvQvQwJSeRr3aVw";
+var SESSION_SECRET = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY || FIREBASE_API_KEY;
+var SESSION_COOKIE = "smartscout_workspace";
+var SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+function signSession(id) {
+  return createHmac("sha256", SESSION_SECRET).update(id).digest("base64url");
+}
+function validSession(value) {
+  const [id, signature] = value.split(".");
+  if (!id || !signature) return null;
+  const expected = signSession(id);
+  try {
+    if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  } catch {
+    return null;
+  }
+  return id;
+}
+function getCookie(req, name) {
+  const raw = String(req.headers.cookie || "");
+  const prefix = `${name}=`;
+  const part = raw.split(";").map((value) => value.trim()).find((value) => value.startsWith(prefix));
+  return part ? decodeURIComponent(part.slice(prefix.length)) : "";
+}
+function ensureGuestWorkspace(req, res) {
+  const existing = validSession(getCookie(req, SESSION_COOKIE));
+  const id = existing || randomBytes2(32).toString("hex");
+  if (!existing) {
+    res.setHeader("Set-Cookie", `${SESSION_COOKIE}=${encodeURIComponent(`${id}.${signSession(id)}`)}; Path=/; Max-Age=${SESSION_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`);
+  }
+  return { kind: "guest", id: `guest:${id}` };
+}
 async function verifyFirebaseIdToken(token) {
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_API_KEY)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: token }) });
   const data = await response.json();
@@ -927,23 +972,35 @@ async function verifyFirebaseIdToken(token) {
   if (user.disabled) throw new Error("Firebase account is disabled");
   return { uid: String(user.localId), email: user.email, emailVerified: Boolean(user.emailVerified), displayName: user.displayName };
 }
-async function requireFirebaseAuth(req, res, next) {
-  try {
-    const header = String(req.header("authorization") || "");
-    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-    if (!token) return res.status(401).json({ error: "Authentication required" });
+async function resolveWorkspaceIdentity(req, res) {
+  const header = String(req.header("authorization") || "");
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (token) {
     const identity = await verifyFirebaseIdToken(token);
-    req.firebaseUser = identity;
-    req.headers["x-tenant-id"] = identity.uid;
+    return { kind: "firebase", id: identity.uid, email: identity.email, emailVerified: identity.emailVerified, displayName: identity.displayName };
+  }
+  return ensureGuestWorkspace(req, res);
+}
+async function requireWorkspaceAuth(req, res, next) {
+  try {
+    const identity = await resolveWorkspaceIdentity(req, res);
+    req.workspaceIdentity = identity;
+    req.headers["x-tenant-id"] = identity.id;
     next();
   } catch (error) {
-    res.status(401).json({ error: error?.message || "Authentication failed" });
+    res.status(401).json({ error: error?.message || "Workspace authentication failed" });
   }
 }
 function authenticatedTenantId(req) {
+  const identity = req.workspaceIdentity;
+  if (identity?.id) return identity.id;
   const uid = req.firebaseUser?.uid;
-  if (!uid) throw new Error("Authenticated tenant identity is missing");
-  return String(uid);
+  if (uid) return String(uid);
+  throw new Error("Workspace identity is missing");
+}
+function workspaceSessionInfo(req, res) {
+  const identity = ensureGuestWorkspace(req, res);
+  res.json({ ok: true, workspaceId: identity.id, kind: identity.kind });
 }
 
 // server.ts
@@ -956,9 +1013,10 @@ async function startServer() {
   app.get("/api/recruiting/health", (_req, res) => {
     res.json({ ok: true, service: "smartscout-recruiting" });
   });
+  app.get("/api/recruiting/session", workspaceSessionInfo);
   const tenantId2 = (req) => authenticatedTenantId(req);
-  app.use("/api/recruiting", requireFirebaseAuth, api_default);
-  app.use("/api/control-plane", requireFirebaseAuth, createControlPlaneRouter(tenantId2));
+  app.use("/api/recruiting", requireWorkspaceAuth, api_default);
+  app.use("/api/control-plane", requireWorkspaceAuth, createControlPlaneRouter(tenantId2));
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
   app.post("/api/create-checkout-session", async (req, res) => {
@@ -1046,8 +1104,19 @@ ${emailBody}`, location: "SmartScout AI Platform", url: interviewLink, status: "
     app.use(vite.middlewares);
   } else {
     const distPath = path6.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*all", (req, res) => res.sendFile(path6.join(distPath, "index.html")));
+    app.use(express.static(distPath, { setHeaders: (res, filePath5) => {
+      if (filePath5.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+      }
+    } }));
+    app.get("*all", (req, res) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.sendFile(path6.join(distPath, "index.html"));
+    });
   }
   app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
 }
