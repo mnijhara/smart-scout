@@ -36,7 +36,9 @@ jobs:
         run: |
           test -f dist/index.html
           test -f server.js
+          test -f server.cjs
           node --check server.js
+          node --check server.cjs
           if grep -Eq '^import .*services/recruiting/api(\.js)?([[:space:]]|[\"'\'';])' server.js; then
             echo "ERROR: production server.js still contains an external recruiting API import"
             exit 1
@@ -49,7 +51,7 @@ jobs:
 
       - name: Smoke test production APIs
         run: |
-          PORT=4173 NODE_ENV=production node server.js > /tmp/smartscout-server.log 2>&1 &
+          PORT=4173 NODE_ENV=production node server.cjs > /tmp/smartscout-server.log 2>&1 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in {1..30}; do
@@ -58,9 +60,6 @@ jobs:
           done
           grep -q '"ok":true' /tmp/recruiting-health.json
 
-          # Recruiting OS now supports a signed private browser workspace when
-          # Firebase signup is unavailable. Establish that workspace first and
-          # reuse its HttpOnly cookie for protected API smoke tests.
           curl -fsS -c /tmp/smartscout-cookies.txt http://127.0.0.1:4173/api/recruiting/session > /tmp/session.json
           grep -q '"ok":true' /tmp/session.json
           test -s /tmp/smartscout-cookies.txt
@@ -81,6 +80,7 @@ jobs:
           path: |
             dist
             server.js
+            server.cjs
             package.json
             node_modules
           if-no-files-found: error
