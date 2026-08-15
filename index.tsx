@@ -11,12 +11,13 @@ const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   const path = window.location.pathname.replace(/\/$/, '') || '/';
-  const lifecycle = <AuthGate><HiringLifecycleV2 onBack={() => window.location.assign('/home')} /></AuthGate>;
+  const publicHome = <LandingPage onUseOwn={() => window.location.assign('/hire')} />;
+  const lifecycle = <AuthGate><HiringLifecycleV2 onBack={() => window.location.assign('/')} /></AuthGate>;
 
   const view =
     path === '/old' ? <App /> :
-    path === '/home' ? <LandingPage onUseOwn={() => window.location.assign('/')} /> :
-    lifecycle;
+    path === '/hire' ? lifecycle :
+    publicHome;
 
   root.render(<React.StrictMode>{view}</React.StrictMode>);
 }
