@@ -7,33 +7,38 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout verified main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Download production build dependencies
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install production dependencies locally
+      - name: Download exact verified production artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smartscout-production-${{ github.event.workflow_run.head_sha }}
+          path: release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Install production dependencies
+        working-directory: release
         run: npm ci --omit=dev
 
-      - name: Deploy application to Hostinger over SFTP
+      - name: Deploy exact verified artifact to Hostinger over SFTP
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.HOSTINGER_SSH_HOST }}
           username: ${{ secrets.HOSTINGER_SSH_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_SSH_PORT || 22 }}
-          source: "dist,server.js,package.json,package-lock.json,node_modules"
+          source: "release/dist,release/server.js,release/package.json,release/package-lock.json,release/node_modules"
           target: ${{ secrets.HOSTINGER_APP_PATH }}
           overwrite: true
 
@@ -48,4 +53,4 @@ jobs:
             cd "${{ secrets.HOSTINGER_APP_PATH }}"
             mkdir -p tmp
             touch tmp/restart.txt
-            echo "Smart Scout deployed from main commit ${{ github.event.workflow_run.head_sha }}"
+            echo "Smart Scout deployed from verified build ${GITHUB_SHA}"
