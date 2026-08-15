@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Sync to latest main before building
+        run: |
+          git fetch origin main
+          git rebase origin/main
+
       - name: Install dependencies
         run: npm install
 
@@ -50,4 +55,4 @@ jobs:
             exit 0
           fi
           git commit -m "build: refresh tracked production artifacts"
-          git push
+          git push origin HEAD:main
