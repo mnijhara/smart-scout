@@ -28,7 +28,10 @@ export default function ByokWidget({ placement = 'floating' }: { placement?: 'fl
       return (await signInAnonymously(auth)).user;
     } catch (anonymousError: any) {
       const anonymousCode = String(anonymousError?.code || '');
-      if (anonymousCode === 'auth/operation-not-allowed') {
+      // Firebase returns auth/admin-restricted-operation when end-user sign-up
+      // is disabled at the Identity Platform project level. Treat that as the
+      // same fallback condition as auth/operation-not-allowed.
+      if (anonymousCode === 'auth/operation-not-allowed' || anonymousCode === 'auth/admin-restricted-operation') {
         return (await signInWithPopup(auth, new GoogleAuthProvider())).user;
       }
       throw anonymousError;
@@ -58,10 +61,10 @@ export default function ByokWidget({ placement = 'floating' }: { placement?: 'fl
     } catch (error: any) {
       setStatus('error');
       const code = String(error?.code || '');
-      if (code === 'auth/operation-not-allowed') {
-        setMessage('Firebase Anonymous Authentication is not enabled for this Smart Scout project. Enable Anonymous under Firebase Authentication → Sign-in method, or add smartscout.online to Authorized Domains for Google sign-in.');
+      if (code === 'auth/admin-restricted-operation' || code === 'auth/operation-not-allowed') {
+        setMessage('Smart Scout authentication is restricted in the Firebase project. Enable Anonymous Authentication or allow Google sign-in for smartscout.online.');
       } else if (code === 'auth/unauthorized-domain') {
-        setMessage('Google sign-in is not enabled for smartscout.online yet. Smart Scout tried its anonymous identity fallback first; enable Anonymous Authentication or add smartscout.online to Firebase Authorized Domains.');
+        setMessage('Google sign-in is not enabled for smartscout.online. Add smartscout.online to Firebase Authentication → Authorized domains.');
       } else {
         setMessage(error?.message || 'Unable to connect your AI provider.');
       }
