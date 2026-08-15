@@ -1,114 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithPopup, User } from 'firebase/auth';
-import { auth } from '../firebase';
-import { KeyRound, X, CheckCircle2, Loader2, ShieldCheck, Sparkles, ExternalLink } from 'lucide-react';
+import React,{useEffect,useState}from'react';
+import{KeyRound,X,CheckCircle2,Loader2,ShieldCheck,Sparkles,ExternalLink}from'lucide-react';
 
-type Provider = 'gemini' | 'openai' | 'anthropic';
-
-const providers: { id: Provider; name: string; hint: string }[] = [
-  { id: 'gemini', name: 'Google Gemini', hint: 'Recommended for the fastest setup' },
-  { id: 'openai', name: 'OpenAI', hint: 'Use your OpenAI API account' },
-  { id: 'anthropic', name: 'Anthropic', hint: 'Use your Anthropic API account' },
+type Provider='gemini'|'openai'|'anthropic';
+const providers:{id:Provider;name:string;hint:string}[]=[
+ {id:'gemini',name:'Google Gemini',hint:'Recommended for the fastest setup'},
+ {id:'openai',name:'OpenAI',hint:'Use your OpenAI API account'},
+ {id:'anthropic',name:'Anthropic',hint:'Use your Anthropic API account'},
 ];
 
-export default function ByokWidget({ placement = 'floating' }: { placement?: 'floating' | 'top' }) {
-  const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [provider, setProvider] = useState<Provider>('gemini');
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-3.6-flash');
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-  const [message, setMessage] = useState('');
-
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
-
-  async function ensureIdentity() {
-    if (auth.currentUser) return auth.currentUser;
-    try {
-      return (await signInAnonymously(auth)).user;
-    } catch (anonymousError: any) {
-      const anonymousCode = String(anonymousError?.code || '');
-      // Firebase returns auth/admin-restricted-operation when end-user sign-up
-      // is disabled at the Identity Platform project level. Treat that as the
-      // same fallback condition as auth/operation-not-allowed.
-      if (anonymousCode === 'auth/operation-not-allowed' || anonymousCode === 'auth/admin-restricted-operation') {
-        return (await signInWithPopup(auth, new GoogleAuthProvider())).user;
-      }
-      throw anonymousError;
-    }
-  }
-
-  async function connect() {
-    setStatus('connecting');
-    setMessage('');
-    try {
-      const current = await ensureIdentity();
-      setUser(current);
-      const token = await current.getIdToken(true);
-      const response = await fetch('/api/recruiting/ai/connect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ provider, apiKey: apiKey.trim(), model: model || undefined }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || 'Unable to connect this key');
-      setStatus('connected');
-      setApiKey('');
-      setMessage(`${data.provider} is connected. Your key stays on Smart Scout's secure server-side credential vault.`);
-    } catch (error: any) {
-      setStatus('error');
-      const code = String(error?.code || '');
-      if (code === 'auth/admin-restricted-operation' || code === 'auth/operation-not-allowed') {
-        setMessage('Smart Scout authentication is restricted in the Firebase project. Enable Anonymous Authentication or allow Google sign-in for smartscout.online.');
-      } else if (code === 'auth/unauthorized-domain') {
-        setMessage('Google sign-in is not enabled for smartscout.online. Add smartscout.online to Firebase Authentication → Authorized domains.');
-      } else {
-        setMessage(error?.message || 'Unable to connect your AI provider.');
-      }
-    }
-  }
-
-  const triggerClass = placement === 'top'
-    ? 'group flex w-full items-center justify-between gap-4 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md sm:px-5'
-    : 'fixed bottom-5 left-4 z-40 flex items-center gap-2 rounded-2xl border border-violet-200 bg-white/95 px-4 py-3 text-left shadow-xl shadow-violet-100 backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-2xl sm:bottom-6 sm:left-6';
-
-  return <>
-    <div className={placement === 'top' ? 'border-b border-violet-100 bg-white px-4 py-3 sm:px-6' : ''}>
-      <button onClick={() => setOpen(true)} aria-label="Bring your own AI key" className={triggerClass}>
-        <span className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm"><KeyRound className="h-4 w-4" /></span>
-          <span><span className="block text-[10px] font-black uppercase tracking-[.16em] text-violet-600">BYOK · START HERE</span><span className="block text-sm font-black text-slate-950 sm:text-base">Bring your own AI. Your key. Lower cost.</span></span>
-        </span>
-        {placement === 'top' && <span className="hidden shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-black text-white sm:block">Connect your AI →</span>}
-      </button>
-    </div>
-
-    {open && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/65 p-3 backdrop-blur-md sm:items-center sm:p-6" onClick={() => setOpen(false)}>
-      <div className="w-full max-w-xl overflow-hidden rounded-[28px] bg-white shadow-2xl sm:rounded-[32px]" onClick={event => event.stopPropagation()}>
-        <div className="border-b border-slate-100 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white"><KeyRound className="h-5 w-5" /></span>
-              <div><div className="text-[10px] font-black uppercase tracking-[.2em] text-violet-600">Smart Scout BYOK</div><h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Bring your own AI.</h2></div>
-            </div>
-            <button onClick={() => setOpen(false)} className="rounded-xl p-2 hover:bg-white"><X className="h-5 w-5" /></button>
-          </div>
-          <p className="mt-4 max-w-lg text-sm leading-6 text-slate-600">Use your own Gemini, OpenAI or Anthropic account. Smart Scout charges for the hiring workspace — <b>your AI usage stays on your AI account.</b></p>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] font-black text-slate-600"><div className="rounded-xl border border-slate-200 bg-white p-3">Your key</div><div className="rounded-xl border border-slate-200 bg-white p-3">Your usage</div><div className="rounded-xl border border-slate-200 bg-white p-3">Your control</div></div>
-        </div>
-        <div className="space-y-5 p-5 sm:p-7">
-          <div><label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">AI provider</label><div className="grid gap-2 sm:grid-cols-3">{providers.map(item => <button key={item.id} onClick={() => { setProvider(item.id); setStatus('idle'); setMessage(''); if (item.id === 'gemini') setModel('gemini-3.6-flash'); else setModel(''); }} className={`rounded-xl border p-3 text-left transition ${provider === item.id ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-100' : 'border-slate-200 hover:border-slate-300'}`}><div className="text-xs font-black">{item.name}</div><div className="mt-1 text-[10px] leading-4 text-slate-400">{item.hint}</div></button>)}</div></div>
-          <div><label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">API key</label><input value={apiKey} onChange={event => setApiKey(event.target.value)} type="password" autoComplete="off" placeholder={`Paste your ${provider} API key`} className="w-full rounded-xl border border-slate-200 px-4 py-3.5 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100" /></div>
-          {provider === 'gemini' && <div><label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">Model <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label><input value={model} onChange={event => setModel(event.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100" /></div>}
-          <button disabled={!apiKey.trim() || status === 'connecting'} onClick={connect} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">{status === 'connecting' ? <><Loader2 className="h-4 w-4 animate-spin" />Connecting securely…</> : <><Sparkles className="h-4 w-4" />Connect my AI</>}</button>
-          {status === 'connected' && <div className="flex gap-3 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><div><b>AI connected.</b><div className="mt-1 text-xs leading-5">{message}</div><button onClick={() => window.location.assign('/hire')} className="mt-3 inline-flex items-center gap-1 font-black underline">Open hiring workspace <ExternalLink className="h-3 w-3" /></button></div></div>}
-          {status === 'error' && <div className="rounded-2xl bg-rose-50 p-4 text-xs leading-5 text-rose-700"><b>Connection failed.</b><div className="mt-1">{message}</div></div>}
-          <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-400"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />Your key is never displayed back after saving. Smart Scout uses the existing encrypted server-side credential vault; it is not stored in browser localStorage.</div>
-        </div>
-      </div>
-    </div>}
-  </>;
+export default function ByokWidget({placement='floating'}:{placement?:'floating'|'top'}){
+ const[open,setOpen]=useState(false),[provider,setProvider]=useState<Provider>('gemini'),[apiKey,setApiKey]=useState(''),[model,setModel]=useState('gemini-3.6-flash'),[status,setStatus]=useState<'idle'|'connecting'|'connected'|'error'>('idle'),[message,setMessage]=useState('');
+ useEffect(()=>{void fetch('/api/recruiting/session',{credentials:'include'}).catch(()=>{});},[]);
+ async function connect(){setStatus('connecting');setMessage('');try{const session=await fetch('/api/recruiting/session',{credentials:'include'});if(!session.ok)throw new Error('Unable to start a secure workspace session');const response=await fetch('/api/recruiting/ai/connect',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider,apiKey:apiKey.trim(),model:model||undefined})});const data=await response.json();if(!response.ok)throw new Error(data?.error||'Unable to connect this key');setStatus('connected');setApiKey('');setMessage(`${data.provider} is connected. Your key stays on Smart Scout's secure server-side credential vault.`);}catch(error:any){setStatus('error');setMessage(error?.message||'Unable to connect your AI provider.');}}
+ const triggerClass=placement==='top'?'group flex w-full items-center justify-between gap-4 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md sm:px-5':'fixed bottom-5 left-4 z-40 flex items-center gap-2 rounded-2xl border border-violet-200 bg-white/95 px-4 py-3 text-left shadow-xl shadow-violet-100 backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-2xl sm:bottom-6 sm:left-6';
+ return <><div className={placement==='top'?'border-b border-violet-100 bg-white px-4 py-3 sm:px-6':''}><button onClick={()=>setOpen(true)} aria-label="Bring your own AI key" className={triggerClass}><span className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm"><KeyRound className="h-4 w-4"/></span><span><span className="block text-[10px] font-black uppercase tracking-[.16em] text-violet-600">BYOK · START HERE</span><span className="block text-sm font-black text-slate-950 sm:text-base">Bring your own AI. Your key. Lower cost.</span></span></span>{placement==='top'&&<span className="hidden shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-black text-white sm:block">Connect your AI →</span>}</button></div>
+ {open&&<div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/65 p-3 backdrop-blur-md sm:items-center sm:p-6" onClick={()=>setOpen(false)}><div className="w-full max-w-xl overflow-hidden rounded-[28px] bg-white shadow-2xl sm:rounded-[32px]" onClick={event=>event.stopPropagation()}><div className="border-b border-slate-100 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-7"><div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white"><KeyRound className="h-5 w-5"/></span><div><div className="text-[10px] font-black uppercase tracking-[.2em] text-violet-600">Smart Scout BYOK</div><h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Bring your own AI.</h2></div></div><button onClick={()=>setOpen(false)} className="rounded-xl p-2 hover:bg-white"><X className="h-5 w-5"/></button></div><p className="mt-4 max-w-lg text-sm leading-6 text-slate-600">Use your own Gemini, OpenAI or Anthropic account. Smart Scout charges for the hiring workspace — <b>your AI usage stays on your AI account.</b></p><div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] font-black text-slate-600"><div className="rounded-xl border border-slate-200 bg-white p-3">Your key</div><div className="rounded-xl border border-slate-200 bg-white p-3">Your usage</div><div className="rounded-xl border border-slate-200 bg-white p-3">Your control</div></div></div><div className="space-y-5 p-5 sm:p-7"><div><label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">AI provider</label><div className="grid gap-2 sm:grid-cols-3">{providers.map(item=><button key={item.id} onClick={()=>{setProvider(item.id);setStatus('idle');setMessage('');setModel(item.id==='gemini'?'gemini-3.6-flash':'')}} className={`rounded-xl border p-3 text-left transition ${provider===item.id?'border-violet-500 bg-violet-50 ring-2 ring-violet-100':'border-slate-200 hover:border-slate-300'}`}><div className="text-xs font-black">{item.name}</div><div className="mt-1 text-[10px] leading-4 text-slate-400">{item.hint}</div></button>)}</div></div><div><label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">API key</label><input value={apiKey} onChange={e=>setApiKey(e.target.value)} type="password" autoComplete="off" placeholder={`Paste your ${provider} API key`} className="w-full rounded-xl border border-slate-200 px-4 py-3.5 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"/></div>{provider==='gemini'&&<div><label className="mb-2 block text-xs font-black uppercase tracking-widest text-slate-500">Model <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label><input value={model} onChange={e=>setModel(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"/></div>}<button disabled={!apiKey.trim()||status==='connecting'} onClick={connect} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-50">{status==='connecting'?<><Loader2 className="h-4 w-4 animate-spin"/>Connecting securely…</>:<><Sparkles className="h-4 w-4"/>Connect my AI</>}</button>{status==='connected'&&<div className="flex gap-3 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0"/><div><b>AI connected.</b><div className="mt-1 text-xs leading-5">{message}</div><button onClick={()=>window.location.assign('/hire')} className="mt-3 inline-flex items-center gap-1 font-black underline">Open hiring workspace <ExternalLink className="h-3 w-3"/></button></div></div>}{status==='error'&&<div className="rounded-2xl bg-rose-50 p-4 text-xs leading-5 text-rose-700"><b>Connection failed.</b><div className="mt-1">{message}</div></div>}<div className="flex items-start gap-2 text-[11px] leading-5 text-slate-400"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0"/>Your key is never displayed back after saving. Smart Scout uses the existing encrypted server-side credential vault; it is not stored in browser localStorage.</div></div></div></div>}
+ </>;
 }
