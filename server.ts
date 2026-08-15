@@ -58,15 +58,32 @@ async function startServer() {
     const { candidateEmail, candidateName, designation, company, jd, emailBody, scheduledAt, interviewLink } = req.body;
     if (!resend) return res.status(400).json({ success: false, error: 'RESEND_API_KEY is not configured.' });
     try {
-      const attachments: any[] = []; if (jd) attachments.push({ filename: 'job-description.txt', content: Buffer.from(jd) });
-      if (scheduledAt) { const date = new Date(scheduledAt); const event: ics.EventAttributes = { start: [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()], duration: { hours: 1 }, title: `AI Interview with ${company || 'SmartScout'}: ${candidateName} - ${designation || 'Position'}`, description: `Your AI-powered audio interview is scheduled.\n\nInterview Link: ${interviewLink}\n\n${emailBody}`, location: 'SmartScout AI Platform', url: interviewLink, status: 'CONFIRMED', busyStatus: 'BUSY', organizer: { name: 'SmartScout Recruitment', email: 'interviews@smartscout.online' }, attendees: [{ name: candidateName, email: candidateEmail, rsvp: true, partstat: 'ACCEPTED', role: 'REQ-PARTICIPANT' }] }; const { error, value } = ics.createEvent(event); if (!error && value) attachments.push({ filename: 'interview-invite.ics', content: Buffer.from(value) }); }
+      const attachments: any[] = []; if (jd) attachments.push({ filename: 'job-description.txt', content: Buffer.from(jd) }); if (scheduledAt) { const date = new Date(scheduledAt); const event: ics.EventAttributes = { start: [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()], duration: { hours: 1 }, title: `AI Interview with ${company || 'SmartScout'}: ${candidateName} - ${designation || 'Position'}`, description: `Your AI-powered audio interview is scheduled.\n\nInterview Link: ${interviewLink}\n\n${emailBody}`, location: 'SmartScout AI Platform', url: interviewLink, status: 'CONFIRMED', busyStatus: 'BUSY', organizer: { name: 'SmartScout Recruitment', email: 'interviews@smartscout.online' }, attendees: [{ name: candidateName, email: candidateEmail, rsvp: true, partstat: 'ACCEPTED', role: 'REQ-PARTICIPANT' }] }; const { error, value } = ics.createEvent(event); if (!error && value) attachments.push({ filename: 'interview-invite.ics', content: Buffer.from(value) }); }
       const { data, error } = await resend.emails.send({ from: 'SmartScout <interviews@smartscout.online>', to: [candidateEmail], subject: `Interview Invitation: ${company || 'SmartScout'} - ${designation || 'Position'}`, attachments, html: `<h1>Interview Invitation</h1><div style="white-space:pre-wrap">${emailBody}</div>${scheduledAt ? `<p>Scheduled: ${new Date(scheduledAt).toLocaleString()}</p>` : ''}` });
       if (error) return res.status(500).json({ success: false, error: error.message }); res.json({ success: true, data });
     } catch (err: any) { res.status(500).json({ success: false, error: err.message }); }
   });
 
   if (process.env.NODE_ENV !== 'production') { const { createServer: createViteServer } = await import('vite'); const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' }); app.use(vite.middlewares); }
-  else { const distPath = path.join(process.cwd(), 'dist'); app.use(express.static(distPath)); app.get('*all', (req, res) => res.sendFile(path.join(distPath, 'index.html'))); }
+  else {
+    const distPath = path.join(process.cwd(), 'dist');
+    // Never let a proxy/browser pin an old SPA shell. Vite's hashed assets can
+    // still be cached normally, while index.html must always point at the
+    // newest deployed bundle.
+    app.use(express.static(distPath, { setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }}));
+    app.get('*all', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
   app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 }
 startServer();
