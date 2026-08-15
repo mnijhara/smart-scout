@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 
 type RecordBase = { id: string; tenantId: string; createdAt: string; updatedAt: string };
-export type Approval = RecordBase & { jobId: string; candidateId?: string; action: 'reject'|'decision'|'compensation'|'offer'|'employee_create'; status: 'pending'|'approved'|'rejected'; requestedBy: string; decidedBy?: string; note?: string };
+export type Approval = RecordBase & { jobId: string; candidateId?: string; action: 'jd_approval'|'reject'|'decision'|'compensation'|'offer'|'employee_create'; status: 'pending'|'approved'|'rejected'; requestedBy: string; decidedBy?: string; note?: string };
 export type AuditEvent = RecordBase & { jobId?: string; candidateId?: string; action: string; actor: string; metadata?: Record<string, unknown> };
 export type InterviewSchedule = RecordBase & { jobId: string; candidateId: string; startsAt: string; endsAt: string; timezone: string; mode: 'ai_audio'|'human'|'panel'; status: 'proposed'|'confirmed'|'cancelled'; candidateEmail?: string; interviewUrl?: string };
 export type UsageRecord = RecordBase & { period: string; feature: string; units: number; metadata?: Record<string, unknown> };
@@ -28,18 +28,18 @@ export async function listAudit(tenantId:string,jobId?:string){return (await rea
 export async function scheduleInterview(input: Omit<InterviewSchedule,'id'|'createdAt'|'updatedAt'>):Promise<InterviewSchedule>{if(new Date(input.endsAt)<=new Date(input.startsAt))throw new Error('Interview end must be after start');const existing=await read<InterviewSchedule>(files.schedules);const clash=existing.find(x=>x.tenantId===input.tenantId&&x.status!=='cancelled'&&new Date(input.startsAt)<new Date(x.endsAt)&&new Date(input.endsAt)>new Date(x.startsAt));if(clash)throw new Error('Interview time overlaps an existing booking');const t=now();const value: InterviewSchedule={...input,id:`schedule_${crypto.randomUUID()}`,createdAt:t,updatedAt:t};return append(files.schedules,value);}
 export async function updateSchedule(id:string,status:InterviewSchedule['status']):Promise<InterviewSchedule|null>{const all=await read<InterviewSchedule>(files.schedules);const item=all.find(x=>x.id===id);if(!item)return null;item.status=status;item.updatedAt=now();await fs.writeFile(path.join(root,files.schedules),JSON.stringify(all,null,2));return item;}
 export async function listSchedules(tenantId:string,jobId?:string){return (await read<InterviewSchedule>(files.schedules)).filter(x=>x.tenantId===tenantId&&(!jobId||x.jobId===jobId));}
-export async function recordUsage(input: UsageInput):Promise<UsageRecord>{const t=now();const value: UsageRecord={...input,id:`usage_${crypto.randomUUID()}`,createdAt:t,updatedAt:t};return append(files.usage,value);}
+export async function recordUsage(input: UsageInput):Promise<UsageRecord>{const t=now();const value:UsageRecord={...input,id:`usage_${crypto.randomUUID()}`,createdAt:t,updatedAt:t};return append(files.usage,value);}
 export async function usageSummary(tenantId:string,period?:string){const rows=await read<UsageRecord>(files.usage);const filtered=rows.filter(x=>x.tenantId===tenantId&&(!period||x.period===period));return filtered.reduce<Record<string,number>>((a,x)=>(a[x.feature]=(a[x.feature]||0)+x.units,a),{});}
 
 export function createControlPlaneRouter(tenantId:(req:any)=>string){const r=Router();
 r.post('/approvals',async(req,res)=>{try{res.json(await requestApproval({...req.body,tenantId:tenantId(req)}));}catch(e:any){res.status(400).json({error:e.message})}});
 r.get('/approvals',async(req,res)=>res.json({approvals:await listApprovals(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
 r.post('/approvals/:id/decision',async(req,res)=>{try{const out=await decideApproval(String(req.params.id),req.body?.status,String(req.body?.actor||'system'),req.body?.note);if(!out)return res.status(404).json({error:'Approval not found'});res.json(out);}catch(e:any){res.status(400).json({error:e.message})}});
-r.get('/audit',async(req,res)=>res.json({events:await listAudit(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
-r.post('/audit',async(req,res)=>res.json(await audit({...req.body,tenantId:tenantId(req)})));
+r.get('/audit',async(req,res)=>res.json({events:await listAudit(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)});
+r.post('/audit',async(req,res)=>res.json(await audit({...req.body,tenantId:tenantId(req)}));
 r.post('/schedules',async(req,res)=>{try{res.json(await scheduleInterview({...req.body,tenantId:tenantId(req)}));}catch(e:any){res.status(409).json({error:e.message})}});
 r.get('/schedules',async(req,res)=>res.json({schedules:await listSchedules(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
 r.post('/schedules/:id/status',async(req,res)=>{const out=await updateSchedule(String(req.params.id),req.body?.status);if(!out)return res.status(404).json({error:'Schedule not found'});res.json(out)});
 r.post('/usage',async(req,res)=>res.json(await recordUsage({...req.body,tenantId:tenantId(req)})));
-r.get('/usage',async(req,res)=>res.json({usage:await usageSummary(tenantId(req),req.query.period?String(req.query.period):undefined)}));
+r.get('/usage',async(req,res)=>res.json({usage:await usageSummary(tenantId(req),req.query.period?String(req.query.period):undefined)});
 return r;}
