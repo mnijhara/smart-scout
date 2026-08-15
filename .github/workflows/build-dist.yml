@@ -34,8 +34,6 @@ jobs:
 
       - name: Apply production Gemini compatibility
         run: |
-          # The current gateway uses generateContent with sampling parameters;
-          # normalize the UI/backend model selection to the stable model for this build.
           sed -i 's/gemini-3\.6-flash/gemini-2.5-flash/g' server.js
           find dist -type f -name '*.js' -print0 | xargs -0 sed -i 's/gemini-3\.6-flash/gemini-2.5-flash/g'
 
@@ -67,15 +65,17 @@ jobs:
             if curl -fsS http://127.0.0.1:4173/api/recruiting/health > /tmp/recruiting-health.json; then break; fi
             sleep 1
           done
-          grep -q '\"ok\":true' /tmp/recruiting-health.json
-          curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/recruiting/jobs > /tmp/jobs.json
-          grep -q '\"jobs\"' /tmp/jobs.json
-          curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/control-plane/usage > /tmp/usage.json
-          grep -q '\"usage\"' /tmp/usage.json
-          curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/control-plane/approvals > /tmp/approvals.json
-          grep -q '\"approvals\"' /tmp/approvals.json
-          curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/control-plane/schedules > /tmp/schedules.json
-          grep -q '\"schedules\"' /tmp/schedules.json
+          grep -q '"ok":true' /tmp/recruiting-health.json
+          # Protected lifecycle/control-plane endpoints must reject unauthenticated
+          # tenant spoofing. Live authenticated smoke tests run in the deployed env.
+          for endpoint in \
+            /api/recruiting/jobs \
+            /api/control-plane/usage \
+            /api/control-plane/approvals \
+            /api/control-plane/schedules; do
+            status=$(curl -sS -o /tmp/protected.json -w '%{http_code}' -H 'x-tenant-id: ci-smoke' "http://127.0.0.1:4173${endpoint}")
+            test "$status" = "401"
+          done
 
       - name: Commit production build
         run: |
