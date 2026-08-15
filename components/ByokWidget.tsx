@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, User } from 'firebase/auth';
+import { GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithPopup, User } from 'firebase/auth';
 import { auth } from '../firebase';
 import { KeyRound, X, CheckCircle2, Loader2, ShieldCheck, Sparkles, ExternalLink } from 'lucide-react';
 
@@ -22,19 +22,37 @@ export default function ByokWidget() {
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
+  async function ensureIdentity() {
+    if (auth.currentUser) return auth.currentUser;
+    try {
+      // Google OAuth on a custom Hostinger domain can fail until the domain is
+      // added to Firebase Authorized Domains. Anonymous Firebase identity does
+      // not use the OAuth redirect flow and keeps BYOK usable in the meantime.
+      return (await signInAnonymously(auth)).user;
+    } catch (anonymousError: any) {
+      const anonymousCode = String(anonymousError?.code || '');
+      if (anonymousCode === 'auth/operation-not-allowed') {
+        // Preserve the existing Google account flow when anonymous auth is not
+        // enabled for the Firebase project.
+        return (await signInWithPopup(auth, new GoogleAuthProvider())).user;
+      }
+      throw anonymousError;
+    }
+  }
+
   async function connect() {
     setStatus('connecting');
     setMessage('');
     try {
-      let current = user;
-      if (!current) {
-        current = await signInWithPopup(auth, new GoogleAuthProvider()).then(result => result.user);
-        setUser(current);
-      }
-      const token = await current.getIdToken();
+      const current = await ensureIdentity();
+      setUser(current);
+      const token = await current.getIdToken(true);
       const response = await fetch('/api/recruiting/ai/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ provider, apiKey: apiKey.trim(), model: model || undefined }),
       });
       const data = await response.json();
@@ -45,9 +63,13 @@ export default function ByokWidget() {
     } catch (error: any) {
       setStatus('error');
       const code = String(error?.code || '');
-      setMessage(code === 'auth/unauthorized-domain'
-        ? 'Google sign-in is not enabled for smartscout.online yet. Add the domain to Firebase Authentication → Authorized domains.'
-        : error?.message || 'Unable to connect your AI provider.');
+      if (code === 'auth/operation-not-allowed') {
+        setMessage('Firebase Anonymous Authentication is not enabled for this Smart Scout project. Enable Anonymous under Firebase Authentication → Sign-in method, or add smartscout.online to Authorized Domains for Google sign-in.');
+      } else if (code === 'auth/unauthorized-domain') {
+        setMessage('Google sign-in is not enabled for smartscout.online yet. Smart Scout tried its anonymous identity fallback first; enable Anonymous Authentication or add smartscout.online to Firebase Authorized Domains.');
+      } else {
+        setMessage(error?.message || 'Unable to connect your AI provider.');
+      }
     }
   }
 
