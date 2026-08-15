@@ -7,7 +7,7 @@ import Stripe from 'stripe';
 import { jsPDF } from 'jspdf';
 import recruitingRouter from './services/recruiting/api.js';
 import { createControlPlaneRouter } from './services/recruiting/controlPlane.js';
-import { requireFirebaseAuth, authenticatedTenantId } from './services/recruiting/firebaseAuth.js';
+import { requireWorkspaceAuth, authenticatedTenantId, workspaceSessionInfo } from './services/recruiting/firebaseAuth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,15 +18,18 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
 
-  // Public liveness endpoint used by deployment health checks. Keep this outside
-  // tenant authentication: it only reports that the process is alive.
+  // Public liveness endpoint used by deployment health checks.
   app.get('/api/recruiting/health', (_req, res) => {
     res.json({ ok: true, service: 'smartscout-recruiting' });
   });
 
+  // Private, signed browser workspace used when Firebase Anonymous/Google auth
+  // is unavailable. It is scoped to this browser session and never exposes a secret.
+  app.get('/api/recruiting/session', workspaceSessionInfo);
+
   const tenantId = (req: any) => authenticatedTenantId(req);
-  app.use('/api/recruiting', requireFirebaseAuth, recruitingRouter);
-  app.use('/api/control-plane', requireFirebaseAuth, createControlPlaneRouter(tenantId));
+  app.use('/api/recruiting', requireWorkspaceAuth, recruitingRouter);
+  app.use('/api/control-plane', requireWorkspaceAuth, createControlPlaneRouter(tenantId));
 
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
