@@ -7,6 +7,7 @@ import Stripe from 'stripe';
 import { jsPDF } from 'jspdf';
 import recruitingRouter from './services/recruiting/api.js';
 import { createControlPlaneRouter } from './services/recruiting/controlPlane.js';
+import { requireFirebaseAuth, authenticatedTenantId } from './services/recruiting/firebaseAuth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,9 +17,9 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '50mb' }));
-  const tenantId = (req: any) => String(req.header('x-tenant-id') || 'demo-tenant');
-  app.use('/api/recruiting', recruitingRouter);
-  app.use('/api/control-plane', createControlPlaneRouter(tenantId));
+  const tenantId = (req: any) => authenticatedTenantId(req);
+  app.use('/api/recruiting', requireFirebaseAuth, recruitingRouter);
+  app.use('/api/control-plane', requireFirebaseAuth, createControlPlaneRouter(tenantId));
 
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
