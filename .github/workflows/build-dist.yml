@@ -67,15 +67,15 @@ jobs:
             if curl -fsS http://127.0.0.1:4173/api/recruiting/health > /tmp/recruiting-health.json; then break; fi
             sleep 1
           done
-          grep -q '"ok":true' /tmp/recruiting-health.json
+          grep -q '\"ok\":true' /tmp/recruiting-health.json
           curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/recruiting/jobs > /tmp/jobs.json
-          grep -q '"jobs"' /tmp/jobs.json
+          grep -q '\"jobs\"' /tmp/jobs.json
           curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/control-plane/usage > /tmp/usage.json
-          grep -q '"usage"' /tmp/usage.json
+          grep -q '\"usage\"' /tmp/usage.json
           curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/control-plane/approvals > /tmp/approvals.json
-          grep -q '"approvals"' /tmp/approvals.json
+          grep -q '\"approvals\"' /tmp/approvals.json
           curl -fsS -H 'x-tenant-id: ci-smoke' http://127.0.0.1:4173/api/control-plane/schedules > /tmp/schedules.json
-          grep -q '"schedules"' /tmp/schedules.json
+          grep -q '\"schedules\"' /tmp/schedules.json
 
       - name: Commit production build
         run: |
@@ -88,3 +88,5 @@ jobs:
           fi
           git commit -m "chore: update production build [skip ci]"
           git push
+
+      # Release gate retrigger marker: keep this workflow self-contained and auditable.
