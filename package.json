@@ -3,13 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "server.js",
+  "main": "server.cjs",
   "engines": {
     "node": "22.x"
   },
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.js",
+    "start": "node server.cjs",
     "build": "vite build",
     "build:server": "esbuild server.ts --platform=node --format=esm --outfile=server.js --packages=external",
     "preview": "vite preview",
@@ -40,7 +40,6 @@
     "@types/node": "^22.0.0",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.27",
-    "esbuild": "^0.27.4",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",
