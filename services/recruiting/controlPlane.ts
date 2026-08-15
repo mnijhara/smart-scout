@@ -35,11 +35,11 @@ export function createControlPlaneRouter(tenantId:(req:any)=>string){const r=Rou
 r.post('/approvals',async(req,res)=>{try{res.json(await requestApproval({...req.body,tenantId:tenantId(req)}));}catch(e:any){res.status(400).json({error:e.message})}});
 r.get('/approvals',async(req,res)=>res.json({approvals:await listApprovals(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
 r.post('/approvals/:id/decision',async(req,res)=>{try{const out=await decideApproval(String(req.params.id),req.body?.status,String(req.body?.actor||'system'),req.body?.note);if(!out)return res.status(404).json({error:'Approval not found'});res.json(out);}catch(e:any){res.status(400).json({error:e.message})}});
-r.get('/audit',async(req,res)=>res.json({events:await listAudit(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)});
-r.post('/audit',async(req,res)=>res.json(await audit({...req.body,tenantId:tenantId(req)}));
+r.get('/audit',async(req,res)=>res.json({events:await listAudit(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
+r.post('/audit',async(req,res)=>res.json(await audit({...req.body,tenantId:tenantId(req)})));
 r.post('/schedules',async(req,res)=>{try{res.json(await scheduleInterview({...req.body,tenantId:tenantId(req)}));}catch(e:any){res.status(409).json({error:e.message})}});
 r.get('/schedules',async(req,res)=>res.json({schedules:await listSchedules(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
 r.post('/schedules/:id/status',async(req,res)=>{const out=await updateSchedule(String(req.params.id),req.body?.status);if(!out)return res.status(404).json({error:'Schedule not found'});res.json(out)});
 r.post('/usage',async(req,res)=>res.json(await recordUsage({...req.body,tenantId:tenantId(req)})));
-r.get('/usage',async(req,res)=>res.json({usage:await usageSummary(tenantId(req),req.query.period?String(req.query.period):undefined)});
+r.get('/usage',async(req,res)=>res.json({usage:await usageSummary(tenantId(req),req.query.period?String(req.query.period):undefined}));
 return r;}
