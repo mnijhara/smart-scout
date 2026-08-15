@@ -21,7 +21,7 @@ export type AIResponse = {
 };
 
 const DEFAULT_MODELS: Record<AIProvider, string> = {
-  gemini: 'gemini-2.5-flash',
+  gemini: 'gemini-3.6-flash',
   openai: 'gpt-4.1-mini',
   anthropic: 'claude-3-5-haiku-latest',
 };
@@ -32,16 +32,20 @@ function cleanText(value: unknown): string {
 
 async function callGemini(request: AIRequest): Promise<AIResponse> {
   const model = request.model || DEFAULT_MODELS.gemini;
+  const isGemini3 = /^gemini-3(?:\.|-)/.test(model);
+  const generationConfig: Record<string, unknown> = {
+    maxOutputTokens: request.maxTokens ?? 2000,
+  };
+  // Gemini 3.x removed legacy sampling parameters such as temperature.
+  if (!isGemini3) generationConfig.temperature = request.temperature ?? 0.2;
+
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(request.apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: request.system ? { parts: [{ text: request.system }] } : undefined,
       contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
-      generationConfig: {
-        temperature: request.temperature ?? 0.2,
-        maxOutputTokens: request.maxTokens ?? 2000,
-      },
+      generationConfig,
     }),
   });
   const data: any = await response.json();
