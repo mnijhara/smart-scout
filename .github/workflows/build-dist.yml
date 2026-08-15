@@ -57,13 +57,21 @@ jobs:
             sleep 1
           done
           grep -q '"ok":true' /tmp/recruiting-health.json
+
+          # Recruiting OS now supports a signed private browser workspace when
+          # Firebase signup is unavailable. Establish that workspace first and
+          # reuse its HttpOnly cookie for protected API smoke tests.
+          curl -fsS -c /tmp/smartscout-cookies.txt http://127.0.0.1:4173/api/recruiting/session > /tmp/session.json
+          grep -q '"ok":true' /tmp/session.json
+          test -s /tmp/smartscout-cookies.txt
+
           for endpoint in \
             /api/recruiting/jobs \
             /api/control-plane/usage \
             /api/control-plane/approvals \
             /api/control-plane/schedules; do
-            status=$(curl -sS -o /tmp/protected.json -w '%{http_code}' -H 'x-tenant-id: ci-smoke' "http://127.0.0.1:4173${endpoint}")
-            test "$status" = "401"
+            status=$(curl -sS -b /tmp/smartscout-cookies.txt -o /tmp/protected.json -w '%{http_code}' "http://127.0.0.1:4173${endpoint}")
+            test "$status" = "200"
           done
 
       - name: Upload verified production artifact
