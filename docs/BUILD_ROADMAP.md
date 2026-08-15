@@ -16,10 +16,10 @@ A feature is marked **[x]** only when the capability exists in the repository. P
 ## Phase 2 — Job Intelligence
 - [x] Hiring prompt / JD parsing and structured requirements
 - [x] Must-have vs nice-to-have extraction
-- [ ] Create requisition with explicit recruiter approval workflow
+- [x] Create requisition with explicit recruiter approval workflow
 - [ ] JD upload / paste / URL ingestion
 - [ ] Bias / quality checks surfaced in the hiring UI
-- [ ] Human approval gate wired into the JD stage
+- [x] Human approval gate wired into the JD stage
 
 ## Phase 3 — Talent Sourcing
 - [x] Candidate normalization and deduplication primitives
