@@ -11,7 +11,7 @@ const providers: { id: Provider; name: string; hint: string }[] = [
   { id: 'anthropic', name: 'Anthropic', hint: 'Use your Anthropic API account' },
 ];
 
-export default function ByokWidget() {
+export default function ByokWidget({ placement = 'floating' }: { placement?: 'floating' | 'top' }) {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [provider, setProvider] = useState<Provider>('gemini');
@@ -25,15 +25,10 @@ export default function ByokWidget() {
   async function ensureIdentity() {
     if (auth.currentUser) return auth.currentUser;
     try {
-      // Google OAuth on a custom Hostinger domain can fail until the domain is
-      // added to Firebase Authorized Domains. Anonymous Firebase identity does
-      // not use the OAuth redirect flow and keeps BYOK usable in the meantime.
       return (await signInAnonymously(auth)).user;
     } catch (anonymousError: any) {
       const anonymousCode = String(anonymousError?.code || '');
       if (anonymousCode === 'auth/operation-not-allowed') {
-        // Preserve the existing Google account flow when anonymous auth is not
-        // enabled for the Firebase project.
         return (await signInWithPopup(auth, new GoogleAuthProvider())).user;
       }
       throw anonymousError;
@@ -73,11 +68,20 @@ export default function ByokWidget() {
     }
   }
 
+  const triggerClass = placement === 'top'
+    ? 'group flex w-full items-center justify-between gap-4 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md sm:px-5'
+    : 'fixed bottom-5 left-4 z-40 flex items-center gap-2 rounded-2xl border border-violet-200 bg-white/95 px-4 py-3 text-left shadow-xl shadow-violet-100 backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-2xl sm:bottom-6 sm:left-6';
+
   return <>
-    <button onClick={() => setOpen(true)} aria-label="Bring your own AI key" className="fixed bottom-5 left-4 z-40 flex items-center gap-2 rounded-2xl border border-violet-200 bg-white/95 px-4 py-3 text-left shadow-xl shadow-violet-100 backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-2xl sm:bottom-6 sm:left-6">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white"><KeyRound className="h-4 w-4" /></span>
-      <span><span className="block text-[10px] font-black uppercase tracking-[.16em] text-violet-600">BYOK</span><span className="block text-xs font-black text-slate-950">Your AI. Your key. Lower cost.</span></span>
-    </button>
+    <div className={placement === 'top' ? 'border-b border-violet-100 bg-white px-4 py-3 sm:px-6' : ''}>
+      <button onClick={() => setOpen(true)} aria-label="Bring your own AI key" className={triggerClass}>
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm"><KeyRound className="h-4 w-4" /></span>
+          <span><span className="block text-[10px] font-black uppercase tracking-[.16em] text-violet-600">BYOK · START HERE</span><span className="block text-sm font-black text-slate-950 sm:text-base">Bring your own AI. Your key. Lower cost.</span></span>
+        </span>
+        {placement === 'top' && <span className="hidden shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-black text-white sm:block">Connect your AI →</span>}
+      </button>
+    </div>
 
     {open && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/65 p-3 backdrop-blur-md sm:items-center sm:p-6" onClick={() => setOpen(false)}>
       <div className="w-full max-w-xl overflow-hidden rounded-[28px] bg-white shadow-2xl sm:rounded-[32px]" onClick={event => event.stopPropagation()}>
