@@ -1,0 +1,51 @@
+name: Deploy Smart Scout to Hostinger
+
+on:
+  workflow_run:
+    workflows: ["Build production frontend and server"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verified main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download production build dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install production dependencies locally
+        run: npm ci --omit=dev
+
+      - name: Deploy application to Hostinger over SFTP
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.HOSTINGER_SSH_HOST }}
+          username: ${{ secrets.HOSTINGER_SSH_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_SSH_PORT || 22 }}
+          source: "dist,server.js,package.json,package-lock.json,node_modules"
+          target: ${{ secrets.HOSTINGER_APP_PATH }}
+          overwrite: true
+
+      - name: Restart Hostinger Node application
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOSTINGER_SSH_HOST }}
+          username: ${{ secrets.HOSTINGER_SSH_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_SSH_PORT || 22 }}
+          script: |
+            cd "${{ secrets.HOSTINGER_APP_PATH }}"
+            mkdir -p tmp
+            touch tmp/restart.txt
+            echo "Smart Scout deployed from main commit ${{ github.event.workflow_run.head_sha }}"
