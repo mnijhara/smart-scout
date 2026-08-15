@@ -1,4 +1,4 @@
-/* Smart Scout Hiring OS — compact, high-density workspace polish */
+/* Smart Scout Hiring OS — responsive workspace polish */
 main.max-w-6xl{max-width:88rem!important;padding:1.25rem!important}
 main.max-w-6xl>section.mx-auto.max-w-5xl{max-width:82rem!important}
 main.max-w-6xl .rounded-3xl.border.border-slate-200.bg-white.p-5.shadow-sm.sm\:p-7{padding:1.25rem!important}
@@ -14,12 +14,69 @@ main.max-w-6xl .p-7{padding:1.25rem!important}
 main.max-w-6xl .sm\:p-8{padding:1.25rem!important}
 main.max-w-6xl .gap-5{gap:1rem!important}
 main.max-w-6xl .gap-4{gap:.75rem!important}
+
+/* Prevent accidental horizontal overflow from dense desktop layouts. */
+html,body,#root{width:100%;min-width:0;overflow-x:hidden}
+main.max-w-6xl *{min-width:0}
+main.max-w-6xl p,main.max-w-6xl h1,main.max-w-6xl h2,main.max-w-6xl h3,main.max-w-6xl span,main.max-w-6xl b{overflow-wrap:anywhere}
+
 @media(min-width:1024px){
   main.max-w-6xl{padding:1.5rem 2rem!important}
   main.max-w-6xl>section.mx-auto.max-w-5xl{max-width:84rem!important}
 }
-@media(max-width:640px){
-  main.max-w-6xl{padding:.875rem!important}
-  main.max-w-6xl h1.sm\:text-4xl{font-size:1.65rem!important;line-height:2rem!important}
-  main.max-w-6xl textarea{min-height:10rem!important}
+
+@media(max-width:767px){
+  /* Header: compact two-row mobile toolbar instead of squeezing controls. */
+  body{font-size:15px}
+  header.sticky{height:auto!important;min-height:60px!important;padding:.75rem 1rem!important;flex-wrap:wrap;gap:.5rem}
+  header.sticky>span{display:none}
+  header.sticky>b{font-size:1rem}
+  header.sticky>span.ml-4{display:block;margin-left:.35rem!important;font-size:.72rem;line-height:1}
+  header.sticky>div.ml-auto{width:100%;margin-left:0!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:.5rem}
+  header.sticky>div.ml-auto button{min-height:42px;justify-content:center;white-space:normal;text-align:center}
+
+  /* Stage rail becomes a true horizontal swipe area with less chrome. */
+  .border-b.bg-white>div.overflow-x-auto{padding:.65rem 1rem!important;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .border-b.bg-white>div.overflow-x-auto::-webkit-scrollbar{display:none}
+  .border-b.bg-white>div.overflow-x-auto>div{gap:.35rem;font-size:10px}
+  .border-b.bg-white>div.overflow-x-auto>div>span{height:28px;width:28px;flex:0 0 28px}
+
+  main.max-w-6xl{padding:.75rem!important}
+  main.max-w-6xl .rounded-3xl.border.border-slate-200.bg-white{border-radius:1.25rem!important;padding:1rem!important}
+  main.max-w-6xl h1.sm\:text-4xl{font-size:1.5rem!important;line-height:1.85rem!important}
+  main.max-w-6xl h1.text-3xl{font-size:1.45rem!important;line-height:1.8rem!important}
+  main.max-w-6xl textarea{min-height:9rem!important;padding:1rem!important;font-size:16px;line-height:1.5}
+
+  /* Stack every two/three-column workflow at phone width. */
+  main.max-w-6xl .grid{grid-template-columns:1fr!important}
+  main.max-w-6xl .lg\:grid-cols-2,
+  main.max-w-6xl .lg\:grid-cols-\[1fr_320px\],
+  main.max-w-6xl .md\:grid-cols-3{grid-template-columns:1fr!important}
+  main.max-w-6xl .md\:flex-row{flex-direction:column!important}
+  main.max-w-6xl .md\:items-start{align-items:stretch!important}
+  main.max-w-6xl .md\:text-right{text-align:left!important}
+
+  /* Full-width primary actions are easier to tap and don't clip labels. */
+  main.max-w-6xl button{max-width:100%;white-space:normal}
+  main.max-w-6xl button.rounded-xl.bg-violet-600,
+  main.max-w-6xl button.bg-violet-600{width:100%;min-height:46px}
+
+  /* Interview panel and evidence cards need breathing room on narrow screens. */
+  main.max-w-6xl .rounded-3xl.bg-slate-950{min-height:auto!important;padding:1.15rem!important}
+  main.max-w-6xl .rounded-3xl.bg-slate-950 .flex{flex-wrap:wrap}
+  main.max-w-6xl .rounded-3xl.bg-slate-950 button{flex:1 1 100%;min-height:46px}
+  main.max-w-6xl .rounded-2xl.border{overflow:hidden}
+
+  /* Candidate cards: keep scores readable without forcing a desktop row. */
+  main.max-w-6xl .text-3xl{font-size:1.8rem!important}
+  main.max-w-6xl .text-xl{font-size:1.15rem!important;line-height:1.55rem!important}
+  main.max-w-6xl .text-2xl{font-size:1.4rem!important;line-height:1.8rem!important}
+}
+
+@media(max-width:380px){
+  header.sticky>div.ml-auto{grid-template-columns:1fr}
+  header.sticky>div.ml-auto button{width:100%}
+  .border-b.bg-white>div.overflow-x-auto{padding-left:.75rem!important;padding-right:.75rem!important}
+  main.max-w-6xl{padding:.5rem!important}
+  main.max-w-6xl .rounded-3xl.border.border-slate-200.bg-white{padding:.8rem!important}
 }
