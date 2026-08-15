@@ -41,5 +41,5 @@ r.post('/schedules',async(req,res)=>{try{res.json(await scheduleInterview({...re
 r.get('/schedules',async(req,res)=>res.json({schedules:await listSchedules(tenantId(req),req.query.jobId?String(req.query.jobId):undefined)}));
 r.post('/schedules/:id/status',async(req,res)=>{const out=await updateSchedule(String(req.params.id),req.body?.status);if(!out)return res.status(404).json({error:'Schedule not found'});res.json(out)});
 r.post('/usage',async(req,res)=>res.json(await recordUsage({...req.body,tenantId:tenantId(req)})));
-r.get('/usage',async(req,res)=>res.json({usage:await usageSummary(tenantId(req),req.query.period?String(req.query.period):undefined}));
+r.get('/usage',async(req,res)=>res.json({usage:await usageSummary(tenantId(req),req.query.period?String(req.query.period):undefined)}));
 return r;}
