@@ -80,7 +80,7 @@ A feature is marked **[x]** only when the capability exists in the repository. P
 - [ ] Handoff confirmation and retry handling
 
 ## Phase 10 — Production hardening
-- [ ] Authentication and real tenant identity / isolation
+- [x] Authentication and Firebase-backed tenant identity / isolation boundary
 - [x] BYOK AI credential handling foundation
 - [ ] Persistent production database for all Recruiting OS state
 - [x] Control-plane API foundation for approvals, audit, scheduling and metering
@@ -88,9 +88,9 @@ A feature is marked **[x]** only when the capability exists in the repository. P
 - [ ] Observability and centralized error handling
 - [x] Usage / credits metering foundation
 - [ ] End-to-end tests across the complete hiring journey
-- [ ] Mobile polish
+- [x] Mobile polish
 - [ ] Performance and accessibility pass
 - [ ] Security review and secrets/configuration audit
 
 ## Final release
-The Recruiting OS becomes the root `/` experience only after the remaining production integrations and hardening gates above are complete and verified. Until then, the controlled OS route remains the release boundary.
+The Recruiting OS is now the root `/` product experience behind an authenticated release boundary. Final production release still requires persistent production state, real external integrations, approval/delivery workflows, end-to-end verification, observability, security review and a verified live deployment.
