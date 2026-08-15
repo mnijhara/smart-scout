@@ -914,6 +914,36 @@ function createControlPlaneRouter(tenantId2) {
   return r;
 }
 
+// services/recruiting/firebaseAuth.ts
+var FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0431516636";
+var FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || "AIzaSyCK2ESnkH49-h9lUenEsvQvQwJSeRr3aVw";
+async function verifyFirebaseIdToken(token) {
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_API_KEY)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: token }) });
+  const data = await response.json();
+  const user = data?.users?.[0];
+  if (!response.ok || !user?.localId) throw new Error("Invalid Firebase authentication token");
+  if (user.disabled) throw new Error("Firebase account is disabled");
+  return { uid: String(user.localId), email: user.email, emailVerified: Boolean(user.emailVerified), displayName: user.displayName };
+}
+async function requireFirebaseAuth(req, res, next) {
+  try {
+    const header = String(req.header("authorization") || "");
+    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    if (!token) return res.status(401).json({ error: "Authentication required" });
+    const identity = await verifyFirebaseIdToken(token);
+    req.firebaseUser = identity;
+    req.headers["x-tenant-id"] = identity.uid;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: error?.message || "Authentication failed" });
+  }
+}
+function authenticatedTenantId(req) {
+  const uid = req.firebaseUser?.uid;
+  if (!uid) throw new Error("Authenticated tenant identity is missing");
+  return String(uid);
+}
+
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path6.dirname(__filename);
@@ -921,9 +951,12 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
   app.use(express.json({ limit: "50mb" }));
-  const tenantId2 = (req) => String(req.header("x-tenant-id") || "demo-tenant");
-  app.use("/api/recruiting", api_default);
-  app.use("/api/control-plane", createControlPlaneRouter(tenantId2));
+  app.get("/api/recruiting/health", (_req, res) => {
+    res.json({ ok: true, service: "smartscout-recruiting" });
+  });
+  const tenantId2 = (req) => authenticatedTenantId(req);
+  app.use("/api/recruiting", requireFirebaseAuth, api_default);
+  app.use("/api/control-plane", requireFirebaseAuth, createControlPlaneRouter(tenantId2));
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
   app.post("/api/create-checkout-session", async (req, res) => {
