@@ -18,8 +18,14 @@ function cleanText(value) {
 function cleanKey(value) {
   return String(value || "").trim().replace(/^(["'`])|(["'`])$/g, "");
 }
+function normalizeGeminiModel(model) {
+  const value = String(model || "").trim();
+  if (!value) return DEFAULT_MODELS.gemini;
+  const aliases = { "gemini-2.5-flash": "gemini-3.6-flash", "gemini-2.5-flash-preview-09-2025": "gemini-3.6-flash", "gemini-3-flash-preview": "gemini-3.6-flash", "gemini-flash-latest": "gemini-3.6-flash" };
+  return aliases[value] || value;
+}
 async function callGemini(request) {
-  const model = request.model || DEFAULT_MODELS.gemini;
+  const model = normalizeGeminiModel(request.model);
   const isGemini3 = /^gemini-3(?:\.|-)/.test(model);
   const generationConfig = { maxOutputTokens: request.maxTokens ?? 2e3 };
   if (!isGemini3) generationConfig.temperature = request.temperature ?? 0.2;
@@ -67,7 +73,7 @@ async function generateAI(request) {
   if (!request.prompt?.trim()) throw new Error("AI prompt is required");
   switch (request.provider) {
     case "gemini":
-      return callGemini({ ...request, apiKey });
+      return callGemini({ ...request, apiKey, model: normalizeGeminiModel(request.model) });
     case "openai":
       return callOpenAI({ ...request, apiKey });
     case "anthropic":
