@@ -23,20 +23,24 @@ async function callGemini(request) {
   const isGemini3 = /^gemini-3(?:\.|-)/.test(model);
   const generationConfig = { maxOutputTokens: request.maxTokens ?? 2e3 };
   if (!isGemini3) generationConfig.temperature = request.temperature ?? 0.2;
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": cleanKey(request.apiKey) },
-    body: JSON.stringify({ systemInstruction: request.system ? { parts: [{ text: request.system }] } : void 0, contents: [{ role: "user", parts: [{ text: request.prompt }] }], generationConfig })
-  });
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cleanKey(request.apiKey) }, body: JSON.stringify({ systemInstruction: request.system ? { parts: [{ text: request.system }] } : void 0, contents: [{ role: "user", parts: [{ text: request.prompt }] }], generationConfig }) });
   const data = await response.json();
   if (!response.ok) {
     const reason = String(data?.error?.status || data?.error?.details?.find((d) => d?.reason)?.reason || "");
     const message = String(data?.error?.message || `Gemini request failed (${response.status})`);
-    if (reason === "API_KEY_INVALID" || /API key not valid/i.test(message)) throw new Error("Google rejected this Gemini API key. Use an active Gemini API key from Google AI Studio; if the key is restricted to browser HTTP referrers, create a server-safe key because Smart Scout validates it securely on the server.");
+    if (reason === "API_KEY_INVALID" || /API key not valid/i.test(message)) throw new Error("Google rejected this Gemini API key. Use an active Gemini API key from Google AI Studio.");
+    if (response.status === 403) throw new Error(`Gemini access was denied: ${message}`);
     throw new Error(message);
   }
-  const text = cleanText(data?.candidates?.[0]?.content?.parts?.map((part) => part?.text).filter(Boolean).join(""));
-  if (!text) throw new Error("Gemini returned an empty response");
+  const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+  const text = cleanText(candidates.flatMap((candidate) => Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []).map((part) => part?.text).filter(Boolean).join(""));
+  if (!text) {
+    const finish = String(candidates[0]?.finishReason || "");
+    const block = String(data?.promptFeedback?.blockReason || "");
+    if (block) throw new Error(`Gemini blocked the connectivity test (${block}).`);
+    if (finish === "MAX_TOKENS") throw new Error("Gemini used the available thinking/output budget before returning text.");
+    throw new Error(`Gemini returned no text (finishReason: ${finish || "unknown"}).`);
+  }
   return { provider: "gemini", model, text, usage: { inputTokens: data?.usageMetadata?.promptTokenCount, outputTokens: data?.usageMetadata?.candidatesTokenCount } };
 }
 async function callOpenAI(request) {
