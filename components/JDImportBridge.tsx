@@ -75,7 +75,7 @@ export default function JDImportBridge() {
   }
 
   return <>
-    <button onClick={() => { setOpen(true); setError(''); }} className="fixed right-4 top-[4.75rem] z-40 inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-[11px] font-black text-violet-700 shadow-lg shadow-violet-100/70 sm:right-6" aria-label="Import an existing job description">
+    <button onClick={() => { setOpen(true); setError(''); }} className="fixed right-4 top-[13.75rem] z-20 inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-[11px] font-black text-violet-700 shadow-lg shadow-violet-100/70 sm:right-6 sm:top-[13.75rem]" aria-label="Import an existing job description">
       <Upload className="h-3.5 w-3.5" /> Import JD
     </button>
     {open && <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:items-center sm:p-6" onClick={() => !busy && setOpen(false)}>
