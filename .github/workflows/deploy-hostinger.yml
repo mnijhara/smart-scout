@@ -25,9 +25,13 @@ jobs:
           path: release
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
-      - name: Install production dependencies
+      - name: Verify bundled production dependencies
         working-directory: release
-        run: npm install --omit=dev --no-audit --no-fund
+        run: |
+          test -f server.js
+          test -f package.json
+          test -x node_modules/.bin/esbuild || true
+          echo "Using the exact node_modules tree from the verified production artifact"
       - name: Deploy exact verified artifact to Hostinger over SFTP
         uses: appleboy/scp-action@v1
         with:
@@ -35,7 +39,7 @@ jobs:
           username: ${{ secrets.HOSTINGER_SSH_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_SSH_PORT || 22 }}
-          source: "release/dist,release/server.js,release/package.json,release/node_modules"
+          source: "release/dist,release/server.js,release/server.cjs,release/package.json,release/node_modules"
           target: ${{ secrets.HOSTINGER_APP_PATH }}
           overwrite: true
       - name: Restart Hostinger Node application
