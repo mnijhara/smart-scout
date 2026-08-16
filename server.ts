@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 import { Resend } from 'resend';
 import * as ics from 'ics';
 import Stripe from 'stripe';
@@ -16,15 +17,29 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+  app.use((req, res, next) => {
+    const requestId = String(req.header('x-request-id') || randomUUID());
+    res.setHeader('x-request-id', requestId);
+    const started = Date.now();
+    res.on('finish', () => {
+      if (req.path.startsWith('/api/')) console.log(JSON.stringify({ event: 'http_request', requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - started }));
+    });
+    next();
+  });
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(self), microphone=(self)');
+    next();
+  });
   app.use(express.json({ limit: '50mb' }));
 
-  // Public liveness endpoint used by deployment health checks.
   app.get('/api/recruiting/health', (_req, res) => {
-    res.json({ ok: true, service: 'smartscout-recruiting' });
+    res.json({ ok: true, service: 'smartscout-recruiting', version: process.env.GITHUB_SHA || 'local' });
   });
-
-  // Private, signed browser workspace used when Firebase Anonymous/Google auth
-  // is unavailable. It is scoped to this browser session and never exposes a secret.
   app.get('/api/recruiting/session', workspaceSessionInfo);
 
   const tenantId = (req: any) => authenticatedTenantId(req);
@@ -67,9 +82,6 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') { const { createServer: createViteServer } = await import('vite'); const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' }); app.use(vite.middlewares); }
   else {
     const distPath = path.join(process.cwd(), 'dist');
-    // Never let a proxy/browser pin an old SPA shell. Vite's hashed assets can
-    // still be cached normally, while index.html must always point at the
-    // newest deployed bundle.
     app.use(express.static(distPath, { setHeaders: (res, filePath) => {
       if (filePath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -77,13 +89,24 @@ async function startServer() {
         res.setHeader('Expires', '0');
       }
     }}));
-    app.get('*all', (req, res) => {
+    app.get('*all', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
-  app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+
+  app.use((err: any, req: any, res: any, _next: any) => {
+    const requestId = String(res.getHeader('x-request-id') || 'unknown');
+    console.error(JSON.stringify({ event: 'unhandled_error', requestId, method: req.method, path: req.path, message: err?.message || 'Unknown error' }));
+    if (res.headersSent) return;
+    res.status(500).json({ error: 'Internal server error', requestId });
+  });
+
+  const server = app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+  const shutdown = (signal: string) => { console.log(JSON.stringify({ event: 'shutdown', signal })); server.close(() => process.exit(0)); setTimeout(() => process.exit(1), 10000).unref(); };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
-startServer();
+startServer().catch(error => { console.error(error); process.exit(1); });
