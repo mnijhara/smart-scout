@@ -47,6 +47,14 @@ jobs:
             echo "ERROR: recruiting API was not bundled into production server.js"
             exit 1
           fi
+          if ! grep -q "integrations/health" server.js; then
+            echo "ERROR: production integration health endpoint was not bundled"
+            exit 1
+          fi
+          if ! grep -q "candidate/knockout" server.js; then
+            echo "ERROR: production knockout engine was not bundled"
+            exit 1
+          fi
           echo "Production artifact verification passed for commit ${GITHUB_SHA}"
 
       - name: Smoke test production APIs
@@ -66,12 +74,23 @@ jobs:
 
           for endpoint in \
             /api/recruiting/jobs \
+            /api/recruiting/integrations/health \
             /api/control-plane/usage \
             /api/control-plane/approvals \
             /api/control-plane/schedules; do
             status=$(curl -sS -b /tmp/smartscout-cookies.txt -o /tmp/protected.json -w '%{http_code}' "http://127.0.0.1:4173${endpoint}")
             test "$status" = "200"
           done
+
+          curl -fsS -b /tmp/smartscout-cookies.txt -H 'Content-Type: application/json' \
+            -d '{"candidate":{"id":"smoke-candidate","name":"Test Candidate","source":"smoke","resumeText":"5 years JavaScript React Node.js experience"},"requirement":{"title":"Software Engineer","description":"","mustHave":["JavaScript","React"],"niceToHave":[],"experienceMin":3}}' \
+            http://127.0.0.1:4173/api/recruiting/candidate/knockout > /tmp/knockout.json
+          grep -q '"passed":true' /tmp/knockout.json
+
+          curl -fsS -b /tmp/smartscout-cookies.txt -H 'Content-Type: application/json' \
+            -d '{"candidates":[{"id":"a","name":"A","source":"smoke","resumeText":"JavaScript React","score":{"overall":90,"experience":90,"skills":90,"roleFit":90,"leadership":50,"strengths":["React"],"concerns":[],"evidence":[],"recommendation":"strong_yes"}},{"id":"b","name":"B","source":"smoke","resumeText":"JavaScript","score":{"overall":70,"experience":70,"skills":70,"roleFit":70,"leadership":50,"strengths":[],"concerns":[],"evidence":[],"recommendation":"maybe"}}],"requirement":{"title":"Software Engineer","description":"","mustHave":["JavaScript"],"niceToHave":[]}}' \
+            http://127.0.0.1:4173/api/recruiting/candidates/compare > /tmp/comparison.json
+          grep -q '"rank":1' /tmp/comparison.json
 
       - name: Upload verified production artifact
         uses: actions/upload-artifact@v4
