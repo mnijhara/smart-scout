@@ -4,7 +4,7 @@ The Recruiting OS journey is:
 
 **Landing → Hiring prompt → AI JD → Saved job → Sourcing → Candidate intelligence → Audio interview → Decision → Compensation → Offer → Engagement → Onboarding**
 
-A feature is marked **[x]** when the capability exists in the repository. Production execution/integration items remain open until connected to real infrastructure and verified.
+A feature is marked **[x]** when the capability exists in the repository. External-provider execution remains open until real provider credentials/tenant contracts are connected and verified.
 
 ## Shipped product foundation
 - [x] Premium light UI system and responsive shell
@@ -14,6 +14,8 @@ A feature is marked **[x]** when the capability exists in the repository. Produc
 - [x] Human JD approval gate before sourcing
 - [x] Evidence-backed candidate sourcing with URL/source/evidence validation
 - [x] Candidate persistence, scoring and explainable evidence
+- [x] CV/profile knockout engine with hard-failure and warning explanations
+- [x] Side-by-side candidate comparison API with ranked evidence
 - [x] Structured interview planning, answer persistence and audio input
 - [x] Decision recommendation with human approval gate
 - [x] Compensation recommendation with human approval gate
@@ -24,22 +26,24 @@ A feature is marked **[x]** when the capability exists in the repository. Produc
 - [x] Firebase-backed workspace identity boundary
 - [x] BYOK Gemini/OpenAI/Anthropic credential handling
 - [x] Production build verification and recruiting/control-plane smoke tests
+- [x] Production integration health endpoint and configuration diagnostics
+- [x] Persistent production tables for documents, knockout results, comparisons and integration events
 - [x] Screen-based Magic Hiring Demo wired into the public landing experience
 - [x] Current Gemini 3.6 Flash model used by AI and sourcing paths
+- [x] Production observability: request IDs, structured request/error logs, security headers and graceful shutdown
 - [x] Verified-artifact Hostinger deployment workflow restored
 
-## Production integrations still required
-- [ ] Official candidate-source connectors (LinkedIn/Naukri/other licensed APIs)
-- [ ] CV/profile ingestion and knockout criteria engine
-- [ ] Side-by-side candidate comparison workspace
-- [ ] Production calendar scheduling, secure interview links and transcription provider
+## Production integrations still requiring customer/provider activation
+- [ ] Official candidate-source credentials/contracts (LinkedIn/Naukri/other licensed APIs)
+- [ ] CV/profile file storage provider and production document ingestion job
+- [ ] Production calendar OAuth/provider credentials and secure interview-link provider
+- [ ] Production transcription provider credentials
 - [ ] Production market-data and internal parity compensation connectors
-- [ ] Real offer email/SMS/WhatsApp delivery and acceptance webhooks
-- [ ] HRIS employee creation and document/task orchestration
-- [ ] Persistent production database for all Recruiting OS state
-- [ ] Observability, centralized error handling, E2E journey tests
-- [ ] Performance/accessibility/security review and production configuration audit
-- [ ] Verified live Hostinger deployment after the restored workflow completes successfully
+- [ ] Real offer email/SMS/WhatsApp provider activation and acceptance webhooks
+- [ ] HRIS employee creation and document/task provider activation
+- [ ] Apply Supabase migrations to the production project and verify persistent state end-to-end
+- [ ] Full browser E2E journey suite and load/performance/accessibility/security audit
+- [ ] Verified live Hostinger deployment after GitHub Actions has valid Hostinger SSH secrets
 
 ## Release gate
-The product code path is now wired as one approval-driven hiring journey. Final production release is only declared after the verified build passes, the restored Hostinger deployment succeeds, and the remaining external integrations/persistence requirements are connected and tested.
+The product code path is wired as one approval-driven hiring journey and the production integration layer is now connector-ready. Final production release is only declared after provider credentials/contracts are activated, production persistence is verified, the browser E2E/security/performance gates pass, and the verified Hostinger deployment succeeds.
