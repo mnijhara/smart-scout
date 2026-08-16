@@ -1250,6 +1250,37 @@ router2.post("/browser-sourcing/search", async (req, res) => {
 });
 var documentRoutes_default = router2;
 
+// services/recruiting/browserSourceRoutes.ts
+import { Router as Router4 } from "express";
+var router3 = Router4();
+async function requireJDApproval(tenantId2, jobId) {
+  const approvals = await listApprovals(tenantId2, jobId);
+  const approval = approvals.find((row) => row.action === "jd_approval");
+  if (!approval || approval.status !== "approved") {
+    throw new Error("Approve the JD before sourcing candidates.");
+  }
+}
+router3.post("/browser-source/search", async (req, res) => {
+  try {
+    const tenantId2 = String(req.header("x-tenant-id") || "");
+    const jobId = String(req.body?.jobId || "");
+    const source = String(req.body?.source || "");
+    const query = String(req.body?.query || "").trim();
+    const limit = Math.min(Math.max(Number(req.body?.limit) || 8, 1), 20);
+    if (!tenantId2) return res.status(400).json({ error: "Workspace identity is missing" });
+    if (!jobId) return res.status(400).json({ error: "jobId is required" });
+    if (!["linkedin", "naukri"].includes(source)) return res.status(400).json({ error: "source must be linkedin or naukri" });
+    if (!query) return res.status(400).json({ error: "query is required" });
+    await requireJDApproval(tenantId2, jobId);
+    const candidates = await searchBrowserCandidates(tenantId2, source, query, limit);
+    const savedCandidates = await saveCandidates(tenantId2, jobId, candidates);
+    res.json({ jobId, source, query, candidates, savedCandidates });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Browser sourcing failed" });
+  }
+});
+var browserSourceRoutes_default = router3;
+
 // services/recruiting/firebaseAuth.ts
 import { createHmac, randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
 var FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0431516636";
@@ -1356,6 +1387,7 @@ async function startServer() {
   const tenantId2 = (req) => authenticatedTenantId(req);
   app.use("/api/recruiting", requireWorkspaceAuth, api_default);
   app.use("/api/recruiting", requireWorkspaceAuth, documentRoutes_default);
+  app.use("/api/recruiting", requireWorkspaceAuth, browserSourceRoutes_default);
   app.use("/api/control-plane", requireWorkspaceAuth, createControlPlaneRouter(tenantId2));
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
