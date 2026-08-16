@@ -4,16 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "main": "server.cjs",
-  "engines": {
-    "node": "22.x"
-  },
+  "engines": { "node": "22.x" },
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.cjs",
     "build": "vite build",
     "build:server": "esbuild server.ts --platform=node --format=esm --outfile=server.js --packages=external",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "browser:install": "playwright install chromium"
   },
   "dependencies": {
     "@google/genai": "2.7.0",
@@ -28,6 +27,7 @@
     "mammoth": "^1.12.0",
     "marked": "15.0.0",
     "pdfjs-dist": "^5.5.207",
+    "playwright": "^1.55.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "resend": "^6.9.4",
@@ -36,9 +36,9 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
-    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
