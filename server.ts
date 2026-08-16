@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { jsPDF } from 'jspdf';
 import recruitingRouter from './services/recruiting/api.js';
 import documentRouter from './services/recruiting/documentRoutes.js';
+import browserSourceRouter from './services/recruiting/browserSourceRoutes.js';
 import { createControlPlaneRouter } from './services/recruiting/controlPlane.js';
 import { requireWorkspaceAuth, authenticatedTenantId, workspaceSessionInfo } from './services/recruiting/firebaseAuth.js';
 
@@ -46,6 +47,7 @@ async function startServer() {
   const tenantId = (req: any) => authenticatedTenantId(req);
   app.use('/api/recruiting', requireWorkspaceAuth, recruitingRouter);
   app.use('/api/recruiting', requireWorkspaceAuth, documentRouter);
+  app.use('/api/recruiting', requireWorkspaceAuth, browserSourceRouter);
   app.use('/api/control-plane', requireWorkspaceAuth, createControlPlaneRouter(tenantId));
 
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
