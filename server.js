@@ -2,6 +2,7 @@
 import express from "express";
 import path6 from "path";
 import { fileURLToPath } from "url";
+import { randomUUID } from "crypto";
 import { Resend } from "resend";
 import * as ics from "ics";
 import Stripe from "stripe";
@@ -656,6 +657,84 @@ function createControlPlaneRouter(tenantId2) {
   return r;
 }
 
+// services/recruiting/productionIntegrations.ts
+var normalize = (value) => value.toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
+function deriveKnockoutCriteria(requirement) {
+  return [
+    ...requirement.mustHave.map((skill, index) => ({ id: `skill-${index + 1}`, label: skill, type: "required_skill", value: skill, hard: true })),
+    ...requirement.experienceMin != null ? [{ id: "experience-min", label: "Minimum experience", type: "min_experience", value: requirement.experienceMin, hard: true }] : [],
+    ...requirement.location ? [{ id: "location", label: "Location", type: "location", value: requirement.location, hard: false }] : []
+  ];
+}
+function runKnockout(candidate, criteria) {
+  const text = normalize([candidate.resumeText || "", candidate.name, candidate.profileUrl || ""].join(" "));
+  const checks = criteria.map((criterion) => {
+    if (criterion.type === "required_skill") {
+      const target = normalize(String(criterion.value));
+      const passed = text.includes(target) || (candidate.score?.evidence || []).some((e) => normalize(e.value).includes(target));
+      return { id: criterion.id, label: criterion.label, passed, evidence: passed ? `Evidence matched: ${criterion.value}` : void 0 };
+    }
+    if (criterion.type === "min_experience") {
+      const years = candidate.experienceYears ?? Number(candidate.score?.experience || 0) / 10;
+      const passed = years >= Number(criterion.value);
+      return { id: criterion.id, label: criterion.label, passed, evidence: `Estimated experience: ${years.toFixed(1)} years` };
+    }
+    if (criterion.type === "location") {
+      const location = normalize(candidate.location || "");
+      const target = normalize(String(criterion.value));
+      const passed = !location || location.includes(target) || target.includes(location);
+      return { id: criterion.id, label: criterion.label, passed, evidence: candidate.location ? `Candidate location: ${candidate.location}` : "Location not provided" };
+    }
+    if (criterion.type === "work_authorization") {
+      const passed = normalize(candidate.workAuthorization || "") === normalize(String(criterion.value));
+      return { id: criterion.id, label: criterion.label, passed, evidence: candidate.workAuthorization || "Not provided" };
+    }
+    return { id: criterion.id, label: criterion.label, passed: true, evidence: "Custom criterion requires recruiter review" };
+  });
+  const hardFailures = checks.filter((check, index) => !check.passed && criteria[index]?.hard).map((check) => check.label);
+  const warnings = checks.filter((check, index) => !check.passed && !criteria[index]?.hard).map((check) => check.label);
+  return { candidateId: candidate.id, passed: hardFailures.length === 0, hardFailures, warnings, checks };
+}
+function compareCandidates(candidates, requirement) {
+  const criteria = deriveKnockoutCriteria(requirement);
+  return candidates.map((candidate) => {
+    const knockout = runKnockout(candidate, criteria);
+    const score = candidate.score?.overall ?? 0;
+    const penalty = knockout.hardFailures.length ? 100 : knockout.warnings.length * 5;
+    return { candidateId: candidate.id, rank: 0, overall: Math.max(0, score - penalty), strengths: candidate.score?.strengths || [], concerns: [...candidate.score?.concerns || [], ...knockout.hardFailures], knockout };
+  }).sort((a, b) => b.overall - a.overall).map((candidate, index) => ({ ...candidate, rank: index + 1 }));
+}
+function integrationHealth(env = process.env) {
+  return [
+    { id: "resend", provider: "Resend", configured: Boolean(env.RESEND_API_KEY), capabilities: ["offer-email", "interview-email", "report-email"], missing: env.RESEND_API_KEY ? [] : ["RESEND_API_KEY"] },
+    { id: "supabase", provider: "Supabase", configured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY), capabilities: ["persistent-state", "audit", "documents"], missing: [env.SUPABASE_URL ? "" : "SUPABASE_URL", env.SUPABASE_SERVICE_ROLE_KEY ? "" : "SUPABASE_SERVICE_ROLE_KEY"].filter(Boolean) },
+    { id: "linkedin", provider: "LinkedIn licensed API", configured: Boolean(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET), capabilities: ["licensed-source"], missing: [env.LINKEDIN_CLIENT_ID ? "" : "LINKEDIN_CLIENT_ID", env.LINKEDIN_CLIENT_SECRET ? "" : "LINKEDIN_CLIENT_SECRET"].filter(Boolean) },
+    { id: "naukri", provider: "Naukri licensed API", configured: Boolean(env.NAUKRI_CLIENT_ID && env.NAUKRI_CLIENT_SECRET), capabilities: ["licensed-source"], missing: [env.NAUKRI_CLIENT_ID ? "" : "NAUKRI_CLIENT_ID", env.NAUKRI_CLIENT_SECRET ? "" : "NAUKRI_CLIENT_SECRET"].filter(Boolean) },
+    { id: "calendar", provider: env.CALENDAR_PROVIDER || "Calendar provider", configured: Boolean(env.CALENDAR_API_URL && env.CALENDAR_API_TOKEN), capabilities: ["scheduling", "secure-links"], missing: [env.CALENDAR_API_URL ? "" : "CALENDAR_API_URL", env.CALENDAR_API_TOKEN ? "" : "CALENDAR_API_TOKEN"].filter(Boolean) },
+    { id: "transcription", provider: env.TRANSCRIPTION_PROVIDER || "Transcription provider", configured: Boolean(env.TRANSCRIPTION_API_URL && env.TRANSCRIPTION_API_KEY), capabilities: ["transcription"], missing: [env.TRANSCRIPTION_API_URL ? "" : "TRANSCRIPTION_API_URL", env.TRANSCRIPTION_API_KEY ? "" : "TRANSCRIPTION_API_KEY"].filter(Boolean) },
+    { id: "compensation", provider: env.COMPENSATION_PROVIDER || "Compensation data provider", configured: Boolean(env.COMPENSATION_API_URL && env.COMPENSATION_API_KEY), capabilities: ["market-data"], missing: [env.COMPENSATION_API_URL ? "" : "COMPENSATION_API_URL", env.COMPENSATION_API_KEY ? "" : "COMPENSATION_API_KEY"].filter(Boolean) },
+    { id: "hris", provider: env.HRIS_PROVIDER || "HRIS provider", configured: Boolean(env.HRIS_API_URL && env.HRIS_API_TOKEN), capabilities: ["employee-create", "documents", "tasks"], missing: [env.HRIS_API_URL ? "" : "HRIS_API_URL", env.HRIS_API_TOKEN ? "" : "HRIS_API_TOKEN"].filter(Boolean) }
+  ];
+}
+async function postJson(url, token, body, timeoutMs = 15e3) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), signal: controller.signal });
+    const text = await response.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { raw: text };
+    }
+    if (!response.ok) throw new Error(data?.error?.message || data?.error || `Integration request failed (${response.status})`);
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // services/recruiting/api.ts
 var router = Router2();
 var sessions = /* @__PURE__ */ new Map();
@@ -700,6 +779,7 @@ async function createGate(req, jobId, action, note) {
   return requestApproval({ tenantId: tenant, jobId, action, requestedBy: "recruiter", note });
 }
 router.get("/health", (_req, res) => res.json({ ok: true, service: "recruiting-os" }));
+router.get("/integrations/health", (_req, res) => res.json({ integrations: integrationHealth() }));
 router.post("/ai/connect", async (req, res) => {
   try {
     const { provider, apiKey, model } = req.body || {};
@@ -798,6 +878,27 @@ router.post("/candidate/score", async (req, res) => {
     res.json(score);
   } catch (error) {
     res.status(400).json({ error: error?.message || "Candidate scoring failed" });
+  }
+});
+router.post("/candidate/knockout", async (req, res) => {
+  try {
+    const candidate = req.body?.candidate;
+    const requirement = req.body?.requirement;
+    if (!candidate || !requirement) return res.status(400).json({ error: "candidate and requirement are required" });
+    const criteria = Array.isArray(req.body?.criteria) ? req.body.criteria : deriveKnockoutCriteria(requirement);
+    res.json(runKnockout(candidate, criteria));
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Knockout evaluation failed" });
+  }
+});
+router.post("/candidates/compare", async (req, res) => {
+  try {
+    const candidates = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
+    const requirement = req.body?.requirement;
+    if (!candidates.length || !requirement) return res.status(400).json({ error: "candidates and requirement are required" });
+    res.json({ comparisons: compareCandidates(candidates, requirement) });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Candidate comparison failed" });
   }
 });
 router.post("/interview/plan", async (req, res) => {
@@ -945,7 +1046,115 @@ router.get("/jobs/:id/hiring-state", async (req, res) => {
     res.status(500).json({ error: error?.message || "Unable to load hiring state" });
   }
 });
+router.post("/integrations/calendar/schedule", async (req, res) => {
+  try {
+    if (!process.env.CALENDAR_API_URL || !process.env.CALENDAR_API_TOKEN) return res.status(503).json({ error: "Calendar integration is not configured" });
+    const payload = await postJson(process.env.CALENDAR_API_URL, process.env.CALENDAR_API_TOKEN, req.body);
+    res.json({ ok: true, payload });
+  } catch (error) {
+    res.status(502).json({ error: error?.message || "Calendar provider request failed" });
+  }
+});
+router.post("/integrations/transcription", async (req, res) => {
+  try {
+    if (!process.env.TRANSCRIPTION_API_URL || !process.env.TRANSCRIPTION_API_KEY) return res.status(503).json({ error: "Transcription integration is not configured" });
+    const payload = await postJson(process.env.TRANSCRIPTION_API_URL, process.env.TRANSCRIPTION_API_KEY, req.body);
+    res.json({ ok: true, payload });
+  } catch (error) {
+    res.status(502).json({ error: error?.message || "Transcription provider request failed" });
+  }
+});
+router.post("/integrations/compensation/market-data", async (req, res) => {
+  try {
+    if (!process.env.COMPENSATION_API_URL || !process.env.COMPENSATION_API_KEY) return res.status(503).json({ error: "Compensation market-data integration is not configured" });
+    const payload = await postJson(process.env.COMPENSATION_API_URL, process.env.COMPENSATION_API_KEY, req.body);
+    res.json({ ok: true, payload });
+  } catch (error) {
+    res.status(502).json({ error: error?.message || "Compensation provider request failed" });
+  }
+});
+router.post("/integrations/hris/employee", async (req, res) => {
+  try {
+    await requireApproval(req, String(req.body?.jobId || ""), "employee_create");
+    if (!process.env.HRIS_API_URL || !process.env.HRIS_API_TOKEN) return res.status(503).json({ error: "HRIS integration is not configured" });
+    const payload = await postJson(process.env.HRIS_API_URL, process.env.HRIS_API_TOKEN, req.body);
+    res.json({ ok: true, payload });
+  } catch (error) {
+    res.status(502).json({ error: error?.message || "HRIS provider request failed" });
+  }
+});
 var api_default = router;
+
+// services/recruiting/documentRoutes.ts
+import { Router as Router3 } from "express";
+
+// services/recruiting/documentIngestion.ts
+import mammoth from "mammoth";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+async function extractDocumentText(input) {
+  const filename = input.filename || "document";
+  const mimeType = input.mimeType || "application/octet-stream";
+  const lower = filename.toLowerCase();
+  if (mimeType === "text/plain" || lower.endsWith(".txt") || lower.endsWith(".md")) {
+    return { filename, mimeType, text: input.data.toString("utf8").trim() };
+  }
+  if (mimeType === "application/pdf" || lower.endsWith(".pdf")) {
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(input.data) }).promise;
+    const chunks = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      chunks.push(content.items.map((item) => item.str || "").join(" "));
+    }
+    return { filename, mimeType, text: chunks.join("\n\n").replace(/\s+/g, " ").trim(), pages: pdf.numPages };
+  }
+  if (mimeType.includes("wordprocessingml") || lower.endsWith(".docx")) {
+    const result = await mammoth.extractRawText({ buffer: input.data });
+    return { filename, mimeType, text: result.value.replace(/\s+/g, " ").trim() };
+  }
+  throw new Error("Unsupported document type. Upload PDF, DOCX or TXT.");
+}
+
+// services/recruiting/documentStore.ts
+import { createClient as createClient2 } from "@supabase/supabase-js";
+function getAdminClient2() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase server credentials are not configured");
+  return createClient2(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+async function saveRecruitingDocument(input) {
+  if (!input.tenantId) throw new Error("tenantId is required");
+  const { data, error } = await getAdminClient2().from("recruiting_documents").insert({
+    tenant_id: input.tenantId,
+    job_id: input.jobId || null,
+    candidate_id: input.candidateId || null,
+    filename: input.filename,
+    mime_type: input.mimeType,
+    extracted_text: input.extractedText
+  }).select("id,filename,mime_type,created_at").single();
+  if (error) throw new Error(`Unable to persist document: ${error.message}`);
+  return data;
+}
+
+// services/recruiting/documentRoutes.ts
+var router2 = Router3();
+router2.post("/candidate/ingest-document", async (req, res) => {
+  try {
+    const filename = String(req.body?.filename || "document");
+    const mimeType = String(req.body?.mimeType || "application/octet-stream");
+    const encoded = String(req.body?.dataBase64 || "");
+    if (!encoded) return res.status(400).json({ error: "dataBase64 is required" });
+    const data = Buffer.from(encoded, "base64");
+    if (data.length > 15 * 1024 * 1024) return res.status(413).json({ error: "Document exceeds the 15 MB ingestion limit" });
+    const document = await extractDocumentText({ filename, mimeType, data });
+    const persisted = await saveRecruitingDocument({ tenantId: String(req.header("x-tenant-id") || ""), jobId: req.body?.jobId ? String(req.body.jobId) : void 0, candidateId: req.body?.candidateId ? String(req.body.candidateId) : void 0, filename: document.filename, mimeType: document.mimeType, extractedText: document.text });
+    res.json({ ...document, persisted });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Document ingestion failed" });
+  }
+});
+var documentRoutes_default = router2;
 
 // services/recruiting/firebaseAuth.ts
 import { createHmac, randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
@@ -1027,13 +1236,32 @@ var __dirname = path6.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use((req, res, next) => {
+    const requestId = String(req.header("x-request-id") || randomUUID());
+    res.setHeader("x-request-id", requestId);
+    const started = Date.now();
+    res.on("finish", () => {
+      if (req.path.startsWith("/api/")) console.log(JSON.stringify({ event: "http_request", requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - started }));
+    });
+    next();
+  });
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), geolocation=(), payment=(self), microphone=(self)");
+    next();
+  });
   app.use(express.json({ limit: "50mb" }));
   app.get("/api/recruiting/health", (_req, res) => {
-    res.json({ ok: true, service: "smartscout-recruiting" });
+    res.json({ ok: true, service: "smartscout-recruiting", version: process.env.GITHUB_SHA || "local" });
   });
   app.get("/api/recruiting/session", workspaceSessionInfo);
   const tenantId2 = (req) => authenticatedTenantId(req);
   app.use("/api/recruiting", requireWorkspaceAuth, api_default);
+  app.use("/api/recruiting", requireWorkspaceAuth, documentRoutes_default);
   app.use("/api/control-plane", requireWorkspaceAuth, createControlPlaneRouter(tenantId2));
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -1129,13 +1357,29 @@ ${emailBody}`, location: "SmartScout AI Platform", url: interviewLink, status: "
         res.setHeader("Expires", "0");
       }
     } }));
-    app.get("*all", (req, res) => {
+    app.get("*all", (_req, res) => {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
       res.sendFile(path6.join(distPath, "index.html"));
     });
   }
-  app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+  app.use((err, req, res, _next) => {
+    const requestId = String(res.getHeader("x-request-id") || "unknown");
+    console.error(JSON.stringify({ event: "unhandled_error", requestId, method: req.method, path: req.path, message: err?.message || "Unknown error" }));
+    if (res.headersSent) return;
+    res.status(500).json({ error: "Internal server error", requestId });
+  });
+  const server = app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+  const shutdown = (signal) => {
+    console.log(JSON.stringify({ event: "shutdown", signal }));
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 1e4).unref();
+  };
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
 }
-startServer();
+startServer().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
