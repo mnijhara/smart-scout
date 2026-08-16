@@ -1,6 +1,6 @@
 // server.ts
 import express from "express";
-import path6 from "path";
+import path7 from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import { Resend } from "resend";
@@ -1137,6 +1137,87 @@ async function saveRecruitingDocument(input) {
   return data;
 }
 
+// services/recruiting/browserSourcing.ts
+import { chromium } from "playwright";
+import fs6 from "node:fs/promises";
+import path6 from "node:path";
+var PROFILE_ROOT = process.env.SMARTSCOUT_BROWSER_PROFILE_DIR || path6.join(process.cwd(), ".smartscout-browser");
+function searchUrl(source, query) {
+  if (source === "linkedin") return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}`;
+  return `https://www.naukri.com/search?keyword=${encodeURIComponent(query)}`;
+}
+function sourceHost(source) {
+  return source === "linkedin" ? "linkedin.com" : "naukri.com";
+}
+async function ensureProfileDir(tenantId2) {
+  const safe = tenantId2.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80) || "default";
+  const dir = path6.join(PROFILE_ROOT, safe);
+  await fs6.mkdir(dir, { recursive: true });
+  return dir;
+}
+async function openContext(tenantId2) {
+  return chromium.launchPersistentContext(await ensureProfileDir(tenantId2), {
+    headless: process.env.SMARTSCOUT_BROWSER_HEADLESS !== "false",
+    viewport: { width: 1440, height: 1e3 },
+    locale: "en-IN"
+  });
+}
+async function collectLinkedIn(page, limit) {
+  return page.locator('a[href*="/in/"]').evaluateAll((links, max) => {
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const link of links) {
+      const href = link.href.split("?")[0];
+      const name = (link.textContent || "").trim().replace(/\s+/g, " ");
+      if (!href || !name || seen.has(href) || !href.includes("linkedin.com/in/")) continue;
+      seen.add(href);
+      const card = link.closest("li") || link.parentElement?.parentElement;
+      const text = (card?.textContent || link.textContent || "").trim().replace(/\s+/g, " ");
+      out.push({ name, profileUrl: href, source: "linkedin", evidence: text ? [text.slice(0, 500)] : [] });
+      if (out.length >= Number(max)) break;
+    }
+    return out;
+  }, limit);
+}
+async function collectNaukri(page, limit) {
+  return page.locator('a[href*="/profile/"]').evaluateAll((links, max) => {
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const link of links) {
+      const href = link.href.split("?")[0];
+      const name = (link.textContent || "").trim().replace(/\s+/g, " ");
+      if (!href || !name || seen.has(href) || !href.includes("naukri.com/profile/")) continue;
+      seen.add(href);
+      const card = link.closest("article") || link.closest("li") || link.parentElement?.parentElement;
+      const text = (card?.textContent || link.textContent || "").trim().replace(/\s+/g, " ");
+      out.push({ name, profileUrl: href, source: "naukri", evidence: text ? [text.slice(0, 500)] : [] });
+      if (out.length >= Number(max)) break;
+    }
+    return out;
+  }, limit);
+}
+async function searchBrowserCandidates(tenantId2, source, query, limit = 8) {
+  if (!tenantId2) throw new Error("Workspace identity is missing");
+  if (!query.trim()) throw new Error("Search query is required");
+  const context = await openContext(tenantId2);
+  try {
+    const page = await context.newPage();
+    await page.goto(searchUrl(source, query), { waitUntil: "domcontentloaded", timeout: 45e3 });
+    await page.waitForTimeout(1200);
+    const body = (await page.locator("body").innerText()).slice(0, 4e3);
+    if (/captcha|verify you are human|unusual traffic|access denied/i.test(body)) {
+      throw new Error(`${source} requires a human verification step. Complete it in the browser session and retry.`);
+    }
+    const current = page.url();
+    if (source === "linkedin" && /login|authwall/i.test(current)) throw new Error("LinkedIn session is not signed in. Sign in once in the SmartScout browser profile, then retry.");
+    if (source === "naukri" && /login/i.test(current)) throw new Error("Naukri session is not signed in. Sign in once in the SmartScout browser profile, then retry.");
+    const candidates = source === "linkedin" ? await collectLinkedIn(page, limit) : await collectNaukri(page, limit);
+    return candidates.map((c) => ({ ...c, source: sourceHost(source) }));
+  } finally {
+    await context.close();
+  }
+}
+
 // services/recruiting/documentRoutes.ts
 var router2 = Router3();
 router2.post("/candidate/ingest-document", async (req, res) => {
@@ -1152,6 +1233,19 @@ router2.post("/candidate/ingest-document", async (req, res) => {
     res.json({ ...document, persisted });
   } catch (error) {
     res.status(400).json({ error: error?.message || "Document ingestion failed" });
+  }
+});
+router2.post("/browser-sourcing/search", async (req, res) => {
+  try {
+    const source = String(req.body?.source || "");
+    const query = String(req.body?.query || "").trim();
+    const limit = Math.min(Math.max(Number(req.body?.limit) || 8, 1), 25);
+    if (!["linkedin", "naukri"].includes(source)) return res.status(400).json({ error: "source must be linkedin or naukri" });
+    if (!query) return res.status(400).json({ error: "query is required" });
+    const candidates = await searchBrowserCandidates(String(req.header("x-tenant-id") || ""), source, query, limit);
+    res.json({ source, query, candidates });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Browser sourcing failed" });
   }
 });
 var documentRoutes_default = router2;
@@ -1232,7 +1326,7 @@ function workspaceSessionInfo(req, res) {
 
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path6.dirname(__filename);
+var __dirname = path7.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
@@ -1349,7 +1443,7 @@ ${emailBody}`, location: "SmartScout AI Platform", url: interviewLink, status: "
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path6.join(process.cwd(), "dist");
+    const distPath = path7.join(process.cwd(), "dist");
     app.use(express.static(distPath, { setHeaders: (res, filePath5) => {
       if (filePath5.endsWith(".html")) {
         res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -1361,7 +1455,7 @@ ${emailBody}`, location: "SmartScout AI Platform", url: interviewLink, status: "
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
-      res.sendFile(path6.join(distPath, "index.html"));
+      res.sendFile(path7.join(distPath, "index.html"));
     });
   }
   app.use((err, req, res, _next) => {
