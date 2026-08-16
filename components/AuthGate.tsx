@@ -1,5 +1,5 @@
 import React,{useEffect,useState}from'react';
-import{GoogleAuthProvider,onAuthStateChanged,signInWithPopup,signInWithRedirect,getRedirectResult,signOut,User}from'firebase/auth';
+import{GoogleAuthProvider,onIdTokenChanged,signInWithPopup,signInWithRedirect,getRedirectResult,setPersistence,browserLocalPersistence,signOut,User}from'firebase/auth';
 import{Loader2,ShieldCheck,LogOut,ArrowLeft,UserRound}from'lucide-react';
 import{auth}from'../firebase';
 
@@ -15,13 +15,29 @@ function formatAuthError(code:string,message?:string){
 
 export default function AuthGate({children}:{children:React.ReactNode}){
  const[user,setUser]=useState<User|null>(null);const[workspaceReady,setWorkspaceReady]=useState(false);const[loading,setLoading]=useState(true);const[busy,setBusy]=useState(false);const[authNotice,setAuthNotice]=useState('');
- useEffect(()=>{let mounted=true;const unsub=onAuthStateChanged(auth,u=>{if(mounted)setUser(u)});void Promise.all([fetch('/api/recruiting/session',{credentials:'include'}).then(r=>{if(!r.ok)throw new Error('Unable to start private workspace')}),getRedirectResult(auth).catch((e:any)=>{const code=String(e?.code||'');if(code)setAuthNotice(formatAuthError(code,e?.message));return null})]).then(()=>{if(mounted)setWorkspaceReady(true)}).catch(e=>{if(mounted)setAuthNotice(e?.message||'Unable to start private workspace')}).finally(()=>{if(mounted)setLoading(false)});return()=>{mounted=false;unsub()}},[]);
+ useEffect(()=>{let mounted=true;let unsubscribe=()=>{};
+   (async()=>{
+     try{
+       // Explicitly restore Firebase auth before rendering. This fixes the mobile
+       // redirect race where the workspace rendered before Firebase restored the user.
+       await setPersistence(auth,browserLocalPersistence);
+       unsubscribe=onIdTokenChanged(auth,u=>{if(mounted)setUser(u)});
+       const redirectResult=await getRedirectResult(auth);
+       if(mounted&&redirectResult?.user)setUser(redirectResult.user);
+       const session=await fetch('/api/recruiting/session',{credentials:'include'});
+       if(!session.ok)throw new Error('Unable to start private workspace');
+       if(mounted)setWorkspaceReady(true);
+     }catch(e:any){if(mounted)setAuthNotice(e?.message||'Unable to start private workspace')}
+     finally{if(mounted)setLoading(false)}
+   })();
+   return()=>{mounted=false;unsubscribe()};
+ },[]);
  useEffect(()=>{const original=window.fetch;window.fetch=async(input:any,init:any={})=>{const url=typeof input==='string'?input:input?.url||'';if(url.includes('/api/recruiting/')||url.includes('/api/control-plane/')){const headers=new Headers(init.headers||{});if(user){const token=await user.getIdToken();headers.set('Authorization',`Bearer ${token}`);}return original(input,{...init,credentials:init.credentials||'include',headers})}return original(input,init)};return()=>{window.fetch=original}},[user]);
  async function loginWithGoogle(){if(busy)return;setBusy(true);setAuthNotice('');const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});try{
-   // Mobile Chrome and embedded browsers are more reliable with redirect than popup.
+   await setPersistence(auth,browserLocalPersistence);
    const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||window.matchMedia?.('(pointer:coarse)').matches;
    if(isMobile){await signInWithRedirect(auth,provider);return;}
-   await signInWithPopup(auth,provider);
+   const result=await signInWithPopup(auth,provider);setUser(result.user);
  }catch(e:any){const code=String(e?.code||'');
    if(['auth/popup-blocked','auth/popup-closed-by-user','auth/cancelled-popup-request','auth/operation-not-supported-in-this-environment'].includes(code)){
      setAuthNotice(formatAuthError(code,e?.message));
