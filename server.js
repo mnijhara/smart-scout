@@ -573,16 +573,18 @@ async function requestApproval(input) {
   await audit({ tenantId: input.tenantId, jobId: input.jobId, candidateId: input.candidateId, action: "approval_requested", actor: input.requestedBy, metadata: { approvalId: value.id, approvalAction: value.action } });
   return value;
 }
-async function decideApproval(id, status, actor, note) {
+async function decideApproval(id, status, actor, note, tenantId2) {
+  if (!["approved", "rejected"].includes(status)) throw new Error("Invalid approval status");
+  if (!tenantId2) throw new Error("Tenant identity is required");
   const all = await read(files.approvals);
-  const item = all.find((x) => x.id === id);
+  const item = all.find((x) => x.id === id && x.tenantId === tenantId2);
   if (!item) return null;
   if (item.status !== "pending") throw new Error("Approval is already decided");
   item.status = status;
   item.decidedBy = actor;
   item.note = note;
   item.updatedAt = now();
-  await fs5.writeFile(path5.join(root, files.approvals), JSON.stringify(all, null, 2), "utf8");
+  await fs5.writeFile(path5.join(root, files.approvals), JSON.stringify(all, null, 2));
   await audit({ tenantId: item.tenantId, jobId: item.jobId, candidateId: item.candidateId, action: `approval_${status}`, actor, metadata: { approvalId: id, approvalAction: item.action, note: note || "" } });
   return item;
 }
@@ -599,9 +601,10 @@ async function scheduleInterview(input) {
   const t = now();
   return append(files.schedules, { ...input, id: `schedule_${crypto6.randomUUID()}`, createdAt: t, updatedAt: t });
 }
-async function updateSchedule(id, status) {
+async function updateSchedule(id, status, tenantId2) {
+  if (!["proposed", "confirmed", "cancelled"].includes(status)) throw new Error("Invalid schedule status");
   const all = await read(files.schedules);
-  const item = all.find((x) => x.id === id);
+  const item = all.find((x) => x.id === id && x.tenantId === tenantId2);
   if (!item) return null;
   item.status = status;
   item.updatedAt = now();
@@ -630,7 +633,9 @@ function createControlPlaneRouter(tenantId2) {
   r.get("/approvals", async (req, res) => res.json({ approvals: await listApprovals(tenantId2(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
   r.post("/approvals/:id/decision", async (req, res) => {
     try {
-      const out = await decideApproval(String(req.params.id), req.body?.status, String(req.body?.actor || "system"), req.body?.note);
+      const tenant = tenantId2(req);
+      const actor = String(req.workspaceIdentity?.email || tenant);
+      const out = await decideApproval(String(req.params.id), req.body?.status, actor, req.body?.note, tenant);
       if (!out) return res.status(404).json({ error: "Approval not found" });
       res.json(out);
     } catch (e) {
@@ -638,7 +643,7 @@ function createControlPlaneRouter(tenantId2) {
     }
   });
   r.get("/audit", async (req, res) => res.json({ events: await listAudit(tenantId2(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
-  r.post("/audit", async (req, res) => res.json(await audit({ ...req.body, tenantId: tenantId2(req) })));
+  r.post("/audit", async (req, res) => res.json(await audit({ ...req.body, tenantId: tenantId2(req), actor: String(req.workspaceIdentity?.email || tenantId2(req)) })));
   r.post("/schedules", async (req, res) => {
     try {
       res.json(await scheduleInterview({ ...req.body, tenantId: tenantId2(req) }));
@@ -648,9 +653,13 @@ function createControlPlaneRouter(tenantId2) {
   });
   r.get("/schedules", async (req, res) => res.json({ schedules: await listSchedules(tenantId2(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
   r.post("/schedules/:id/status", async (req, res) => {
-    const out = await updateSchedule(String(req.params.id), req.body?.status);
-    if (!out) return res.status(404).json({ error: "Schedule not found" });
-    res.json(out);
+    try {
+      const out = await updateSchedule(String(req.params.id), req.body?.status, tenantId2(req));
+      if (!out) return res.status(404).json({ error: "Schedule not found" });
+      res.json(out);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
   });
   r.post("/usage", async (req, res) => res.json(await recordUsage({ ...req.body, tenantId: tenantId2(req) })));
   r.get("/usage", async (req, res) => res.json({ usage: await usageSummary(tenantId2(req), req.query.period ? String(req.query.period) : void 0) }));
@@ -1282,10 +1291,16 @@ router3.post("/browser-source/search", async (req, res) => {
 var browserSourceRoutes_default = router3;
 
 // services/recruiting/firebaseAuth.ts
-import { createHmac, randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes as randomBytes2, timingSafeEqual, createHash as createHash2 } from "node:crypto";
 var FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0431516636";
 var FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || "AIzaSyCK2ESnkH49-h9lUenEsvQvQwJSeRr3aVw";
-var SESSION_SECRET = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY || FIREBASE_API_KEY;
+var SESSION_SECRET = (() => {
+  const explicit = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY;
+  if (explicit) return explicit;
+  const rootSecret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.GEMINI_API_KEY;
+  if (!rootSecret) throw new Error("SMARTSCOUT_SESSION_SECRET or another server-only secret is required");
+  return createHash2("sha256").update(`smartscout:session:${rootSecret}`).digest("hex");
+})();
 var SESSION_COOKIE = "smartscout_workspace";
 var SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 function signSession(id) {
@@ -1391,20 +1406,37 @@ async function startServer() {
   app.use("/api/control-plane", requireWorkspaceAuth, createControlPlaneRouter(tenantId2));
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-  app.post("/api/create-checkout-session", async (req, res) => {
+  app.post("/api/create-checkout-session", requireWorkspaceAuth, async (req, res) => {
     if (!stripe) return res.status(500).json({ error: "Stripe is not configured" });
-    const { priceId, userId, credits, packageName } = req.body;
+    const { priceId, credits, packageName } = req.body || {};
+    const normalizedPriceId = String(priceId || "").trim();
+    const normalizedCredits = Number(credits);
+    const normalizedPackage = String(packageName || "").trim().slice(0, 100);
+    if (!normalizedPriceId || !Number.isFinite(normalizedCredits) || normalizedCredits <= 0 || normalizedCredits > 1e5 || !normalizedPackage) {
+      return res.status(400).json({ error: "Valid priceId, credits and packageName are required" });
+    }
+    const origin = String(req.headers.origin || "").replace(/\/$/, "");
+    const allowedOrigin = process.env.PUBLIC_BASE_URL ? process.env.PUBLIC_BASE_URL.replace(/\/$/, "") : origin;
+    if (!allowedOrigin || !/^https?:\/\//i.test(allowedOrigin)) return res.status(400).json({ error: "A valid application origin is required" });
     try {
-      const session = await stripe.checkout.sessions.create({ payment_method_types: ["card"], line_items: [{ price: priceId, quantity: 1 }], mode: "payment", success_url: `${req.headers.origin}/?payment=success&credits=${credits}&package=${encodeURIComponent(packageName)}`, cancel_url: `${req.headers.origin}/?payment=cancel`, metadata: { userId, credits: credits.toString(), packageName } });
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [{ price: normalizedPriceId, quantity: 1 }],
+        mode: "payment",
+        success_url: `${allowedOrigin}/?payment=success`,
+        cancel_url: `${allowedOrigin}/?payment=cancel`,
+        metadata: { tenantId: tenantId2(req), credits: String(normalizedCredits), packageName: normalizedPackage }
+      });
       res.json({ id: session.id });
     } catch (err) {
       console.error("Stripe Session Error:", err);
       res.status(500).json({ error: err.message });
     }
   });
-  app.post("/api/send-report", async (req, res) => {
-    const { recruiterEmail, candidateName, overallScore, status, reason, parameters = [], responses = [] } = req.body;
+  app.post("/api/send-report", requireWorkspaceAuth, async (req, res) => {
+    const { recruiterEmail, candidateName, overallScore, status, reason, parameters = [], responses = [] } = req.body || {};
     if (!resend) return res.status(400).json({ success: false, error: "RESEND_API_KEY is not configured." });
+    if (!String(recruiterEmail || "").trim() || !String(candidateName || "").trim()) return res.status(400).json({ success: false, error: "recruiterEmail and candidateName are required." });
     try {
       const doc = new jsPDF();
       doc.setFontSize(22);
@@ -1423,47 +1455,57 @@ async function startServer() {
       doc.text("Score Breakdown", 20, y + 10);
       doc.setFontSize(12);
       y += 20;
-      parameters.forEach((p) => {
-        doc.text(`${p.name}: ${p.score}%`, 20, y);
+      parameters.slice(0, 30).forEach((p) => {
+        doc.text(`${String(p.name || "").slice(0, 80)}: ${Number(p.score) || 0}%`, 20, y);
         y += 10;
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
       });
       doc.setFontSize(16);
       doc.text("Q&A Transcript", 20, y + 10);
       doc.setFontSize(12);
       y += 20;
-      responses.forEach((r, index) => {
-        const q = doc.splitTextToSize(`Q${index + 1}: ${r.question}`, 170);
+      responses.slice(0, 100).forEach((r, index) => {
+        const q = doc.splitTextToSize(`Q${index + 1}: ${String(r.question || "")}`, 170);
         doc.text(q, 20, y);
         y += q.length * 7;
-        const a = doc.splitTextToSize(`A: ${r.answer}`, 170);
+        const a = doc.splitTextToSize(`A: ${String(r.answer || "")}`, 170);
         doc.text(a, 20, y);
         y += a.length * 7 + 5;
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
       });
       const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
-      const { data, error } = await resend.emails.send({ from: "SmartScout <reports@smartscout.online>", to: [recruiterEmail], subject: `Interview Report: ${candidateName} (${status} - ${overallScore}%)`, attachments: [{ filename: `${candidateName.replace(/\s+/g, "_")}_Report.pdf`, content: pdfBuffer }], html: `<h1>Interview Report</h1><p><strong>Candidate:</strong> ${candidateName}</p><p><strong>Overall Score:</strong> ${overallScore}%</p><p><strong>Status:</strong> ${status}</p><p>${String(reason || "")}</p>` });
+      const { data, error } = await resend.emails.send({ from: "SmartScout <reports@smartscout.online>", to: [String(recruiterEmail).trim()], subject: `Interview Report: ${String(candidateName).slice(0, 120)} (${status} - ${overallScore}%)`, attachments: [{ filename: `${String(candidateName).replace(/\s+/g, "_").slice(0, 80)}_Report.pdf`, content: pdfBuffer }], html: `<h1>Interview Report</h1><p><strong>Candidate:</strong> ${String(candidateName)}</p><p><strong>Overall Score:</strong> ${overallScore}%</p><p><strong>Status:</strong> ${String(status || "")}</p><p>${String(reason || "")}</p>` });
       if (error) return res.status(500).json({ success: false, error: error.message });
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
   });
-  app.post("/api/send-invitation", async (req, res) => {
-    const { candidateEmail, candidateName, designation, company, jd, emailBody, scheduledAt, interviewLink } = req.body;
+  app.post("/api/send-invitation", requireWorkspaceAuth, async (req, res) => {
+    const { candidateEmail, candidateName, designation, company, jd, emailBody, scheduledAt, interviewLink } = req.body || {};
     if (!resend) return res.status(400).json({ success: false, error: "RESEND_API_KEY is not configured." });
+    if (!String(candidateEmail || "").trim() || !String(candidateName || "").trim()) return res.status(400).json({ success: false, error: "candidateEmail and candidateName are required." });
     try {
       const attachments = [];
-      if (jd) attachments.push({ filename: "job-description.txt", content: Buffer.from(jd) });
+      if (jd) attachments.push({ filename: "job-description.txt", content: Buffer.from(String(jd).slice(0, 2e5)) });
       if (scheduledAt) {
         const date = new Date(scheduledAt);
-        const event = { start: [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()], duration: { hours: 1 }, title: `AI Interview with ${company || "SmartScout"}: ${candidateName} - ${designation || "Position"}`, description: `Your AI-powered audio interview is scheduled.
+        if (Number.isNaN(date.getTime())) return res.status(400).json({ success: false, error: "scheduledAt is invalid" });
+        const event = { start: [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()], duration: { hours: 1 }, title: `AI Interview with ${String(company || "SmartScout").slice(0, 100)}: ${String(candidateName).slice(0, 100)} - ${String(designation || "Position").slice(0, 100)}`, description: `Your AI-powered audio interview is scheduled.
 
-Interview Link: ${interviewLink}
+Interview Link: ${String(interviewLink || "")}
 
-${emailBody}`, location: "SmartScout AI Platform", url: interviewLink, status: "CONFIRMED", busyStatus: "BUSY", organizer: { name: "SmartScout Recruitment", email: "interviews@smartscout.online" }, attendees: [{ name: candidateName, email: candidateEmail, rsvp: true, partstat: "ACCEPTED", role: "REQ-PARTICIPANT" }] };
+${String(emailBody || "")}`, location: "SmartScout AI Platform", url: interviewLink, status: "CONFIRMED", busyStatus: "BUSY", organizer: { name: "SmartScout Recruitment", email: "interviews@smartscout.online" }, attendees: [{ name: String(candidateName), email: String(candidateEmail), rsvp: true, partstat: "ACCEPTED", role: "REQ-PARTICIPANT" }] };
         const { error: error2, value } = ics.createEvent(event);
         if (!error2 && value) attachments.push({ filename: "interview-invite.ics", content: Buffer.from(value) });
       }
-      const { data, error } = await resend.emails.send({ from: "SmartScout <interviews@smartscout.online>", to: [candidateEmail], subject: `Interview Invitation: ${company || "SmartScout"} - ${designation || "Position"}`, attachments, html: `<h1>Interview Invitation</h1><div style="white-space:pre-wrap">${emailBody}</div>${scheduledAt ? `<p>Scheduled: ${new Date(scheduledAt).toLocaleString()}</p>` : ""}` });
+      const { data, error } = await resend.emails.send({ from: "SmartScout <interviews@smartscout.online>", to: [String(candidateEmail).trim()], subject: `Interview Invitation: ${String(company || "SmartScout").slice(0, 100)} - ${String(designation || "Position").slice(0, 100)}`, attachments, html: `<h1>Interview Invitation</h1><div style="white-space:pre-wrap">${String(emailBody || "")}</div>${scheduledAt ? `<p>Scheduled: ${new Date(scheduledAt).toLocaleString()}</p>` : ""}` });
       if (error) return res.status(500).json({ success: false, error: error.message });
       res.json({ success: true, data });
     } catch (err) {
