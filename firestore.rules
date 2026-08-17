@@ -5,9 +5,10 @@ service cloud.firestore {
     function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
     function isDocOwner(data) { return isAuthenticated() && request.auth.uid == data.user_id; }
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "mnijhara@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
     function validString(field, min, max) {
       return request.resource.data[field] is string && request.resource.data[field].size() >= min && request.resource.data[field].size() <= max;
