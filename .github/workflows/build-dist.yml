@@ -34,6 +34,7 @@ jobs:
           test -f server.js
           test -f server.cjs
           test -d node_modules/playwright
+          test -d node_modules/playwright-core/.local-browsers
           node --check server.js
           node --check server.cjs
           if grep -Eq '^import .*services/recruiting/api(\.js)?([[:space:]]|[\"'\'';])' server.js; then echo "ERROR: production server.js still contains an external recruiting API import"; exit 1; fi
@@ -43,6 +44,8 @@ jobs:
           if ! grep -q "browser-sourcing/search" server.js; then echo "ERROR: Playwright browser sourcing was not bundled"; exit 1; fi
           echo "Production artifact verification passed for commit ${GITHUB_SHA}"
       - name: Smoke test production APIs and browser journey
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: 0
         run: |
           PORT=4173 NODE_ENV=production PLAYWRIGHT_BROWSERS_PATH=0 node server.cjs > /tmp/smartscout-server.log 2>&1 &
           SERVER_PID=$!
