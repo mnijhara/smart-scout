@@ -9,15 +9,19 @@ import { jsPDF } from 'jspdf';
 import recruitingRouter from './services/recruiting/api.js';
 import documentRouter from './services/recruiting/documentRoutes.js';
 import browserSourceRouter from './services/recruiting/browserSourceRoutes.js';
-import { createControlPlaneRouter } from './services/recruiting/controlPlane.js';
 import { requireWorkspaceAuth, authenticatedTenantId, workspaceSessionInfo } from './services/recruiting/firebaseAuth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char));
+}
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+  const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -30,11 +34,28 @@ async function startServer() {
     });
     next();
   });
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(self), microphone=(self)');
+    res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(self), microphone=()');
+    if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    if (process.env.PUBLIC_BASE_URL) res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'");
+    if (req.path.startsWith('/api/')) {
+      const key = String(req.ip || req.socket.remoteAddress || 'unknown');
+      const now = Date.now();
+      const bucket = rateBuckets.get(key);
+      if (!bucket || bucket.resetAt <= now) rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+      else if (bucket.count >= 180) return res.status(429).json({ error: 'Too many requests. Please retry shortly.' });
+      else bucket.count += 1;
+      if (rateBuckets.size > 5000) for (const [entry, value] of rateBuckets) if (value.resetAt <= now) rateBuckets.delete(entry);
+    }
+    next();
+  });
+  app.use((req, res, next) => {
+    const configured = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '');
+    const origin = String(req.headers.origin || '').replace(/\/$/, '');
+    if (configured && origin && origin !== configured && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return res.status(403).json({ error: 'Request origin is not allowed' });
     next();
   });
   app.use(express.json({ limit: '50mb' }));
@@ -59,21 +80,11 @@ async function startServer() {
     const normalizedPriceId = String(priceId || '').trim();
     const normalizedCredits = Number(credits);
     const normalizedPackage = String(packageName || '').trim().slice(0, 100);
-    if (!normalizedPriceId || !Number.isFinite(normalizedCredits) || normalizedCredits <= 0 || normalizedCredits > 100000 || !normalizedPackage) {
-      return res.status(400).json({ error: 'Valid priceId, credits and packageName are required' });
-    }
-    const origin = String(req.headers.origin || '').replace(/\/$/, '');
-    const allowedOrigin = process.env.PUBLIC_BASE_URL ? process.env.PUBLIC_BASE_URL.replace(/\/$/, '') : origin;
-    if (!allowedOrigin || !/^https?:\/\//i.test(allowedOrigin)) return res.status(400).json({ error: 'A valid application origin is required' });
+    if (!normalizedPriceId || !Number.isFinite(normalizedCredits) || normalizedCredits <= 0 || normalizedCredits > 100000 || !normalizedPackage) return res.status(400).json({ error: 'Valid priceId, credits and packageName are required' });
+    const configuredOrigin = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '');
+    if (!configuredOrigin || !/^https:\/\//i.test(configuredOrigin)) return res.status(500).json({ error: 'PUBLIC_BASE_URL must be configured with HTTPS for checkout' });
     try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{ price: normalizedPriceId, quantity: 1 }],
-        mode: 'payment',
-        success_url: `${allowedOrigin}/?payment=success`,
-        cancel_url: `${allowedOrigin}/?payment=cancel`,
-        metadata: { tenantId: tenantId(req), credits: String(normalizedCredits), packageName: normalizedPackage },
-      });
+      const session = await stripe.checkout.sessions.create({ payment_method_types: ['card'], line_items: [{ price: normalizedPriceId, quantity: 1 }], mode: 'payment', success_url: `${configuredOrigin}/?payment=success`, cancel_url: `${configuredOrigin}/?payment=cancel`, metadata: { tenantId: tenantId(req), credits: String(normalizedCredits), packageName: normalizedPackage } });
       res.json({ id: session.id });
     } catch (err: any) { console.error('Stripe Session Error:', err); res.status(500).json({ error: err.message }); }
   });
@@ -82,10 +93,14 @@ async function startServer() {
     const { recruiterEmail, candidateName, overallScore, status, reason, parameters = [], responses = [] } = req.body || {};
     if (!resend) return res.status(400).json({ success: false, error: 'RESEND_API_KEY is not configured.' });
     if (!String(recruiterEmail || '').trim() || !String(candidateName || '').trim()) return res.status(400).json({ success: false, error: 'recruiterEmail and candidateName are required.' });
+    if (!Array.isArray(parameters) || !Array.isArray(responses)) return res.status(400).json({ success: false, error: 'parameters and responses must be arrays.' });
     try {
-      const doc = new jsPDF(); doc.setFontSize(22); doc.text('Interview Report', 20, 20); doc.setFontSize(14); doc.text(`Candidate: ${candidateName}`, 20, 35); doc.text(`Overall Score: ${overallScore}%`, 20, 45); doc.text(`Status: ${status}`, 20, 55); doc.setFontSize(16); doc.text('Executive Summary', 20, 70); doc.setFontSize(12);
-      const splitReason = doc.splitTextToSize(String(reason || ''), 170); doc.text(splitReason, 20, 80); let y = 80 + splitReason.length * 7; doc.setFontSize(16); doc.text('Score Breakdown', 20, y + 10); doc.setFontSize(12); y += 20; parameters.slice(0, 30).forEach((p: any) => { doc.text(`${String(p.name || '').slice(0, 80)}: ${Number(p.score) || 0}%`, 20, y); y += 10; if (y > 270) { doc.addPage(); y = 20; } }); doc.setFontSize(16); doc.text('Q&A Transcript', 20, y + 10); doc.setFontSize(12); y += 20; responses.slice(0, 100).forEach((r: any, index: number) => { const q = doc.splitTextToSize(`Q${index + 1}: ${String(r.question || '')}`, 170); doc.text(q, 20, y); y += q.length * 7; const a = doc.splitTextToSize(`A: ${String(r.answer || '')}`, 170); doc.text(a, 20, y); y += a.length * 7 + 5; if (y > 270) { doc.addPage(); y = 20; } });
-      const pdfBuffer = Buffer.from(doc.output('arraybuffer')); const { data, error } = await resend.emails.send({ from: 'SmartScout <reports@smartscout.online>', to: [String(recruiterEmail).trim()], subject: `Interview Report: ${String(candidateName).slice(0, 120)} (${status} - ${overallScore}%)`, attachments: [{ filename: `${String(candidateName).replace(/\s+/g, '_').slice(0, 80)}_Report.pdf`, content: pdfBuffer }], html: `<h1>Interview Report</h1><p><strong>Candidate:</strong> ${String(candidateName)}</p><p><strong>Overall Score:</strong> ${overallScore}%</p><p><strong>Status:</strong> ${String(status || '')}</p><p>${String(reason || '')}</p>` });
+      const safeCandidate = escapeHtml(String(candidateName).slice(0, 120));
+      const safeStatus = escapeHtml(String(status || '').slice(0, 80));
+      const safeReason = escapeHtml(String(reason || '').slice(0, 20000));
+      const doc = new jsPDF(); doc.setFontSize(22); doc.text('Interview Report', 20, 20); doc.setFontSize(14); doc.text(`Candidate: ${String(candidateName).slice(0, 120)}`, 20, 35); doc.text(`Overall Score: ${Number(overallScore) || 0}%`, 20, 45); doc.text(`Status: ${String(status || '').slice(0, 80)}`, 20, 55); doc.setFontSize(16); doc.text('Executive Summary', 20, 70); doc.setFontSize(12);
+      const splitReason = doc.splitTextToSize(String(reason || '').slice(0, 20000), 170); doc.text(splitReason, 20, 80); let y = 80 + splitReason.length * 7; doc.setFontSize(16); doc.text('Score Breakdown', 20, y + 10); doc.setFontSize(12); y += 20; parameters.slice(0, 30).forEach((p: any) => { doc.text(`${String(p.name || '').slice(0, 80)}: ${Number(p.score) || 0}%`, 20, y); y += 10; if (y > 270) { doc.addPage(); y = 20; } }); doc.setFontSize(16); doc.text('Q&A Transcript', 20, y + 10); doc.setFontSize(12); y += 20; responses.slice(0, 100).forEach((r: any, index: number) => { const q = doc.splitTextToSize(`Q${index + 1}: ${String(r.question || '').slice(0, 10000)}`, 170); doc.text(q, 20, y); y += q.length * 7; const a = doc.splitTextToSize(`A: ${String(r.answer || '').slice(0, 10000)}`, 170); doc.text(a, 20, y); y += a.length * 7 + 5; if (y > 270) { doc.addPage(); y = 20; } });
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer')); const { data, error } = await resend.emails.send({ from: 'SmartScout <reports@smartscout.online>', to: [String(recruiterEmail).trim()], subject: `Interview Report: ${String(candidateName).slice(0, 120)} (${String(status || '').slice(0, 80)} - ${Number(overallScore) || 0}%)`, attachments: [{ filename: `${String(candidateName).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80)}_Report.pdf`, content: pdfBuffer }], html: `<h1>Interview Report</h1><p><strong>Candidate:</strong> ${safeCandidate}</p><p><strong>Overall Score:</strong> ${Number(overallScore) || 0}%</p><p><strong>Status:</strong> ${safeStatus}</p><p>${safeReason}</p>` });
       if (error) return res.status(500).json({ success: false, error: error.message }); res.json({ success: true, data });
     } catch (err: any) { res.status(500).json({ success: false, error: err.message }); }
   });
@@ -95,8 +110,14 @@ async function startServer() {
     if (!resend) return res.status(400).json({ success: false, error: 'RESEND_API_KEY is not configured.' });
     if (!String(candidateEmail || '').trim() || !String(candidateName || '').trim()) return res.status(400).json({ success: false, error: 'candidateEmail and candidateName are required.' });
     try {
-      const attachments: any[] = []; if (jd) attachments.push({ filename: 'job-description.txt', content: Buffer.from(String(jd).slice(0, 200000)) }); if (scheduledAt) { const date = new Date(scheduledAt); if (Number.isNaN(date.getTime())) return res.status(400).json({ success: false, error: 'scheduledAt is invalid' }); const event: ics.EventAttributes = { start: [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()], duration: { hours: 1 }, title: `AI Interview with ${String(company || 'SmartScout').slice(0, 100)}: ${String(candidateName).slice(0, 100)} - ${String(designation || 'Position').slice(0, 100)}`, description: `Your AI-powered audio interview is scheduled.\n\nInterview Link: ${String(interviewLink || '')}\n\n${String(emailBody || '')}`, location: 'SmartScout AI Platform', url: interviewLink, status: 'CONFIRMED', busyStatus: 'BUSY', organizer: { name: 'SmartScout Recruitment', email: 'interviews@smartscout.online' }, attendees: [{ name: String(candidateName), email: String(candidateEmail), rsvp: true, partstat: 'ACCEPTED', role: 'REQ-PARTICIPANT' }] }; const { error, value } = ics.createEvent(event); if (!error && value) attachments.push({ filename: 'interview-invite.ics', content: Buffer.from(value) }); }
-      const { data, error } = await resend.emails.send({ from: 'SmartScout <interviews@smartscout.online>', to: [String(candidateEmail).trim()], subject: `Interview Invitation: ${String(company || 'SmartScout').slice(0, 100)} - ${String(designation || 'Position').slice(0, 100)}`, attachments, html: `<h1>Interview Invitation</h1><div style="white-space:pre-wrap">${String(emailBody || '')}</div>${scheduledAt ? `<p>Scheduled: ${new Date(scheduledAt).toLocaleString()}</p>` : ''}` });
+      const safeEmailBody = escapeHtml(String(emailBody || '').slice(0, 30000));
+      const safeCompany = String(company || 'SmartScout').slice(0, 100);
+      const safeDesignation = String(designation || 'Position').slice(0, 100);
+      const safeCandidateName = String(candidateName).slice(0, 120);
+      const safeInterviewLink = String(interviewLink || '').trim();
+      if (safeInterviewLink && !/^https:\/\//i.test(safeInterviewLink)) return res.status(400).json({ success: false, error: 'interviewLink must use HTTPS' });
+      const attachments: any[] = []; if (jd) attachments.push({ filename: 'job-description.txt', content: Buffer.from(String(jd).slice(0, 200000)) }); if (scheduledAt) { const date = new Date(scheduledAt); if (Number.isNaN(date.getTime())) return res.status(400).json({ success: false, error: 'scheduledAt is invalid' }); const event: ics.EventAttributes = { start: [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()], duration: { hours: 1 }, title: `AI Interview with ${safeCompany}: ${safeCandidateName} - ${safeDesignation}`, description: `Your AI-powered audio interview is scheduled.\n\nInterview Link: ${safeInterviewLink}\n\n${String(emailBody || '').slice(0, 30000)}`, location: 'SmartScout AI Platform', url: safeInterviewLink, status: 'CONFIRMED', busyStatus: 'BUSY', organizer: { name: 'SmartScout Recruitment', email: 'interviews@smartscout.online' }, attendees: [{ name: safeCandidateName, email: String(candidateEmail).trim(), rsvp: true, partstat: 'ACCEPTED', role: 'REQ-PARTICIPANT' }] }; const { error, value } = ics.createEvent(event); if (!error && value) attachments.push({ filename: 'interview-invite.ics', content: Buffer.from(value) }); }
+      const { data, error } = await resend.emails.send({ from: 'SmartScout <interviews@smartscout.online>', to: [String(candidateEmail).trim()], subject: `Interview Invitation: ${safeCompany} - ${safeDesignation}`, attachments, html: `<h1>Interview Invitation</h1><div style="white-space:pre-wrap">${safeEmailBody}</div>${scheduledAt ? `<p>Scheduled: ${escapeHtml(new Date(scheduledAt).toLocaleString())}</p>` : ''}` });
       if (error) return res.status(500).json({ success: false, error: error.message }); res.json({ success: true, data });
     } catch (err: any) { res.status(500).json({ success: false, error: err.message }); }
   });
@@ -104,28 +125,11 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') { const { createServer: createViteServer } = await import('vite'); const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' }); app.use(vite.middlewares); }
   else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath, { setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-      }
-    }}));
-    app.get('*all', (_req, res) => {
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    app.use(express.static(distPath, { setHeaders: (res, filePath) => { if (filePath.endsWith('.html')) { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.setHeader('Pragma', 'no-cache'); res.setHeader('Expires', '0'); } }}));
+    app.get('*all', (_req, res) => { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.setHeader('Pragma', 'no-cache'); res.setHeader('Expires', '0'); res.sendFile(path.join(distPath, 'index.html')); });
   }
 
-  app.use((err: any, req: any, res: any, _next: any) => {
-    const requestId = String(res.getHeader('x-request-id') || 'unknown');
-    console.error(JSON.stringify({ event: 'unhandled_error', requestId, method: req.method, path: req.path, message: err?.message || 'Unknown error' }));
-    if (res.headersSent) return;
-    res.status(500).json({ error: 'Internal server error', requestId });
-  });
-
+  app.use((err: any, req: any, res: any, _next: any) => { const requestId = String(res.getHeader('x-request-id') || 'unknown'); console.error(JSON.stringify({ event: 'unhandled_error', requestId, method: req.method, path: req.path, message: err?.message || 'Unknown error' })); if (res.headersSent) return; res.status(500).json({ error: 'Internal server error', requestId }); });
   const server = app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
   const shutdown = (signal: string) => { console.log(JSON.stringify({ event: 'shutdown', signal })); server.close(() => process.exit(0)); setTimeout(() => process.exit(1), 10000).unref(); };
   process.once('SIGTERM', () => shutdown('SIGTERM'));
