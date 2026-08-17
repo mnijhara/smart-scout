@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: refresh-production-artifacts
+  cancel-in-progress: true
+
 jobs:
   build-artifacts:
     runs-on: ubuntu-latest
@@ -21,13 +25,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Sync to latest main before building
-        run: |
-          git fetch origin main
-          git rebase origin/main
-
       - name: Install dependencies
         run: npm install
+
+      - name: Install Playwright Chromium
+        run: PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
+
+      - name: Typecheck
+        run: npm run lint
 
       - name: Build frontend
         run: npm run build
@@ -40,10 +45,33 @@ jobs:
           test -f dist/index.html
           test -f server.js
           test -f server.cjs
+          test -d node_modules/playwright
+          test -d node_modules/playwright-core/.local-browsers
           node --check server.js
           node --check server.cjs
           grep -q "workspaceSessionInfo" server.js
           grep -q "requireWorkspaceAuth" server.js
+          grep -q "candidate/knockout" server.js
+          grep -q "browser-sourcing/search" server.js
+
+      - name: Smoke test production server
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: 0
+        run: |
+          PORT=4173 NODE_ENV=production PLAYWRIGHT_BROWSERS_PATH=0 node server.cjs > /tmp/smartscout-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/api/recruiting/health > /tmp/health.json; then break; fi; sleep 1; done
+          grep -q '"ok":true' /tmp/health.json
+          curl -fsS -c /tmp/cookies.txt http://127.0.0.1:4173/api/recruiting/session > /tmp/session.json
+          grep -q '"ok":true' /tmp/session.json
+          test -s /tmp/cookies.txt
+          for endpoint in /api/recruiting/jobs /api/recruiting/integrations/health /api/control-plane/usage /api/control-plane/approvals /api/control-plane/schedules; do status=$(curl -sS -b /tmp/cookies.txt -o /tmp/protected.json -w '%{http_code}' "http://127.0.0.1:4173${endpoint}"); test "$status" = "200"; done
+          status=$(curl -sS -o /tmp/unauthenticated.json -w '%{http_code}' http://127.0.0.1:4173/api/recruiting/jobs); test "$status" = "401"
+          status=$(curl -sS -o /tmp/duplicate-browser.json -w '%{http_code}' -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"source":"linkedin","query":"software engineer"}' http://127.0.0.1:4173/api/recruiting/browser-sourcing/search); test "$status" = "404"
+          curl -fsS -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"candidate":{"id":"smoke-candidate","name":"Test Candidate","source":"smoke","resumeText":"5 years JavaScript React Node.js experience"},"requirement":{"title":"Software Engineer","description":"","mustHave":["JavaScript","React"],"niceToHave":[],"experienceMin":3}}' http://127.0.0.1:4173/api/recruiting/candidate/knockout > /tmp/knockout.json
+          grep -q '"passed":true' /tmp/knockout.json
+          SMARTSCOUT_BASE_URL=http://127.0.0.1:4173 npm run e2e:public
 
       - name: Commit refreshed production artifacts
         run: |
