@@ -12,7 +12,8 @@
     "build:server": "esbuild server.ts --platform=node --format=esm --outfile=server.js --packages=external",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "browser:install": "playwright install chromium"
+    "browser:install": "playwright install chromium",
+    "e2e:public": "node tests/public-e2e.mjs"
   },
   "dependencies": {
     "@google/genai": "2.7.0",
