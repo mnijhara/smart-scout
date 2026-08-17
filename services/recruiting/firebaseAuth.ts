@@ -1,9 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0431516636';
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyCK2ESnkH49-h9lUenEsvQvQwJSeRr3aVw';
-const SESSION_SECRET = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY || FIREBASE_API_KEY;
+const SESSION_SECRET = (() => {
+  const explicit = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY;
+  if (explicit) return explicit;
+  const rootSecret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.GEMINI_API_KEY;
+  if (!rootSecret) throw new Error('SMARTSCOUT_SESSION_SECRET or another server-only secret is required');
+  return createHash('sha256').update(`smartscout:session:${rootSecret}`).digest('hex');
+})();
 const SESSION_COOKIE = 'smartscout_workspace';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
