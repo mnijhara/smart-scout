@@ -1,23 +1,25 @@
-# Smart Scout — Remaining Production Work
+# Smart Scout — Release Checklist
 
-## Critical product gates
-- Candidate sourcing via Playwright browser workflows with visible consent/login handoff; no official API dependency.
-- CV/profile ingestion and evidence extraction.
-- Knockout criteria and candidate comparison.
-- Interview scheduling, candidate links, transcription/review.
-- Human decision approval and audit trail.
-- Compensation policy/data and offer delivery.
-- Engagement delivery and HRIS/onboarding execution.
-- Persistent production state, observability, E2E coverage, accessibility/performance/security hardening.
+## Completed in the current release
+- [x] Magic demo: horizontal journey and active screen stay synchronized.
+- [x] Landing page: no fabricated live hiring metrics; demo data is explicitly labelled fictional.
+- [x] BYOK value proposition is visible on the homepage and social-share asset.
+- [x] Favicon and vector brand assets are present.
+- [x] Google sign-in state restores correctly after redirect and shows the signed-in account.
+- [x] JD approval state reloads from the control plane so an approved JD does not fall back to the locked sourcing state.
+- [x] Playwright LinkedIn/Naukri sourcing workflow and human sign-in/verification handoff are wired.
+- [x] Evidence-backed candidate capture, scoring, knockout and comparison.
+- [x] Interview evidence, decision, compensation, offer, engagement and onboarding workflow foundations.
+- [x] Build, smoke-test and public-demo E2E gates are defined.
 
-## Demo quality gates
-- Magic demo must show the complete hiring journey, not a disconnected screen sequence.
-- Horizontal journey must track the actual screen shown.
-- Approval transitions must unlock sourcing.
-- BYOK value proposition must be visible on the public landing page and share metadata.
-- Branding/favicon/social preview assets must be crisp and production-ready.
+## External activation gates
+- [ ] Calendar OAuth / interview-link provider credentials.
+- [ ] Transcription provider credentials for automated transcription.
+- [ ] Compensation market-data/internal parity connectors.
+- [ ] Real offer communication provider and acceptance webhooks.
+- [ ] HRIS employee creation/document/task provider.
+- [ ] Apply and verify production Supabase migrations.
+- [ ] Authenticated full-browser E2E plus performance/accessibility/security audit.
+- [ ] Verify the Hostinger deployment for the current release commit.
 
-## Deployment gate
-- Build must pass typecheck, frontend build, production server build, artifact verification and Playwright smoke tests.
-- Only the verified artifact should be deployed to Hostinger.
-- Verify the live domain after deployment before declaring production shipped.
+Candidate-source official APIs are intentionally not required; the chosen sourcing path is Playwright browser automation with a human sign-in/verification handoff.
