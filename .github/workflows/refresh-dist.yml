@@ -46,6 +46,7 @@ jobs:
           grep -q "requireWorkspaceAuth" server.js
           grep -q "candidate/knockout" server.js
           grep -q "browser-sourcing/search" server.js
+          grep -q "createControlPlaneRouter" server.js
       - name: Smoke test production server
         env:
           PLAYWRIGHT_BROWSERS_PATH: 0
@@ -61,7 +62,7 @@ jobs:
           for endpoint in /api/recruiting/jobs /api/recruiting/integrations/health; do status=$(curl -sS -b /tmp/cookies.txt -o /tmp/protected.json -w '%{http_code}' "http://127.0.0.1:4173${endpoint}"); test "$status" = "200"; done
           for endpoint in /api/control-plane/usage /api/control-plane/approvals /api/control-plane/schedules; do status=$(curl -sS -b /tmp/cookies.txt -o /tmp/control-plane.json -w '%{http_code}' "http://127.0.0.1:4173${endpoint}"); test "$status" = "401"; done
           status=$(curl -sS -o /tmp/unauthenticated.json -w '%{http_code}' http://127.0.0.1:4173/api/recruiting/jobs); test "$status" = "401"
-          status=$(curl -sS -o /tmp/duplicate-browser.json -w '%{http_code}' -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"source":"linkedin","query":"software engineer"}' http://127.0.0.1:4173/api/recruiting/browser-sourcing/search); test "$status" = "404"
+          status=$(curl -sS -o /tmp/duplicate-browser.json -w '%{http_code}' -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"source":"linkedin","query":"software engineer"}' http://127.0.0.1:4173/api/recruiting/browser-source/search); test "$status" = "400"
           curl -fsS -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"candidate":{"id":"smoke-candidate","name":"Test Candidate","source":"smoke","resumeText":"5 years JavaScript React Node.js experience"},"requirement":{"title":"Software Engineer","description":"","mustHave":["JavaScript","React"],"niceToHave":[],"experienceMin":3}}' http://127.0.0.1:4173/api/recruiting/candidate/knockout > /tmp/knockout.json
           grep -q '"passed":true' /tmp/knockout.json
           SMARTSCOUT_BASE_URL=http://127.0.0.1:4173 npm run e2e:public

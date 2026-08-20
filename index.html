@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Smart Scout — bring your own AI key and run recruiting from hiring intent and JD to sourcing, interviews, decisions and offers." />
-    <meta name="smart-scout-release" content="production-2026-08-17-brand" />
+    <meta name="smart-scout-release" content="production-2026-08-20-release-2" />
     <meta name="theme-color" content="#6d28d9" />
     <meta name="application-name" content="Smart Scout" />
     <meta name="apple-mobile-web-app-title" content="Smart Scout" />
@@ -13,73 +13,31 @@
     <meta property="og:title" content="Smart Scout — Bring Your Own AI Recruiting OS" />
     <meta property="og:description" content="Bring your own AI key. Your key, your usage, your control. From hiring intent to the right hire." />
     <meta property="og:url" content="https://smartscout.online/" />
-    <meta property="og:image" content="https://smartscout.online/brand/smartscout-share.png" />
-    <meta property="og:image:secure_url" content="https://smartscout.online/brand/smartscout-share.png" />
-    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image" content="https://smartscout.online/brand/smartscout-share.svg?v=2" />
+    <meta property="og:image:secure_url" content="https://smartscout.online/brand/smartscout-share.svg?v=2" />
+    <meta property="og:image:type" content="image/svg+xml" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Smart Scout — Bring your own AI key. Your key, your usage, your control. AI-powered recruiting OS." />
+    <meta property="og:image:alt" content="Smart Scout — BYOK. Your key, your usage, your control. AI-powered recruiting OS." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Smart Scout — Bring Your Own AI Recruiting OS" />
     <meta name="twitter:description" content="Bring your own AI key. Your key, your usage, your control. From hiring intent to the right hire." />
-    <meta name="twitter:image" content="https://smartscout.online/brand/smartscout-share.png" />
-    <meta name="twitter:image:alt" content="Smart Scout — Bring your own AI key. Your key, your usage, your control." />
+    <meta name="twitter:image" content="https://smartscout.online/brand/smartscout-share.svg?v=2" />
+    <meta name="twitter:image:alt" content="Smart Scout — BYOK. Your key, your usage, your control." />
     <link rel="icon" href="/brand/smartscout-mark.svg" type="image/svg+xml" />
     <link rel="alternate icon" href="/brand/smartscout-mark.svg" />
     <link rel="apple-touch-icon" href="/brand/smartscout-mark.svg" />
     <link rel="stylesheet" href="/src/index.css" />
     <title>Smart Scout — Bring Your Own AI Recruiting OS</title>
-    <script>
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      if (!window.process.env.API_KEY) window.process.env.API_KEY = "";
-    </script>
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@18.3.1",
-    "react-dom": "https://esm.sh/react-dom@18.3.1",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
-    "@google/genai": "https://esm.sh/@google/genai",
-    "marked": "https://esm.sh/marked@15.0.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
-    "jszip": "https://esm.sh/jszip@3.10.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
-  }
-}
-</script>
+    <script>window.process=window.process||{};window.process.env=window.process.env||{};if(!window.process.env.API_KEY)window.process.env.API_KEY="";</script>
     <style>
-      html, body, #root { min-height: 100%; }
-      body { margin: 0; font-family: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif; background: #faf9f8; color: #242424; position: relative; overflow-x: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-      body::before { content: ""; position: fixed; inset: 0; background: radial-gradient(circle at 80% 0%, rgba(124,58,237,.025), transparent 34%); pointer-events: none; z-index: -1; }
-      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-      .custom-scrollbar::-webkit-scrollbar-thumb { background: #c8c6c4; border-radius: 3px; }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a19f9d; }
-      .glass-panel { background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border: 1px solid rgba(225,223,221,.95); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
-      .terminal-text { font-family: "Cascadia Code", "Segoe UI Mono", ui-monospace, monospace; letter-spacing: -0.01em; }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      .animate-fadeIn { animation: fadeIn .35s ease-out forwards; }
-      @keyframes slideUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
-      .animate-slideUp { animation: slideUp .4s cubic-bezier(.16,1,.3,1) forwards; }
-      #smart-scout-home { display:none; }
-      #root header img[alt="Smart Scout"] { height: 44px !important; width: auto !important; }
-      @media (max-width: 640px) { #smart-scout-home { padding: 10px 14px !important; } #root header img[alt="Smart Scout"] { height: 46px !important; } }
+      html,body,#root{min-height:100%}body{margin:0;font-family:"Segoe UI Variable","Segoe UI",ui-sans-serif,system-ui,sans-serif;background:#faf9f8;color:#242424;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#c8c6c4;border-radius:3px}#smart-scout-home{display:none}@media(max-width:640px){#smart-scout-home{padding:10px 14px!important}}
     </style>
   </head>
   <body>
     <div id="root"></div>
     <button id="smart-scout-home" aria-label="Back to Smart Scout home" onclick="window.location.assign('/')" style="position:fixed;left:20px;bottom:20px;z-index:99999;border:1px solid #e1dfdd;border-radius:4px;background:rgba(255,255,255,.98);box-shadow:0 4px 16px rgba(0,0,0,.12);padding:11px 16px;color:#242424;font:600 12px 'Segoe UI Variable','Segoe UI',sans-serif;cursor:pointer">← Smart Scout Home</button>
-    <script>
-      (function(){
-        var b=document.getElementById('smart-scout-home');
-        function sync(){b.style.display=window.location.pathname.replace(/\/$/,'')==='/hire'?'block':'none';}
-        sync();
-        window.addEventListener('popstate',sync);
-      })();
-    </script>
+    <script>(function(){var b=document.getElementById('smart-scout-home');function sync(){b.style.display=window.location.pathname.replace(/\/$/,'')==='/hire'?'block':'none'}sync();window.addEventListener('popstate',sync)})();</script>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
