@@ -2,6 +2,7 @@
 
 ## Completed in the current release
 - [x] Magic demo: horizontal journey and active screen stay synchronized.
+- [x] Magic demo: actual visual product screens for command, JD, browser sourcing, shortlist, interview, decision and offer.
 - [x] Landing page: no fabricated live hiring metrics; demo data is explicitly labelled fictional.
 - [x] BYOK value proposition is visible on the homepage and social-share asset.
 - [x] Favicon and vector brand assets are present.
@@ -12,7 +13,7 @@
 - [x] Interview evidence, decision, compensation, offer, engagement and onboarding workflow foundations.
 - [x] Build, smoke-test and public-demo E2E gates are defined.
 
-## External activation gates
+## Next production activation gates
 - [ ] Calendar OAuth / interview-link provider credentials.
 - [ ] Transcription provider credentials for automated transcription.
 - [ ] Compensation market-data/internal parity connectors.
