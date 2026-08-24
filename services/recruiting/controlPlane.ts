@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Router } from 'express';
+import { recordAuditEvent as persistAuditEvent } from './auditStore.js';
 
 type RecordBase={id:string;tenantId:string;createdAt:string;updatedAt:string};
 export type Approval=RecordBase&{jobId:string;candidateId?:string;action:'jd_approval'|'reject'|'decision'|'compensation'|'offer'|'employee_create';status:'pending'|'approved'|'rejected';requestedBy:string;decidedBy?:string;note?:string};
@@ -13,7 +14,7 @@ const root=process.env.SMARTSCOUT_CONTROL_PLANE_DIR||path.join(process.cwd(),'.s
 async function read<T>(name:string):Promise<T[]>{try{return JSON.parse(await fs.readFile(path.join(root,name),'utf8'));}catch{return[];}}
 async function append<T extends RecordBase>(name:string,value:T):Promise<T>{await fs.mkdir(root,{recursive:true});queues[name]=(queues[name]||Promise.resolve()).then(async()=>{const all=await read<T>(name);all.unshift(value);await fs.writeFile(path.join(root,name),JSON.stringify(all.slice(0,10000),null,2),'utf8')});await queues[name];return value;}
 const now=()=>new Date().toISOString();
-export async function audit(input:AuditInput):Promise<AuditEvent>{const t=now();return append(files.audit,{...input,id:`audit_${crypto.randomUUID()}`,createdAt:t,updatedAt:t});}
+export async function audit(input:AuditInput):Promise<AuditEvent>{const t=now();const value={...input,id:`audit_${crypto.randomUUID()}`,createdAt:t,updatedAt:t};await append(files.audit,value);void persistAuditEvent({tenantId:input.tenantId,workflowId:input.jobId||null,candidateId:input.candidateId||null,eventType:input.action,actorType:input.actor,actorId:input.actor,payload:input.metadata||{}}).catch(()=>undefined);return value;}
 export async function requestApproval(input:ApprovalInput):Promise<Approval>{const t=now();const value:Approval={...input,id:`approval_${crypto.randomUUID()}`,createdAt:t,updatedAt:t,status:'pending'};await append(files.approvals,value);await audit({tenantId:input.tenantId,jobId:input.jobId,candidateId:input.candidateId,action:'approval_requested',actor:input.requestedBy,metadata:{approvalId:value.id,approvalAction:value.action}});return value;}
 export async function decideApproval(id:string,status:'approved'|'rejected',actor:string,note?:string,tenantId?:string):Promise<Approval|null>{if(!['approved','rejected'].includes(status))throw new Error('Invalid approval status');if(!tenantId)throw new Error('Tenant identity is required');const all=await read<Approval>(files.approvals);const item=all.find(x=>x.id===id&&x.tenantId===tenantId);if(!item)return null;if(item.status!=='pending')throw new Error('Approval is already decided');item.status=status;item.decidedBy=actor;item.note=note;item.updatedAt=now();await fs.writeFile(path.join(root,files.approvals),JSON.stringify(all,null,2));await audit({tenantId:item.tenantId,jobId:item.jobId,candidateId:item.candidateId,action:`approval_${status}`,actor,metadata:{approvalId:id,approvalAction:item.action,note:note||''}});return item;}
 export async function listApprovals(tenantId:string,jobId?:string){return(await read<Approval>(files.approvals)).filter(x=>x.tenantId===tenantId&&(!jobId||x.jobId===jobId));}
