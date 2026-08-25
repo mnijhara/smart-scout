@@ -1,26 +1,25 @@
 import { db, auth } from '../firebase';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
   addDoc,
   serverTimestamp,
   getDocFromServer
 } from 'firebase/firestore';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signOut 
+import {
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signOut
 } from 'firebase/auth';
 import { ResumeAnalysis } from '../types';
 
-// Operation types for error handling
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -30,44 +29,16 @@ enum OperationType {
   WRITE = 'write',
 }
 
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
+  // Keep production diagnostics useful without serializing user email, provider data,
+  // photo URLs, tenant metadata, or other authentication PII into logs/errors.
+  const errInfo = {
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
     operationType,
-    path
-  }
+    path,
+    authenticated: Boolean(auth.currentUser),
+    userIdPresent: Boolean(auth.currentUser?.uid),
+  };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
@@ -129,7 +100,6 @@ export const supabase: any = {
 export const updateUserCredits = async (credits: number) => {
     if (!auth.currentUser) return null;
     try {
-        // In Firebase, we store credits in a user document
         await setDoc(doc(db, 'users', auth.currentUser.uid), { credits }, { merge: true });
         return credits;
     } catch (err) {
@@ -160,19 +130,17 @@ export const saveBenchmarkingSession = async (userId: string, jobTitle: string, 
       description: jobDescription,
       created_at: serverTimestamp()
     });
-    
-    // Batch insert analyses (Firestore doesn't have a native batch insert like Supabase, but we can loop or use WriteBatch)
-    const analysisPromises = results.map(res => 
+    const analysisPromises = results.map(res =>
       addDoc(collection(db, 'analyses'), {
-        user_id: userId, 
-        job_id: jobRef.id, 
-        candidate_name: res.candidateName, 
-        file_name: res.fileName, 
-        score: res.overallScore, 
-        summary: res.summary, 
-        breakdown: res.breakdown, 
-        pros: res.pros, 
-        cons: res.cons, 
+        user_id: userId,
+        job_id: jobRef.id,
+        candidate_name: res.candidateName,
+        file_name: res.fileName,
+        score: res.overallScore,
+        summary: res.summary,
+        breakdown: res.breakdown,
+        pros: res.pros,
+        cons: res.cons,
         extracted_text: res.extractedText,
         created_at: serverTimestamp()
       })
@@ -180,34 +148,32 @@ export const saveBenchmarkingSession = async (userId: string, jobTitle: string, 
 
     await Promise.all(analysisPromises);
     return jobRef.id;
-  } catch (err) { 
+  } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'jobs/analyses');
-    return null; 
+    return null;
   }
 };
 
 export const getHistoricalPool = async (userId: string) => {
   try {
     const q = query(
-      collection(db, 'analyses'), 
+      collection(db, 'analyses'),
       where('user_id', '==', userId),
       orderBy('created_at', 'desc')
     );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (err) { 
+  } catch (err) {
     handleFirestoreError(err, OperationType.LIST, 'analyses');
-    return []; 
+    return [];
   }
 };
 
 export const saveInterviewSession = async (session: any) => {
   try {
-    // Firestore does not support undefined values. Deep clean them.
     const deepClean = (obj: any): any => {
       if (obj === null || obj === undefined) return null;
       if (Array.isArray(obj)) return obj.map(deepClean);
-      // Don't mess with Firestore Timestamp or FieldValue objects
       if (typeof obj === 'object' && obj !== null) {
         if (typeof obj.toDate === 'function' || obj.isEqual) return obj;
         return Object.fromEntries(
@@ -218,7 +184,6 @@ export const saveInterviewSession = async (session: any) => {
     };
 
     const cleanSession = deepClean(session);
-
     const sessionData = {
       ...cleanSession,
       created_at: session.created_at || serverTimestamp()
@@ -244,21 +209,16 @@ export const updateInterviewSession = async (sessionId: string, data: any) => {
 
 export const getInterviewSession = async (sessionId: string) => {
   try {
-    console.log("Fetching interview session from Firestore for ID:", sessionId);
     const docSnap = await getDoc(doc(db, 'interview_sessions', sessionId));
     if (docSnap.exists()) {
       const data = docSnap.data();
       if (data.status === 'completed') {
-        console.warn("Interview session already completed for ID:", sessionId);
-        return null; // Expired
+        return null;
       }
-      console.log("Interview session found:", data);
       return data;
     }
-    console.warn("Interview session document does not exist for ID:", sessionId);
     return null;
   } catch (err) {
-    console.error("Error fetching interview session:", err);
     handleFirestoreError(err, OperationType.GET, `interview_sessions/${sessionId}`);
     return null;
   }
