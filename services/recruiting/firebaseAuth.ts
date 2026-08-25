@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0431516636';
-const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyCK2ESnkH49-h9lUenEsvQvQwJSeRr3aVw';
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || '';
 const SESSION_SECRET = (() => {
   const explicit = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY;
   if (explicit) return explicit;
@@ -47,6 +47,7 @@ export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity
 }
 
 export async function verifyFirebaseIdToken(token:string):Promise<FirebaseIdentity>{
+  if(!FIREBASE_API_KEY)throw new Error('Firebase authentication is not configured on this server');
   const response=await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_API_KEY)}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({idToken:token})});
   const data:any=await response.json();
   const user=data?.users?.[0];
