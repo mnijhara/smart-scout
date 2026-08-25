@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0431516636';
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || '';
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || '';
 const SESSION_SECRET = (() => {
   const explicit = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY;
