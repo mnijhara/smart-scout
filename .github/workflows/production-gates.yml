@@ -29,6 +29,18 @@ jobs:
         run: npm run build
       - name: Server production bundle
         run: npm run build:server
+      - name: Start production server
+        run: |
+          NODE_ENV=production PORT=3000 node server.js > /tmp/smartscout-server.log 2>&1 &
+          echo $! > /tmp/smartscout-server.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/smartscout-server.log
+          exit 1
+      - name: Runtime authentication boundary E2E
+        run: npm run e2e:runtime-security
       - name: Public E2E
         run: npm run e2e:public
       - name: Verify release artifacts
