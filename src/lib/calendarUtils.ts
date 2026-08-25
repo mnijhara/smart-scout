@@ -1,29 +1,41 @@
+function escapeIcsText(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
 
-export function generateICS(candidateName: string, recruiterEmail: string, startTime: Date): string {
-  const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 1 hour later
-  
-  const formatDate = (date: Date) => {
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  };
+function createEventUid(candidateName: string, startTime: Date): string {
+  const safeName = candidateName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'candidate';
+  return `${safeName}-${startTime.getTime()}@smartscout.ai`;
+}
 
-  const icsContent = [
+export function generateICS(
+  candidateName: string,
+  recruiterEmail: string,
+  startTime: Date,
+  _candidateEmail?: string,
+): string {
+  const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+  const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+  return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//SmartScout//Interview Scheduler//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
     'BEGIN:VEVENT',
-    `UID:${Math.random().toString(36).substring(2)}@smartscout.ai`,
+    `UID:${createEventUid(candidateName, startTime)}`,
     `DTSTAMP:${formatDate(new Date())}`,
     `DTSTART:${formatDate(startTime)}`,
     `DTEND:${formatDate(endTime)}`,
-    `SUMMARY:Technical Interview: ${candidateName}`,
-    `DESCRIPTION:Audio interview session with ${candidateName}. Report will be sent to ${recruiterEmail}.`,
-    `ORGANIZER;CN=SmartScout:MAILTO:noreply@smartscout.ai`,
-    `ATTENDEE;RSVP=TRUE;CN=${candidateName}:MAILTO:candidate@example.com`,
+    `SUMMARY:Technical Interview: ${escapeIcsText(candidateName)}`,
+    `DESCRIPTION:${escapeIcsText(`Audio interview session with ${candidateName}. Report recipient: ${recruiterEmail}.`)}`,
     'END:VEVENT',
-    'END:VCALENDAR'
+    'END:VCALENDAR',
   ].join('\r\n');
-
-  return icsContent;
 }
 
 export function downloadFile(content: string, fileName: string, contentType: string) {
