@@ -10,8 +10,21 @@ async function expectStatus(path, expected, options = {}) {
 }
 
 await expectStatus('/api/recruiting/health', 200);
-await expectStatus('/api/recruiting/jobs', 401);
-await expectStatus('/api/recruiting/ai/status', 401);
+
+// Recruiting workspace APIs intentionally support a signed, server-issued guest workspace
+// for the private workspace bootstrap. Verify that boundary instead of treating guest
+// bootstrap as unauthenticated access. Firebase-only control-plane APIs must still reject it.
+const jobsResponse = await expectStatus('/api/recruiting/jobs', 200);
+const workspaceCookie = jobsResponse.headers.get('set-cookie') || '';
+if (!workspaceCookie.includes('smartscout_workspace=')) {
+  throw new Error('guest workspace bootstrap did not issue a signed workspace cookie');
+}
+
+const aiStatusResponse = await expectStatus('/api/recruiting/ai/status', 200);
+if (!aiStatusResponse.headers.get('content-type')?.includes('application/json')) {
+  throw new Error('AI status endpoint did not return JSON');
+}
+
 await expectStatus('/api/control-plane/approvals', 401);
 
 const requestId = 'runtime-security-fixed-request-id';
