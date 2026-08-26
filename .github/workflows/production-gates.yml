@@ -54,7 +54,22 @@ jobs:
         env:
           LIVE_URL: https://smartscout.online/
         run: |
-          LIVE_MARKER=$(curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 "$LIVE_URL" | sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' | head -n 1)
+          set +e
+          LIVE_HTTP_CODE=$(curl -sS -o /tmp/smartscout-live.html -w '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 "$LIVE_URL")
+          CURL_EXIT=$?
+          set -e
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "Live release verification could not reach $LIVE_URL (curl exit $CURL_EXIT)"
+            cat /tmp/smartscout-live.html 2>/dev/null || true
+            exit 1
+          fi
+          if [ "$LIVE_HTTP_CODE" != "200" ]; then
+            echo "Live release verification blocked: $LIVE_URL returned HTTP $LIVE_HTTP_CODE"
+            echo "Response body:"
+            cat /tmp/smartscout-live.html || true
+            exit 1
+          fi
+          LIVE_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' /tmp/smartscout-live.html | head -n 1)
           EXPECTED_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' index.html | head -n 1)
           test -n "$LIVE_MARKER"
           test -n "$EXPECTED_MARKER"
