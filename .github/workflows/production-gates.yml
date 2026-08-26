@@ -26,6 +26,8 @@ jobs:
         run: npm run verify:migrations
       - name: Tenant isolation regression
         run: npm run e2e:tenant-isolation
+      - name: Audit lifecycle regression
+        run: npm run e2e:audit-lifecycle
       - name: Vite production build
         run: npm run build
       - name: Server production bundle
