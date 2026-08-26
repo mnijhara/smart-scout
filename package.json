@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.cjs",
-    "build": "vite build && node scripts/write-release.mjs dist/release.json",
+    "build": "vite build && npm run build:server && node scripts/write-release.mjs dist/release.json",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external",
     "lint": "tsc --noEmit",
     "browser:install": "playwright install chromium",
