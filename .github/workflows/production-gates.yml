@@ -33,7 +33,7 @@ jobs:
           export NODE_ENV=production
           export PORT=3000
           export SMARTSCOUT_VAULT_KEY="$(openssl rand -hex 32)"
-          node server.js > /tmp/smartscout-server.log 2>&1 &
+          node server.cjs > /tmp/smartscout-server.log 2>&1 &
           echo $! > /tmp/smartscout-server.pid
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then exit 0; fi
@@ -50,7 +50,9 @@ jobs:
       - name: Verify release artifacts
         run: |
           test -d dist
+          test -f dist/index.html
           test -f server.js
+          test -f server.cjs
           test -f package.json
       - name: Verify live release marker
         env:
@@ -72,7 +74,7 @@ jobs:
             exit 1
           fi
           LIVE_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' /tmp/smartscout-live.html | head -n 1)
-          EXPECTED_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' index.html | head -n 1)
+          EXPECTED_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' dist/index.html | head -n 1)
           test -n "$LIVE_MARKER"
           test -n "$EXPECTED_MARKER"
           test "$LIVE_MARKER" = "$EXPECTED_MARKER"
