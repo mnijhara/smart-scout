@@ -12,4 +12,21 @@ for (const file of files) {
   if (!sql.trim()) throw new Error(`Empty migration: ${file}`);
   if (/DROP\s+TABLE\s+public\.(hiring_workflows|recruiting_candidates|recruiting_audit_events|recruiting_interviews)/i.test(sql)) throw new Error(`Destructive protected-table drop found in ${file}`);
 }
+
+const lifecycleMigration = await readFile(path.join(root, '007_hiring_state_persistence.sql'), 'utf8');
+const requiredLifecycleGuards = [
+  /create\s+or\s+replace\s+function\s+public\.validate_hiring_state_tenant/i,
+  /language\s+plpgsql/i,
+  /security\s+definer/i,
+  /set\s+search_path\s*=\s*public/i,
+  /create\s+trigger\s+hiring_state_history_tenant_guard/i,
+  /before\s+insert\s+or\s+update\s+on\s+public\.hiring_state_history/i,
+  /revoke\s+all\s+on\s+public\.hiring_state_history\s+from\s+anon\s*,\s*authenticated/i,
+  /candidate_workflow\s*<>\s*new\.workflow_id/i,
+];
+for (const pattern of requiredLifecycleGuards) {
+  if (!pattern.test(lifecycleMigration)) throw new Error(`Hiring lifecycle persistence guard missing: ${pattern}`);
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
+console.log('Hiring lifecycle persistence tenant guard verification passed');
