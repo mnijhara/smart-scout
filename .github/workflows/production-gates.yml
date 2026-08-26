@@ -45,6 +45,8 @@ jobs:
         run: npm run e2e:runtime-security
       - name: Public E2E
         run: npm run e2e:public
+      - name: Mobile accessibility regression
+        run: node tests/accessibility-regression.mjs
       - name: Verify release artifacts
         run: |
           test -d dist
