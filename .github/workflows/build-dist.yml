@@ -37,7 +37,7 @@ jobs:
           test -d node_modules/playwright-core/.local-browsers
           node --check server.js
           node --check server.cjs
-          if grep -Eq '^import .*services/recruiting/api(\.js)?([[:space:]]|[\"'\'';])' server.js; then echo "ERROR: production server.js still contains an external recruiting API import"; exit 1; fi
+          if grep -Eq '^import .*services/recruiting/api(\\.js)?([[:space:]]|[\"'\'';])' server.js; then echo "ERROR: production server.js still contains an external recruiting API import"; exit 1; fi
           if ! grep -q "recruiting-os" server.js; then echo "ERROR: recruiting API was not bundled into production server.js"; exit 1; fi
           if ! grep -q "integrations/health" server.js; then echo "ERROR: production integration health endpoint was not bundled"; exit 1; fi
           if ! grep -q "candidate/knockout" server.js; then echo "ERROR: production knockout engine was not bundled"; exit 1; fi
@@ -46,8 +46,11 @@ jobs:
       - name: Smoke test production APIs and browser journey
         env:
           PLAYWRIGHT_BROWSERS_PATH: 0
+          NODE_ENV: production
+          SMARTSCOUT_VAULT_KEY: ${{ secrets.SMARTSCOUT_VAULT_KEY || '' }}
         run: |
-          PORT=4173 NODE_ENV=production PLAYWRIGHT_BROWSERS_PATH=0 node server.cjs > /tmp/smartscout-server.log 2>&1 &
+          if [ -z "$SMARTSCOUT_VAULT_KEY" ]; then SMARTSCOUT_VAULT_KEY="$(openssl rand -hex 32)"; export SMARTSCOUT_VAULT_KEY; fi
+          PORT=4173 PLAYWRIGHT_BROWSERS_PATH=0 node server.cjs > /tmp/smartscout-server.log 2>&1 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           for i in {1..30}; do if curl -fsS http://127.0.0.1:4173/api/recruiting/health > /tmp/recruiting-health.json; then break; fi; sleep 1; done
