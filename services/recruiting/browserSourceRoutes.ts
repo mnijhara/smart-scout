@@ -13,7 +13,7 @@ async function requireJDApproval(tenantId: string, jobId: string) {
   }
 }
 
-router.post('/browser-source/search', async (req, res) => {
+async function handleBrowserSourceSearch(req: any, res: any) {
   try {
     const tenantId = String(req.header('x-tenant-id') || '');
     const jobId = String(req.body?.jobId || '');
@@ -31,6 +31,10 @@ router.post('/browser-source/search', async (req, res) => {
   } catch (error: any) {
     res.status(400).json({ error: error?.message || 'Browser sourcing failed' });
   }
-});
+}
+
+// Keep the original public route and expose the normalized plural form used by production verification.
+router.post('/browser-source/search', handleBrowserSourceSearch);
+router.post('/browser-sourcing/search', handleBrowserSourceSearch);
 
 export default router;
