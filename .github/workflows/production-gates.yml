@@ -47,3 +47,13 @@ jobs:
           test -d dist
           test -f server.js
           test -f package.json
+      - name: Verify live release marker
+        env:
+          LIVE_URL: https://smartscout.online/
+        run: |
+          LIVE_MARKER=$(curl -fsSL "$LIVE_URL" | sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' | head -n 1)
+          EXPECTED_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' index.html | head -n 1)
+          test -n "$LIVE_MARKER"
+          test -n "$EXPECTED_MARKER"
+          test "$LIVE_MARKER" = "$EXPECTED_MARKER"
+          echo "Live release marker verified: $LIVE_MARKER"
