@@ -22,13 +22,13 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
   const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:tenantId,workflow_id:workflowUuid(jobId),candidate_id:candidateId||null,state_type:type,payload:payload||{}}).select('*').single();
   if(error)throw new Error(`Unable to persist hiring state: ${error.message}`);
   const state=publicState(data);
-  void recordAuditEvent({tenantId,workflowId:jobId,candidateId:candidateId||null,eventType:`hiring_state_${type}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:type}}).catch(()=>undefined);
+  await recordAuditEvent({tenantId,workflowId:jobId,candidateId:candidateId||null,eventType:`hiring_state_${type}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:type}});
   return state;
  }
  if(process.env.NODE_ENV==='production')throw new Error('Persistent hiring state storage is not configured');
  const now=new Date().toISOString(); const state:HiringState={id:`state_${crypto.randomUUID()}`,tenantId,jobId,candidateId,type,payload,createdAt:now,updatedAt:now};
  writeQueue=writeQueue.then(async()=>{const all=await readAll();all.unshift(state);await fs.writeFile(filePath,JSON.stringify(all.slice(0,2000),null,2),'utf8');}); await writeQueue;
- void recordAuditEvent({tenantId,workflowId:jobId,candidateId:candidateId||null,eventType:`hiring_state_${type}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:type}}).catch(()=>undefined);
+ await recordAuditEvent({tenantId,workflowId:jobId,candidateId:candidateId||null,eventType:`hiring_state_${type}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:type}});
  return state;
 }
 export async function listHiringStates(tenantId:string,jobId:string,type?:string):Promise<HiringState[]>{
