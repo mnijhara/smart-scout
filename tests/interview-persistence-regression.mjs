@@ -18,7 +18,7 @@ assert.doesNotMatch(scheduler, /candidateEmail:\s*['"](?:test|candidate|rohan)[^
 
 // Recruiter-side scheduling must persist the exact session produced by the scheduler.
 assert.match(app, /onSchedule=\{async \(session\) => \{\s*await saveInterviewSession\(session\)/);
-assert.match(persistence, /setDoc\(doc\(db, 'interview_sessions', session\.id\)/);
+assert.match(persistence, /setDoc\(doc\(db, ['"]interview_sessions['"], session\.id\)/);
 
 // Calendar IDs should remain deterministic rather than being regenerated on each render.
 assert.match(calendar, /createDeterministicEventId|deterministic|hash/i);
