@@ -51,10 +51,12 @@ jobs:
         run: |
           test -d dist
           test -f dist/index.html
+          test -f dist/release.json
           test -f server.js
           test -f server.cjs
           test -f package.json
-      - name: Verify live release marker
+          test "$(node -e "console.log(require('./dist/release.json').commit)")" = "$GITHUB_SHA"
+      - name: Verify live release identity
         env:
           LIVE_URL: https://smartscout.online/
         run: |
@@ -69,13 +71,11 @@ jobs:
           fi
           if [ "$LIVE_HTTP_CODE" != "200" ]; then
             echo "Live release verification blocked: $LIVE_URL returned HTTP $LIVE_HTTP_CODE"
-            echo "Response body:"
             cat /tmp/smartscout-live.html || true
             exit 1
           fi
           LIVE_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' /tmp/smartscout-live.html | head -n 1)
-          EXPECTED_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' dist/index.html | head -n 1)
-          test -n "$LIVE_MARKER"
-          test -n "$EXPECTED_MARKER"
-          test "$LIVE_MARKER" = "$EXPECTED_MARKER"
-          echo "Live release marker verified: $LIVE_MARKER"
+          LIVE_SHA=$(curl -fsS --max-time 10 "$LIVE_URL/release.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).commit))")
+          test "$LIVE_MARKER" = "$GITHUB_SHA"
+          test "$LIVE_SHA" = "$GITHUB_SHA"
+          echo "Live SmartScout release verified: $GITHUB_SHA"
