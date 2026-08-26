@@ -15,6 +15,7 @@
     "e2e:public": "node tests/public-e2e.mjs",
     "e2e:runtime-security": "node tests/runtime-security.mjs",
     "e2e:accessibility": "node tests/accessibility-regression.mjs",
+    "e2e:tenant-isolation": "node tests/control-plane-tenant-isolation.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "react-dom": "^19.2.6",
     "resend": "^6.9.4",
     "stripe": "^22.0.0",
+    "stripe": "^22.0.0",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
@@ -42,6 +44,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
+    "@tailwindcss/postcss": "^4.1.0",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
