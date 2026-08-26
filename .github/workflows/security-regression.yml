@@ -19,3 +19,4 @@ jobs:
       - run: node tests/tenant-isolation-regression.mjs
       - run: node tests/rate-limit-regression.mjs
       - run: node tests/provider-configuration-regression.mjs
+      - run: node tests/hiring-audit-regression.mjs
