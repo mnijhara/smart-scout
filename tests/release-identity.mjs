@@ -1,7 +1,11 @@
 import { readFileSync, existsSync } from 'node:fs';
 
+// In CI, GITHUB_SHA is authoritative. SMARTSCOUT_RELEASE is only a local/deployment fallback.
 const expected = process.env.GITHUB_SHA || process.env.SMARTSCOUT_RELEASE;
 if (!expected) throw new Error('GITHUB_SHA or SMARTSCOUT_RELEASE is required');
+if (!/^[0-9a-f]{40}$/i.test(expected)) {
+  throw new Error(`Release SHA must be a full 40-character commit SHA: ${expected}`);
+}
 
 const releasePath = 'dist/release.json';
 const indexPath = 'dist/index.html';
@@ -11,6 +15,9 @@ if (!existsSync(releasePath) || !existsSync(indexPath)) {
 
 const release = JSON.parse(readFileSync(releasePath, 'utf8'));
 if (release.name !== 'smart-scout') throw new Error(`Unexpected release name: ${release.name}`);
+if (!/^[0-9a-f]{40}$/i.test(release.commit)) {
+  throw new Error(`Release artifact contains an invalid commit SHA: ${release.commit}`);
+}
 if (release.commit !== expected) {
   throw new Error(`Release SHA mismatch: artifact=${release.commit} expected=${expected}`);
 }
