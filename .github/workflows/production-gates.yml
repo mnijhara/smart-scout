@@ -32,6 +32,8 @@ jobs:
         run: npm run build
       - name: Server production bundle
         run: npm run build:server
+      - name: Verify release identity
+        run: npm run verify:release
       - name: Start production server
         run: |
           export NODE_ENV=production
