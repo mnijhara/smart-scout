@@ -20,7 +20,11 @@ assert.doesNotMatch(scheduler, /candidateEmail:\s*['"](?:test|candidate|rohan)[^
 assert.match(app, /onSchedule=\{async \(session\) => \{\s*await saveInterviewSession\(session\)/);
 assert.match(persistence, /setDoc\(doc\(db, ['"]interview_sessions['"], session\.id\)/);
 
-// Calendar IDs should remain deterministic rather than being regenerated on each render.
-assert.match(calendar, /createDeterministicEventId|deterministic|hash/i);
+// Calendar IDs must be stable for the same candidate/time pair and visibly derive from
+// normalized candidate identity plus the scheduled start time.
+assert.match(calendar, /function createEventUid\(candidateName: string, startTime: Date\)/);
+assert.match(calendar, /candidateName\.trim\(\)\.toLowerCase\(\)/);
+assert.match(calendar, /startTime\.getTime\(\)/);
+assert.match(calendar, /UID:\$\{createEventUid\(candidateName, startTime\)\}/);
 
 console.log('Interview persistence regression checks passed.');
