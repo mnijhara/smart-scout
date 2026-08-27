@@ -1,9 +1,14 @@
 name: SmartScout Live Public E2E
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
+
+permissions:
+  contents: read
 
 jobs:
   live-public-e2e:
@@ -23,6 +28,7 @@ jobs:
       - name: Verify live release identity
         env:
           LIVE_URL: https://smartscout.online/
+          EXPECTED_RELEASE_SHA: ${{ github.sha }}
         run: |
           set -e
           code=$(curl -sS -o /tmp/live.html -w '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 "$LIVE_URL")
@@ -31,8 +37,10 @@ jobs:
           test -n "$marker"
           live_sha=$(curl -fsS --max-time 10 "$LIVE_URL/release.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).commit)}catch(e){process.exit(1)}})")
           test "$marker" = "$live_sha"
+          test "$live_sha" = "$EXPECTED_RELEASE_SHA"
           echo "Live release identity: $live_sha"
       - name: Exercise live public hiring journey
         env:
           SMARTSCOUT_BASE_URL: https://smartscout.online
+          EXPECTED_RELEASE_SHA: ${{ github.sha }}
         run: node tests/live-public-e2e.mjs
