@@ -24,6 +24,8 @@ jobs:
         run: npm run lint
       - name: Security regression
         run: node tests/security-regression.mjs
+      - name: Workspace tenant header regression
+        run: node tests/workspace-tenant-header-regression.mjs
       - name: Provider configuration regression
         run: node tests/provider-configuration-regression.mjs
       - name: Migration safety
