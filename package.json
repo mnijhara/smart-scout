@@ -16,7 +16,7 @@
     "e2e:runtime-security": "node tests/runtime-security.mjs",
     "e2e:accessibility": "node tests/accessibility-regression.mjs",
     "e2e:tenant-isolation": "node tests/control-plane-tenant-isolation.mjs",
-    "e2e:audit-lifecycle": "node tests/control-plane-audit-regression.mjs",
+    "e2e:audit-lifecycle": "tsx tests/control-plane-audit-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
