@@ -30,6 +30,8 @@ jobs:
         run: npm run verify:migrations
       - name: Tenant isolation regression
         run: npm run e2e:tenant-isolation
+      - name: Hiring state isolation regression
+        run: node tests/hiring-state-isolation-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
