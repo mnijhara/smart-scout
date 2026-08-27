@@ -17,3 +17,7 @@ jobs:
         run: node tests/live-security-smoke.mjs
         env:
           SMARTSCOUT_BASE_URL: https://smartscout.online
+      - name: Verify live release identity is present
+        run: node tests/live-release-presence.mjs
+        env:
+          SMARTSCOUT_BASE_URL: https://smartscout.online
