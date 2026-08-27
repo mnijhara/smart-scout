@@ -27,8 +27,8 @@ const schedule = await scheduleInterview({
   mode: 'human',
   status: 'proposed'
 });
-await updateSchedule(schedule.id, 'confirmed', 'tenant_a');
-await updateSchedule(schedule.id, 'cancelled', 'tenant_a');
+await updateSchedule(schedule.id, 'confirmed', 'tenant_a', 'recruiter@example.com');
+await updateSchedule(schedule.id, 'cancelled', 'tenant_a', 'recruiter@example.com');
 
 const events = await listAudit('tenant_a', 'job_1');
 const actions = events.map(event => event.action);
@@ -38,5 +38,8 @@ assert.ok(actions.includes('interview_scheduled'), 'interview creation must be a
 assert.ok(actions.includes('interview_status_changed'), 'interview status changes must be audited');
 assert.ok(events.some(event => event.metadata?.previousStatus === 'proposed' && event.metadata?.status === 'confirmed'));
 assert.ok(events.some(event => event.metadata?.previousStatus === 'confirmed' && event.metadata?.status === 'cancelled'));
+const statusEvents = events.filter(event => event.action === 'interview_status_changed');
+assert.equal(statusEvents.length, 2);
+assert.ok(statusEvents.every(event => event.actor === 'recruiter@example.com'), 'status audit must retain authenticated actor');
 
 console.log('Control-plane audit lifecycle checks passed.');
