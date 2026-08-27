@@ -22,6 +22,8 @@ jobs:
         run: npm install
       - name: Type validation
         run: npm run lint
+      - name: Security and lifecycle contracts
+        run: node tests/security-contract.mjs
       - name: Migration safety
         run: npm run verify:migrations
       - name: Tenant isolation regression
