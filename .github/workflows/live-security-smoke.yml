@@ -1,0 +1,19 @@
+name: Live Security Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+jobs:
+  security-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run live security smoke
+        run: node tests/live-security-smoke.mjs
+        env:
+          SMARTSCOUT_BASE_URL: https://smartscout.online
