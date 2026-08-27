@@ -43,14 +43,20 @@ for (const [name, expected] of headerChecks) {
   if (response.headers.get(name) !== expected) throw new Error(`${name}: expected ${expected}`);
 }
 
-let rateLimited = false;
+let rateLimitResponse = null;
 for (let i = 0; i < 190; i += 1) {
   const response = await fetch(`${baseUrl}/api/recruiting/health`, { headers: { accept: 'application/json' } });
   if (response.status === 429) {
-    rateLimited = true;
+    rateLimitResponse = response;
     break;
   }
 }
-if (!rateLimited) throw new Error('API rate limiter did not return 429 after the configured threshold');
+if (!rateLimitResponse) throw new Error('API rate limiter did not return 429 after the configured threshold');
+if (!rateLimitResponse.headers.get('retry-after')) {
+  throw new Error('rate-limited API response did not include Retry-After');
+}
+if (rateLimitResponse.headers.get('content-type') && !rateLimitResponse.headers.get('content-type').includes('application/json')) {
+  throw new Error('rate-limited API response should remain JSON');
+}
 
 console.log('RUNTIME_SECURITY_E2E_OK');
