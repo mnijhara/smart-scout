@@ -1,0 +1,26 @@
+name: Live Site Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 * * * *'
+  push:
+    branches: [main]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit live public UI and release identity
+        run: node tests/live-site-audit.mjs
+        env:
+          LIVE_URL: https://smartscout.online
+      - name: Require exact GitHub/live release parity
+        run: node tests/live-release-contract.mjs
+        env:
+          LIVE_URL: https://smartscout.online
+          GITHUB_SHA: ${{ github.sha }}
