@@ -16,7 +16,7 @@ jobs:
           node-version: 22
       - run: npm install
       - run: node tests/security-regression.mjs
-      - run: node tests/tenant-isolation-regression.mjs
+      - run: npm run e2e:tenant-isolation
       - run: node tests/rate-limit-regression.mjs
       - run: node tests/provider-configuration-regression.mjs
       - run: node tests/hiring-audit-regression.mjs
