@@ -1,4 +1,5 @@
 const baseUrl = (process.env.LIVE_URL || 'https://smartscout.online').replace(/\/$/, '');
+const expectedCommit = process.env.EXPECTED_COMMIT || process.env.GITHUB_SHA || '';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -61,6 +62,9 @@ const release = await get('/release.json');
 const payload = await release.json();
 if (!/^[0-9a-f]{40}$/i.test(payload?.commit || '')) {
   throw new Error(`Live release.json has no full commit SHA: ${payload?.commit || 'missing'}`);
+}
+if (expectedCommit && payload.commit.toLowerCase() !== expectedCommit.toLowerCase()) {
+  throw new Error(`LIVE_BUILD_MISMATCH: expected ${expectedCommit}, live ${payload.commit}`);
 }
 
 console.log(`Live public/security audit passed: ${baseUrl}`);
