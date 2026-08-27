@@ -16,5 +16,5 @@
     "noEmit": true,
     "strict": false
   },
-  "exclude": ["components/HiringLifecycleV3.tsx"]
+  "exclude": ["components/HiringLifecycleV3.tsx", "server.js", "dist"]
 }
