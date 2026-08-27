@@ -18,6 +18,7 @@
     "e2e:tenant-isolation": "node tests/control-plane-tenant-isolation.mjs",
     "e2e:audit-lifecycle": "node tests/control-plane-audit-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
+    "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
   },
   "dependencies": {
@@ -43,7 +44,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
-    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
