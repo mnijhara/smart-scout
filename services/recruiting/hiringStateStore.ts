@@ -14,9 +14,11 @@ function db(){
 }
 function workflowUuid(id:string){return id.startsWith('job_')?id.slice(4):id;}
 function publicState(row:any):HiringState{return {id:`state_${row.id}`,tenantId:row.tenant_id,jobId:`job_${row.workflow_id}`,candidateId:row.candidate_id||undefined,type:row.state_type,payload:row.payload||{},createdAt:row.created_at,updatedAt:row.updated_at};}
+function requireLifecycleIdentity(tenantId:string,jobId:string){if(!tenantId?.trim())throw new Error('Hiring state tenantId is required');if(!jobId?.trim())throw new Error('Hiring state jobId is required');}
 async function readAll():Promise<HiringState[]>{try{return JSON.parse(await fs.readFile(filePath,'utf8'));}catch{return [];}}
 export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string):Promise<HiringState>{
- if(!tenantId||!jobId)throw new Error('tenantId and jobId are required');
+ requireLifecycleIdentity(tenantId,jobId);
+ if(!type?.trim())throw new Error('Hiring state type is required');
  const client=db();
  if(client){
   const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:tenantId,workflow_id:workflowUuid(jobId),candidate_id:candidateId||null,state_type:type,payload:payload||{}}).select('*').single();
@@ -32,6 +34,8 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
  return state;
 }
 export async function listHiringStates(tenantId:string,jobId:string,type?:string):Promise<HiringState[]>{
+ requireLifecycleIdentity(tenantId,jobId);
+ if(type !== undefined && !type.trim())throw new Error('Hiring state type is required when provided');
  const client=db();
  if(client){
   let query=client.from('hiring_state_history').select('*').eq('tenant_id',tenantId).eq('workflow_id',workflowUuid(jobId)).order('created_at',{ascending:false});
