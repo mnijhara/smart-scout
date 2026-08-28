@@ -36,6 +36,8 @@ jobs:
         run: node tests/provider-configuration-regression.mjs
       - name: Migration safety
         run: npm run verify:migrations
+      - name: Migration readiness regression
+        run: node tests/migration-readiness-regression.mjs
       - name: Tenant isolation regression
         run: npm run e2e:tenant-isolation
       - name: Hiring state isolation regression
