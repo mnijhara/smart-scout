@@ -30,6 +30,8 @@ jobs:
         run: npx tsx tests/workspace-tenant-header-regression.mjs
       - name: Workspace identity authority regression
         run: npx tsx tests/workspace-identity-authority-regression.mjs
+      - name: AI credential workspace isolation regression
+        run: node tests/ai-credential-workspace-regression.mjs
       - name: Provider configuration regression
         run: node tests/provider-configuration-regression.mjs
       - name: Migration safety
