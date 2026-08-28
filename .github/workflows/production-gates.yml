@@ -62,6 +62,8 @@ jobs:
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
         run: node tests/hiring-audit-durability-regression.mjs
+      - name: Rate-limit production regression
+        run: node tests/rate-limit-production-regression.mjs
       - name: Vite production build
         run: npm run build
       - name: Server production bundle
