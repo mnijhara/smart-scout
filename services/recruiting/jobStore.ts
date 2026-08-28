@@ -21,16 +21,19 @@ function db() {
   if (!url || !key) return null;
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
+function requireTenantId(tenantId: string) {
+  if (!tenantId?.trim()) throw new Error('tenantId is required');
+  return tenantId.trim();
+}
 function workflowUuid(id: string) { return id.startsWith('job_') ? id.slice(4) : id; }
 function publicJob(row: any): SavedJob { return { id: `job_${row.id}`, tenantId: row.tenant_id, prompt: row.description || '', analysis: row.requirements || {}, createdAt: row.created_at, updatedAt: row.updated_at }; }
 async function readAll(): Promise<SavedJob[]> { try { return JSON.parse(await fs.readFile(filePath, 'utf8')); } catch { return []; } }
 
 export async function createJob(tenantId: string, prompt: string, analysis: any): Promise<SavedJob> {
-  if (!tenantId) throw new Error('tenantId is required');
+  tenantId = requireTenantId(tenantId);
   const client = db();
   if (client) {
     const id = crypto.randomUUID();
-    const now = new Date().toISOString();
     const { data, error } = await client.from('hiring_workflows').insert({ id, tenant_id: tenantId, title: analysis?.title || analysis?.role || 'New role', description: prompt, stage: 'job', requirements: analysis || {}, approval_gates: [] }).select('*').single();
     if (error) throw new Error(`Unable to persist job: ${error.message}`);
     return publicJob(data);
@@ -44,6 +47,7 @@ export async function createJob(tenantId: string, prompt: string, analysis: any)
 export const saveJob = createJob;
 
 export async function getJob(tenantId: string, id: string): Promise<SavedJob | null> {
+  tenantId = requireTenantId(tenantId);
   const client = db();
   if (client) {
     const { data, error } = await client.from('hiring_workflows').select('*').eq('tenant_id', tenantId).eq('id', workflowUuid(id)).maybeSingle();
@@ -54,6 +58,7 @@ export async function getJob(tenantId: string, id: string): Promise<SavedJob | n
 }
 
 export async function listJobs(tenantId: string): Promise<SavedJob[]> {
+  tenantId = requireTenantId(tenantId);
   const client = db();
   if (client) {
     const { data, error } = await client.from('hiring_workflows').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false });
