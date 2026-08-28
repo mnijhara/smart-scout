@@ -52,6 +52,8 @@ jobs:
         run: node tests/interview-audit-actor-regression.mjs
       - name: Audit persistence count regression
         run: node tests/audit-persistence-count-regression.mjs
+      - name: Audit identity validation regression
+        run: node tests/audit-identity-validation-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
