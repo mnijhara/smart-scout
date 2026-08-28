@@ -40,6 +40,8 @@ jobs:
         run: node tests/hiring-state-isolation-regression.mjs
       - name: Hiring state persistence and audit regression
         run: npx tsx tests/hiring-state-audit-regression.mjs
+      - name: Candidate score write serialization regression
+        run: npx tsx tests/candidate-score-write-serialization-regression.mjs
       - name: Interview state machine regression
         run: node tests/interview-state-machine-regression.mjs
       - name: Interview timestamp validation regression
