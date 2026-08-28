@@ -44,6 +44,8 @@ jobs:
         run: npx tsx tests/hiring-state-audit-regression.mjs
       - name: Candidate score write serialization regression
         run: npx tsx tests/candidate-score-write-serialization-regression.mjs
+      - name: Store tenant identity regression
+        run: npx tsx tests/store-tenant-identity-regression.mjs
       - name: Interview state machine regression
         run: node tests/interview-state-machine-regression.mjs
       - name: Interview timestamp validation regression
