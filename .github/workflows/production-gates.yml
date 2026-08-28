@@ -40,6 +40,8 @@ jobs:
         run: node tests/interview-state-machine-regression.mjs
       - name: Interview timestamp validation regression
         run: npx tsx tests/interview-window-validation-regression.mjs
+      - name: Interview audit actor regression
+        run: node tests/interview-audit-actor-regression.mjs
       - name: Audit persistence count regression
         run: node tests/audit-persistence-count-regression.mjs
       - name: Audit lifecycle regression
