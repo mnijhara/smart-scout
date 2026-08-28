@@ -16,16 +16,21 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 export type FirebaseIdentity = { uid:string; email?:string; emailVerified?:boolean; displayName?:string };
 export type WorkspaceIdentity = { kind:'firebase'|'guest'; id:string; email?:string; emailVerified?:boolean; displayName?:string };
 
-function signSession(id:string):string {
-  return createHmac('sha256', SESSION_SECRET).update(id).digest('base64url');
+function signSession(payload:string):string {
+  return createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
 }
 
 function validSession(value:string):string|null {
-  const [id, signature] = value.split('.');
-  if(!id || !signature)return null;
-  const expected=signSession(id);
+  const parts = value.split('.');
+  if(parts.length !== 3) return null;
+  const [id, expiresAtRaw, signature] = parts;
+  if(!id || !expiresAtRaw || !signature) return null;
+  const expiresAt = Number(expiresAtRaw);
+  if(!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) return null;
+  const payload = `${id}.${expiresAtRaw}`;
+  const expected=signSession(payload);
   try {
-    if(!timingSafeEqual(Buffer.from(signature),Buffer.from(expected)))return null;
+    if(signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature),Buffer.from(expected)))return null;
   } catch { return null; }
   return id;
 }
@@ -41,7 +46,9 @@ export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity
   const existing=validSession(getCookie(req,SESSION_COOKIE));
   const id=existing||randomBytes(32).toString('hex');
   if(!existing){
-    res.setHeader('Set-Cookie',`${SESSION_COOKIE}=${encodeURIComponent(`${id}.${signSession(id)}`)}; Path=/; Max-Age=${SESSION_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`);
+    const expiresAt = Date.now() + SESSION_MAX_AGE * 1000;
+    const payload = `${id}.${expiresAt}`;
+    res.setHeader('Set-Cookie',`${SESSION_COOKIE}=${encodeURIComponent(`${payload}.${signSession(payload)}`)}; Path=/; Max-Age=${SESSION_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`);
   }
   return {kind:'guest',id:`guest:${id}`};
 }
