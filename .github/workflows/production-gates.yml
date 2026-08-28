@@ -56,6 +56,8 @@ jobs:
         run: node tests/audit-persistence-count-regression.mjs
       - name: Audit identity validation regression
         run: node tests/audit-identity-validation-regression.mjs
+      - name: Audit identity normalization regression
+        run: node tests/audit-identity-normalization-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
