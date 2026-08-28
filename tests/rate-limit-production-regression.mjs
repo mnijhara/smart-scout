@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+
+const source = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+
+const required = [
+  /const rateBuckets = new Map<string, \{ count: number; resetAt: number \}>\(\)/,
+  /req\.path\.startsWith\('\/api\/'\)/,
+  /bucket\.count >= 180/,
+  /return res\.status\(429\)\.json\(\{ error: 'Too many requests\. Please retry shortly\.' \}\)/,
+  /bucket\.resetAt <= now/,
+  /rateBuckets\.size > 5000/,
+  /value\.resetAt <= now/,
+];
+
+for (const pattern of required) {
+  if (!pattern.test(source)) throw new Error(`Rate-limit production invariant missing: ${pattern}`);
+}
+
+if (!/res\.setHeader\('x-request-id', requestId\)/.test(source)) {
+  throw new Error('Rate-limited API requests must retain request correlation IDs');
+}
+
+console.log('rate-limit-production-regression: ok');
