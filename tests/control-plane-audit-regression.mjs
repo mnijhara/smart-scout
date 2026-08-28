@@ -6,6 +6,9 @@ import assert from 'node:assert/strict';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartscout-audit-'));
 process.env.SMARTSCOUT_CONTROL_PLANE_DIR = dir;
 
+delete process.env.SUPABASE_URL;
+delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 const { requestApproval, decideApproval, scheduleInterview, updateSchedule, listAudit } = await import('../services/recruiting/controlPlane.ts');
 
 const approval = await requestApproval({
@@ -41,5 +44,6 @@ assert.ok(events.some(event => event.metadata?.previousStatus === 'confirmed' &&
 const statusEvents = events.filter(event => event.action === 'interview_status_changed');
 assert.equal(statusEvents.length, 2);
 assert.ok(statusEvents.every(event => event.actor === 'recruiter@example.com'), 'status audit must retain authenticated actor');
+assert.ok(events.every(event => event.persistence === 'local-fallback'), 'unconfigured audit provider must be explicit');
 
-console.log('Control-plane audit lifecycle checks passed.');
+console.log('Control-plane audit lifecycle and persistence-state checks passed.');
