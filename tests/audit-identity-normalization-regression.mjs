@@ -7,11 +7,11 @@ const { recordAuditEvent, listAuditEvents, countAuditEvents } = await import('..
 
 await assert.rejects(
   () => recordAuditEvent({ tenantId: '   ', eventType: 'candidate_created' }),
-  /tenantId is required/
+  /Audit event tenantId is required/
 );
 await assert.rejects(
   () => recordAuditEvent({ tenantId: 'tenant_a', eventType: '   ' }),
-  /eventType is required/
+  /Audit event eventType is required/
 );
 
 assert.deepEqual(await listAuditEvents('   '), []);
