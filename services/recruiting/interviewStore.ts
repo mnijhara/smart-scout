@@ -18,6 +18,12 @@ export type SavedInterview = {
 const filePath = process.env.SMARTSCOUT_INTERVIEW_STORE || path.join(process.cwd(), '.smartscout-interviews.json');
 let writeQueue = Promise.resolve();
 
+function requireInterviewIdentity(tenantId: string, jobId?: string, candidateId?: string) {
+  if (!tenantId?.trim()) throw new Error('Interview tenantId is required');
+  if (jobId !== undefined && !jobId.trim()) throw new Error('Interview jobId is required when provided');
+  if (candidateId !== undefined && !candidateId.trim()) throw new Error('Interview candidateId is required when provided');
+}
+
 async function readAll(): Promise<SavedInterview[]> {
   try { return JSON.parse(await fs.readFile(filePath, 'utf8')); } catch { return []; }
 }
@@ -27,6 +33,7 @@ async function writeAll(items: SavedInterview[]) {
 }
 
 export async function createInterview(tenantId: string, jobId: string, candidateId: string, plan: any): Promise<SavedInterview> {
+  requireInterviewIdentity(tenantId, jobId, candidateId);
   const now = new Date().toISOString();
   const interview: SavedInterview = {
     id: `interview_${crypto.randomUUID()}`,
@@ -48,14 +55,20 @@ export async function createInterview(tenantId: string, jobId: string, candidate
 }
 
 export async function getInterview(tenantId: string, interviewId: string): Promise<SavedInterview | null> {
+  requireInterviewIdentity(tenantId);
+  if (!interviewId?.trim()) throw new Error('Interview interviewId is required');
   return (await readAll()).find(x => x.tenantId === tenantId && x.id === interviewId) || null;
 }
 
 export async function listInterviews(tenantId: string, jobId: string): Promise<SavedInterview[]> {
+  requireInterviewIdentity(tenantId, jobId);
   return (await readAll()).filter(x => x.tenantId === tenantId && x.jobId === jobId);
 }
 
 export async function recordInterviewAnswer(tenantId: string, interviewId: string, questionId: string, answer: string): Promise<SavedInterview | null> {
+  requireInterviewIdentity(tenantId);
+  if (!interviewId?.trim()) throw new Error('Interview interviewId is required');
+  if (!questionId?.trim()) throw new Error('Interview questionId is required');
   const all = await readAll();
   const index = all.findIndex(x => x.tenantId === tenantId && x.id === interviewId);
   if (index < 0) return null;
@@ -71,6 +84,8 @@ export async function recordInterviewAnswer(tenantId: string, interviewId: strin
 }
 
 export async function completeInterview(tenantId: string, interviewId: string, evidence: any): Promise<SavedInterview | null> {
+  requireInterviewIdentity(tenantId);
+  if (!interviewId?.trim()) throw new Error('Interview interviewId is required');
   const all = await readAll();
   const index = all.findIndex(x => x.tenantId === tenantId && x.id === interviewId);
   if (index < 0) return null;
