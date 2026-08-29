@@ -11,10 +11,9 @@ assert.match(source, /x\.tenantId===tenant&&\(!jobId\|\|x\.jobId===jobId\)/);
 // preventing a valid schedule id from another workspace from being modified.
 assert.match(source, /all\.find\(x=>x\.id===scheduleId&&x\.tenantId===tenant\)/);
 
-// Approval decisions, audits and schedules now normalize and validate tenant
-// identity through one required-identity boundary rather than allowing an
-// omitted tenant to fall through to a global lookup.
-assert.match(source, /const tenant=requiredIdentity\(tenantId\|\|'' ,'Tenant identity'\)/.source || /const tenant=requiredIdentity\(tenantId\|\|'' ,'Tenant identity'\)/);
+// Approval decisions, audits and schedules all validate tenant identity instead
+// of allowing an omitted tenant to fall through to a global lookup.
+assert.match(source, /const tenant=requiredIdentity\(tenantId\|\|'' ,'Tenant identity'\)/);
 assert.match(source, /requiredIdentity\(tenantId,'Tenant identity'\)/);
 
 console.log('Control-plane tenant isolation checks passed.');
