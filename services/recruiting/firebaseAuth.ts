@@ -12,6 +12,7 @@ const SESSION_SECRET = (() => {
 })();
 const SESSION_COOKIE = 'smartscout_workspace';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+const MAX_COOKIE_VALUE_LENGTH = 512;
 
 export type FirebaseIdentity = { uid:string; email?:string; emailVerified?:boolean; displayName?:string };
 export type WorkspaceIdentity = { kind:'firebase'|'guest'; id:string; email?:string; emailVerified?:boolean; displayName?:string };
@@ -21,6 +22,7 @@ function signSession(payload:string):string {
 }
 
 function validSession(value:string):string|null {
+  if(value.length > MAX_COOKIE_VALUE_LENGTH) return null;
   const parts = value.split('.');
   if(parts.length !== 3) return null;
   const [id, expiresAtRaw, signature] = parts;
@@ -39,7 +41,8 @@ function getCookie(req:Request,name:string):string {
   const raw=String(req.headers.cookie||'');
   const prefix=`${name}=`;
   const part=raw.split(';').map(value=>value.trim()).find(value=>value.startsWith(prefix));
-  return part ? decodeURIComponent(part.slice(prefix.length)) : '';
+  if(!part) return '';
+  try { return decodeURIComponent(part.slice(prefix.length)); } catch { return ''; }
 }
 
 export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity {
