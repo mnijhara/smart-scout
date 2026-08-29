@@ -66,6 +66,8 @@ jobs:
         run: npx tsx tests/audit-workflow-identity-regression.mjs
       - name: Audit candidate identity regression
         run: npx tsx tests/audit-candidate-identity-regression.mjs
+      - name: Audit actor identity regression
+        run: node tests/audit-actor-identity-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
