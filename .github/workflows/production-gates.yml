@@ -94,6 +94,8 @@ jobs:
         run: node tests/hiring-audit-durability-regression.mjs
       - name: Control-plane identity boundary regression
         run: npx tsx tests/control-plane-identity-boundary-regression.mjs
+      - name: Control-plane audit lifecycle regression
+        run: npx tsx tests/control-plane-audit-regression.mjs
       - name: Rate-limit production regression
         run: node tests/rate-limit-production-regression.mjs
       - name: Vite production build
