@@ -82,6 +82,8 @@ jobs:
         run: node tests/audit-actor-identity-regression.mjs
       - name: Audit optional identity boundary regression
         run: npx tsx tests/audit-optional-identity-boundary-regression.mjs
+      - name: Audit tenant boundary regression
+        run: node tests/audit-tenant-boundary-regression.mjs
       - name: Audit payload boundary regression
         run: node tests/audit-payload-boundary-regression.mjs
       - name: Audit evidence boundary regression
