@@ -8,6 +8,7 @@ export type HiringState = { id:string; tenantId:string; jobId:string; candidateI
 const filePath = process.env.SMARTSCOUT_HIRING_STATE_STORE || path.join(process.cwd(), '.smartscout-hiring-state.json');
 const MAX_HIRING_STATE_PAYLOAD_BYTES = 64 * 1024;
 const MAX_HIRING_STATE_TYPE_LENGTH = 128;
+const MAX_HIRING_STATE_IDENTITY_LENGTH = 256;
 let writeQueue = Promise.resolve();
 function db(){
  const url=process.env.SUPABASE_URL; const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,7 +17,14 @@ function db(){
 }
 function workflowUuid(id:string){return id.startsWith('job_')?id.slice(4):id;}
 function publicState(row:any):HiringState{return {id:`state_${row.id}`,tenantId:row.tenant_id,jobId:`job_${row.workflow_id}`,candidateId:row.candidate_id||undefined,type:row.state_type,payload:row.payload||{},createdAt:row.created_at,updatedAt:row.updated_at};}
-function requireLifecycleIdentity(tenantId:string,jobId:string,candidateId?:string){if(!tenantId?.trim())throw new Error('Hiring state tenantId is required');if(!jobId?.trim())throw new Error('Hiring state jobId is required');if(candidateId !== undefined && !candidateId.trim())throw new Error('Hiring state candidateId is required when provided');}
+function requireLifecycleIdentity(tenantId:string,jobId:string,candidateId?:string){
+ if(!tenantId?.trim())throw new Error('Hiring state tenantId is required');
+ if(tenantId.trim().length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state tenantId exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
+ if(!jobId?.trim())throw new Error('Hiring state jobId is required');
+ if(jobId.trim().length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state jobId exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
+ if(candidateId !== undefined && !candidateId.trim())throw new Error('Hiring state candidateId is required when provided');
+ if(candidateId !== undefined && candidateId.trim().length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state candidateId exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
+}
 function requireStatePayload(payload:unknown){let serialized:string;try{serialized=JSON.stringify(payload ?? {});}catch{throw new Error('Hiring state payload must be JSON serializable');}if(Buffer.byteLength(serialized,'utf8')>MAX_HIRING_STATE_PAYLOAD_BYTES)throw new Error(`Hiring state payload exceeds ${MAX_HIRING_STATE_PAYLOAD_BYTES} bytes`);}
 async function readAll():Promise<HiringState[]>{try{return JSON.parse(await fs.readFile(filePath,'utf8'));}catch{return [];}}
 export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string):Promise<HiringState>{
