@@ -36,6 +36,8 @@ jobs:
         run: node tests/ai-credential-workspace-regression.mjs
       - name: Provider configuration regression
         run: node tests/provider-configuration-regression.mjs
+      - name: Provider configuration state regression
+        run: node tests/provider-configuration-state-regression.mjs
       - name: Migration safety
         run: npm run verify:migrations
       - name: Migration readiness regression
