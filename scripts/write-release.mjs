@@ -3,11 +3,26 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const output = resolve(process.argv[2] || 'dist/release.json');
-let commit = process.env.SMARTSCOUT_RELEASE || process.env.GITHUB_SHA || process.env.HOSTINGER_GIT_COMMIT_SHA || '';
-if (!commit) {
-  try { commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { /* deployment may not include git metadata */ }
+
+// Deployment platforms may expose their checkout SHA directly. Prefer that over
+// a manually configured release label so production can never stamp an old build.
+let commit = process.env.HOSTINGER_GIT_COMMIT_SHA || '';
+if (!commit && process.env.CI === 'true' && process.env.GITHUB_SHA) {
+  commit = process.env.GITHUB_SHA;
 }
-if (!commit) throw new Error('Unable to determine SmartScout release SHA');
+if (!commit) {
+  try {
+    commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch {
+    // Some deployment environments omit git metadata.
+  }
+}
+if (!commit && process.env.SMARTSCOUT_RELEASE) {
+  commit = process.env.SMARTSCOUT_RELEASE;
+}
+if (!/^[0-9a-f]{40}$/i.test(commit)) {
+  throw new Error('Unable to determine a full 40-character SmartScout release SHA');
+}
 
 mkdirSync(dirname(output), { recursive: true });
 writeFileSync(output, JSON.stringify({ name: 'smart-scout', commit, builtAt: new Date().toISOString() }, null, 2) + '\n');
