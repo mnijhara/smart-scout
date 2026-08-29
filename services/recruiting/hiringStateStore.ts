@@ -21,33 +21,35 @@ function requireStatePayload(payload:unknown){let serialized:string;try{serializ
 async function readAll():Promise<HiringState[]>{try{return JSON.parse(await fs.readFile(filePath,'utf8'));}catch{return [];}}
 export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string):Promise<HiringState>{
  requireLifecycleIdentity(tenantId,jobId,candidateId);
- if(!type?.trim())throw new Error('Hiring state type is required');
- if(type.trim().length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
+ const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim();
+ if(!normalizedType)throw new Error('Hiring state type is required');
+ if(normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
  requireStatePayload(payload);
  const client=db();
  if(client){
-  const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:tenantId,workflow_id:workflowUuid(jobId),candidate_id:candidateId||null,state_type:type,payload:payload||{}}).select('*').single();
+  const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:normalizedTenantId,workflow_id:workflowUuid(normalizedJobId),candidate_id:normalizedCandidateId||null,state_type:normalizedType,payload:payload||{}}).select('*').single();
   if(error)throw new Error(`Unable to persist hiring state: ${error.message}`);
   const state=publicState(data);
-  await recordAuditEvent({tenantId,workflowId:jobId,candidateId:candidateId||null,eventType:`hiring_state_${type}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:type}});
+  await recordAuditEvent({tenantId:normalizedTenantId,workflowId:normalizedJobId,candidateId:normalizedCandidateId||null,eventType:`hiring_state_${normalizedType}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:normalizedType}});
   return state;
  }
  if(process.env.NODE_ENV==='production')throw new Error('Persistent hiring state storage is not configured');
- const now=new Date().toISOString(); const state:HiringState={id:`state_${crypto.randomUUID()}`,tenantId,jobId,candidateId,type,payload,createdAt:now,updatedAt:now};
+ const now=new Date().toISOString(); const state:HiringState={id:`state_${crypto.randomUUID()}`,tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId,type:normalizedType,payload,createdAt:now,updatedAt:now};
  writeQueue=writeQueue.then(async()=>{const all=await readAll();all.unshift(state);await fs.writeFile(filePath,JSON.stringify(all.slice(0,2000),null,2),'utf8');}); await writeQueue;
- await recordAuditEvent({tenantId,workflowId:jobId,candidateId:candidateId||null,eventType:`hiring_state_${type}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:type}});
+ await recordAuditEvent({tenantId:normalizedTenantId,workflowId:normalizedJobId,candidateId:normalizedCandidateId||null,eventType:`hiring_state_${normalizedType}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:normalizedType}});
  return state;
 }
 export async function listHiringStates(tenantId:string,jobId:string,type?:string):Promise<HiringState[]>{
  requireLifecycleIdentity(tenantId,jobId);
- if(type !== undefined && !type.trim())throw new Error('Hiring state type is required when provided');
- if(type !== undefined && type.trim().length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
+ const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedType=type?.trim();
+ if(type !== undefined && !normalizedType)throw new Error('Hiring state type is required when provided');
+ if(normalizedType && normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
  const client=db();
  if(client){
-  let query=client.from('hiring_state_history').select('*').eq('tenant_id',tenantId).eq('workflow_id',workflowUuid(jobId)).order('created_at',{ascending:false});
-  if(type)query=query.eq('state_type',type);
+  let query=client.from('hiring_state_history').select('*').eq('tenant_id',normalizedTenantId).eq('workflow_id',workflowUuid(normalizedJobId)).order('created_at',{ascending:false});
+  if(normalizedType)query=query.eq('state_type',normalizedType);
   const {data,error}=await query; if(error)throw new Error(`Unable to list hiring states: ${error.message}`); return (data||[]).map(publicState);
  }
  if(process.env.NODE_ENV==='production')throw new Error('Persistent hiring state storage is not configured');
- const all=await readAll();return all.filter(x=>x.tenantId===tenantId&&x.jobId===jobId&&(!type||x.type===type));
+ const all=await readAll();return all.filter(x=>x.tenantId===normalizedTenantId&&x.jobId===normalizedJobId&&(!normalizedType||x.type===normalizedType));
 }
