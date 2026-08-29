@@ -94,6 +94,8 @@ jobs:
         run: node tests/audit-evidence-boundary-regression.mjs
       - name: Audit event type boundary regression
         run: node tests/audit-event-type-boundary-regression.mjs
+      - name: Audit storage bounds regression
+        run: node tests/audit-storage-bounds-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
