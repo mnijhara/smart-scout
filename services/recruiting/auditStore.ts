@@ -3,9 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 export type AuditEventInput = { tenantId:string; workflowId?:string|null; candidateId?:string|null; eventType:string; actorType?:string; actorId?:string|null; provider?:string|null; model?:string|null; evidence?:unknown[]; payload?:Record<string,unknown> };
 const MAX_AUDIT_PAYLOAD_BYTES = 64 * 1024;
 const MAX_AUDIT_EVIDENCE_BYTES = 64 * 1024;
+const MAX_AUDIT_EVENT_TYPE_LENGTH = 128;
 function db(){const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;return url&&key?createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}):null}
 function uuid(value?:string|null){if(!value)return null;return value.startsWith('job_')||value.startsWith('candidate_')?value.slice(value.indexOf('_')+1):value}
-function requireAuditIdentity(input:Pick<AuditEventInput,'tenantId'|'eventType'>){if(!input.tenantId?.trim())throw new Error('Audit event tenantId is required');if(!input.eventType?.trim())throw new Error('Audit event eventType is required')}
+function requireAuditIdentity(input:Pick<AuditEventInput,'tenantId'|'eventType'>){if(!input.tenantId?.trim())throw new Error('Audit event tenantId is required');if(!input.eventType?.trim())throw new Error('Audit event eventType is required');if(input.eventType.trim().length>MAX_AUDIT_EVENT_TYPE_LENGTH)throw new Error(`Audit event eventType exceeds ${MAX_AUDIT_EVENT_TYPE_LENGTH} characters`)}
 function requireOptionalIdentity(name:string,value?:string|null){if(value !== undefined && value !== null && !value.trim())throw new Error(`Audit event ${name} is required when provided`)}
 function serializeWithinBoundary(name:string,value:unknown,maxBytes:number){let serialized:string;try{serialized=JSON.stringify(value)}catch{throw new Error(`Audit event ${name} must be JSON serializable`)}if(Buffer.byteLength(serialized,'utf8')>maxBytes)throw new Error(`Audit event ${name} exceeds ${maxBytes} bytes`)}
 function requirePayloadBoundary(payload?:Record<string,unknown>){if(payload === undefined || payload === null)return;serializeWithinBoundary('payload',payload,MAX_AUDIT_PAYLOAD_BYTES)}
