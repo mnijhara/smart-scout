@@ -50,6 +50,8 @@ jobs:
         run: npx tsx tests/hiring-state-candidate-identity-regression.mjs
       - name: Hiring state payload boundary regression
         run: npx tsx tests/hiring-state-payload-boundary-regression.mjs
+      - name: Hiring state database storage bounds regression
+        run: node tests/hiring-state-storage-bounds-regression.mjs
       - name: Candidate score write serialization regression
         run: npx tsx tests/candidate-score-write-serialization-regression.mjs
       - name: Store tenant identity regression
