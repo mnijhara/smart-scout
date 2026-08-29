@@ -64,6 +64,8 @@ jobs:
         run: npx tsx tests/interview-identity-regression.mjs
       - name: Interview answer boundary regression
         run: npx tsx tests/interview-answer-boundary-regression.mjs
+      - name: Interview schedule input regression
+        run: npx tsx tests/interview-schedule-input-regression.mjs
       - name: Audit persistence count regression
         run: node tests/audit-persistence-count-regression.mjs
       - name: Audit identity validation regression
