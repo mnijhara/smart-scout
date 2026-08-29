@@ -16,6 +16,7 @@ export type SavedInterview = {
 };
 
 const filePath = process.env.SMARTSCOUT_INTERVIEW_STORE || path.join(process.cwd(), '.smartscout-interviews.json');
+const MAX_ANSWER_LENGTH = 10_000;
 let writeQueue = Promise.resolve();
 
 function requireInterviewIdentity(tenantId: string, jobId?: string, candidateId?: string) {
@@ -69,6 +70,8 @@ export async function recordInterviewAnswer(tenantId: string, interviewId: strin
   requireInterviewIdentity(tenantId);
   if (!interviewId?.trim()) throw new Error('Interview interviewId is required');
   if (!questionId?.trim()) throw new Error('Interview questionId is required');
+  if (typeof answer !== 'string') throw new Error('Interview answer must be a string');
+  if (answer.length > MAX_ANSWER_LENGTH) throw new Error(`Interview answer exceeds ${MAX_ANSWER_LENGTH} characters`);
   const all = await readAll();
   const index = all.findIndex(x => x.tenantId === tenantId && x.id === interviewId);
   if (index < 0) return null;
