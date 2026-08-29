@@ -26,6 +26,8 @@ jobs:
         run: node tests/security-regression.mjs
       - name: Guest session expiry regression
         run: npx tsx tests/guest-session-expiry-regression.mjs
+      - name: Workspace cookie parser regression
+        run: npx tsx tests/workspace-cookie-parser-regression.mjs
       - name: Workspace tenant header regression
         run: npx tsx tests/workspace-tenant-header-regression.mjs
       - name: Workspace identity authority regression
