@@ -76,6 +76,8 @@ jobs:
         run: node tests/audit-actor-identity-regression.mjs
       - name: Audit payload boundary regression
         run: node tests/audit-payload-boundary-regression.mjs
+      - name: Audit evidence boundary regression
+        run: node tests/audit-evidence-boundary-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
