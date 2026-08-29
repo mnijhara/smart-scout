@@ -24,12 +24,16 @@ await assert.rejects(
   /type exceeds 128 characters/
 );
 
-const saved = await saveHiringState('tenant_a', 'job_1', 'decision', { recommendation: 'hire' }, 'candidate_1');
+const saved = await saveHiringState(' tenant_a ', ' job_1 ', ' decision ', { recommendation: 'hire' }, ' candidate_1 ');
+assert.equal(saved.tenantId, 'tenant_a');
+assert.equal(saved.jobId, 'job_1');
+assert.equal(saved.candidateId, 'candidate_1');
 assert.equal(saved.type, 'decision');
 assert.deepEqual(saved.payload, { recommendation: 'hire' });
 
-const states = await listHiringStates('tenant_a', 'job_1', 'decision');
+const states = await listHiringStates(' tenant_a ', ' job_1 ', ' decision ');
 assert.equal(states.length, 1);
 assert.equal(states[0].candidateId, 'candidate_1');
+assert.equal(states[0].type, 'decision');
 
-console.log('Hiring-state payload and type boundary regression checks passed.');
+console.log('Hiring-state payload, type, and identity normalization regression checks passed.');
