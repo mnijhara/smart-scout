@@ -58,6 +58,8 @@ jobs:
         run: node tests/hiring-state-storage-bounds-regression.mjs
       - name: Hiring state identity storage bounds regression
         run: node tests/hiring-state-identity-storage-bounds-regression.mjs
+      - name: Hiring state corruption regression
+        run: node tests/hiring-state-corruption-regression.mjs
       - name: Candidate score write serialization regression
         run: npx tsx tests/candidate-score-write-serialization-regression.mjs
       - name: Store tenant identity regression
