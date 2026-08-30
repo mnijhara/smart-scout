@@ -102,6 +102,8 @@ jobs:
         run: node tests/audit-storage-bounds-regression.mjs
       - name: Audit query indexes regression
         run: node tests/audit-query-indexes-regression.mjs
+      - name: Audit query identity normalization regression
+        run: node tests/audit-query-identity-normalization-regression.mjs
       - name: Audit lifecycle regression
         run: npm run e2e:audit-lifecycle
       - name: Audit durability regression
