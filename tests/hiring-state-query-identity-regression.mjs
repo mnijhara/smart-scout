@@ -18,4 +18,14 @@ await assert.rejects(
   /Hiring state type is required when provided/,
 );
 
+await assert.rejects(
+  () => listHiringStates('tenant_123', 'job_123', 'offer', '   '),
+  /Hiring state candidateId is required when provided/,
+);
+
+await assert.rejects(
+  () => listHiringStates('tenant_123', 'job_123', 'offer', 'c'.repeat(257)),
+  /Hiring state candidateId exceeds 256 characters/,
+);
+
 console.log('Hiring state query identity regression passed');

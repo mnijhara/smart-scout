@@ -54,17 +54,18 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
  await recordAuditEvent({tenantId:normalizedTenantId,workflowId:normalizedJobId,candidateId:normalizedCandidateId||null,eventType:`hiring_state_${normalizedType}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:normalizedType}});
  return state;
 }
-export async function listHiringStates(tenantId:string,jobId:string,type?:string):Promise<HiringState[]>{
- requireLifecycleIdentity(tenantId,jobId);
- const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedType=type?.trim();
+export async function listHiringStates(tenantId:string,jobId:string,type?:string,candidateId?:string):Promise<HiringState[]>{
+ requireLifecycleIdentity(tenantId,jobId,candidateId);
+ const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedType=type?.trim(); const normalizedCandidateId=candidateId?.trim();
  if(type !== undefined && !normalizedType)throw new Error('Hiring state type is required when provided');
  if(normalizedType && normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
  const client=db();
  if(client){
   let query=client.from('hiring_state_history').select('*').eq('tenant_id',normalizedTenantId).eq('workflow_id',workflowUuid(normalizedJobId)).order('created_at',{ascending:false}).limit(MAX_HIRING_STATE_LIST_ROWS);
   if(normalizedType)query=query.eq('state_type',normalizedType);
+  if(normalizedCandidateId)query=query.eq('candidate_id',normalizedCandidateId);
   const {data,error}=await query; if(error)throw new Error(`Unable to list hiring states: ${error.message}`); return (data||[]).map(publicState);
  }
  if(process.env.NODE_ENV==='production')throw new Error('Persistent hiring state storage is not configured');
- const all=await readAll();return all.filter(x=>x.tenantId===normalizedTenantId&&x.jobId===normalizedJobId&&(!normalizedType||x.type===normalizedType)).slice(0,MAX_HIRING_STATE_LIST_ROWS);
+ const all=await readAll();return all.filter(x=>x.tenantId===normalizedTenantId&&x.jobId===normalizedJobId&&(!normalizedType||x.type===normalizedType)&&(!normalizedCandidateId||x.candidateId===normalizedCandidateId)).slice(0,MAX_HIRING_STATE_LIST_ROWS);
 }
