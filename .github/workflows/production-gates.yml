@@ -47,6 +47,8 @@ jobs:
         run: npm run verify:migrations
       - name: Migration readiness regression
         run: node tests/migration-readiness-regression.mjs
+      - name: Recruiting core RLS regression
+        run: node tests/recruiting-core-rls-regression.mjs
       - name: Tenant isolation regression
         run: npm run e2e:tenant-isolation
       - name: Hiring state isolation regression
@@ -141,15 +143,10 @@ jobs:
           SERVER_PID=$!
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then
-              break
-            fi
+            if curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then break; fi
             sleep 1
           done
-          if ! curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then
-            cat /tmp/smartscout-server.log
-            exit 1
-          fi
+          if ! curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then cat /tmp/smartscout-server.log; exit 1; fi
           curl -fsS -c /tmp/cookies.txt http://127.0.0.1:3000/api/recruiting/session > /tmp/session.json
           grep -q '"ok":true' /tmp/session.json
           test -s /tmp/cookies.txt
@@ -188,16 +185,8 @@ jobs:
           LIVE_HTTP_CODE=$(curl -sS -o /tmp/smartscout-live.html -w '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 "$LIVE_URL")
           CURL_EXIT=$?
           set -e
-          if [ "$CURL_EXIT" -ne 0 ]; then
-            echo "WARNING: live release verification could not reach $LIVE_URL (curl exit $CURL_EXIT)"
-            cat /tmp/smartscout-live.html 2>/dev/null || true
-            exit 1
-          fi
-          if [ "$LIVE_HTTP_CODE" != "200" ]; then
-            echo "WARNING: live release verification blocked: $LIVE_URL returned HTTP $LIVE_HTTP_CODE"
-            cat /tmp/smartscout-live.html || true
-            exit 1
-          fi
+          if [ "$CURL_EXIT" -ne 0 ]; then echo "WARNING: live release verification could not reach $LIVE_URL (curl exit $CURL_EXIT)"; cat /tmp/smartscout-live.html 2>/dev/null || true; exit 1; fi
+          if [ "$LIVE_HTTP_CODE" != "200" ]; then echo "WARNING: live release verification blocked: $LIVE_URL returned HTTP $LIVE_HTTP_CODE"; cat /tmp/smartscout-live.html || true; exit 1; fi
           LIVE_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' /tmp/smartscout-live.html | head -n 1)
           LIVE_SHA=$(curl -fsS --max-time 10 "$LIVE_URL/release.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).commit))")
           test "$LIVE_MARKER" = "$GITHUB_SHA"
