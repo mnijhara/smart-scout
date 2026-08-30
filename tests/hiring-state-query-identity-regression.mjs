@@ -19,6 +19,11 @@ await assert.rejects(
 );
 
 await assert.rejects(
+  () => listHiringStates('tenant_123', 'job_123', 'offer'),
+  /Hiring state candidateId is required for offer state queries/,
+);
+
+await assert.rejects(
   () => listHiringStates('tenant_123', 'job_123', 'offer', '   '),
   /Hiring state candidateId is required when provided/,
 );
