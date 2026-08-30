@@ -95,6 +95,8 @@ jobs:
         run: npx tsx tests/audit-workflow-identity-regression.mjs
       - name: Audit candidate identity regression
         run: npx tsx tests/audit-candidate-identity-regression.mjs
+      - name: Audit candidate query regression
+        run: npx tsx tests/audit-candidate-query-regression.mjs
       - name: Audit actor identity regression
         run: node tests/audit-actor-identity-regression.mjs
       - name: Audit optional identity boundary regression
