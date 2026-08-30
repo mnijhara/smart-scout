@@ -4,7 +4,7 @@ const store = await fs.readFile('services/recruiting/hiringStateStore.ts', 'utf8
 const audit = await fs.readFile('services/recruiting/auditStore.ts', 'utf8');
 
 const requiredStoreContracts = [
-  /recordAuditEvent\(\{tenantId,workflowId:jobId,candidateId:candidateId\|\|null,eventType:`hiring_state_\$\{type\}_saved`/,
+  /recordAuditEvent\(\{tenantId:normalizedTenantId,workflowId:normalizedJobId,candidateId:normalizedCandidateId\|\|null,eventType:`hiring_state_\$\{normalizedType\}_saved`/,
   /actorType:'system'/,
   /actorId:'hiring-lifecycle'/,
 ];
