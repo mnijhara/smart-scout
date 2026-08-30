@@ -50,7 +50,7 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
  }
  if(process.env.NODE_ENV==='production')throw new Error('Persistent hiring state storage is not configured');
  const now=new Date().toISOString(); const state:HiringState={id:`state_${crypto.randomUUID()}`,tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId,type:normalizedType,payload,createdAt:now,updatedAt:now};
- writeQueue=writeQueue.then(async()=>{const all=await readAll();all.unshift(state);await fs.writeFile(filePath,JSON.stringify(all.slice(0,MAX_HIRING_STATE_LIST_ROWS),null,2),'utf8');}); await writeQueue;
+ writeQueue=writeQueue.then(async()=>{const all=await readAll();all.unshift(state);await fs.writeFile(filePath,JSON.stringify(all,null,2),'utf8');}); await writeQueue;
  await recordAuditEvent({tenantId:normalizedTenantId,workflowId:normalizedJobId,candidateId:normalizedCandidateId||null,eventType:`hiring_state_${normalizedType}_saved`,actorType:'system',actorId:'hiring-lifecycle',payload:{stateId:state.id,stateType:normalizedType}});
  return state;
 }
