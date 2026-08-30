@@ -74,11 +74,11 @@ jobs:
       - name: Store tenant identity regression
         run: npx tsx tests/store-tenant-identity-regression.mjs
       - name: Interview state machine regression
-        run: node tests/interview-state-machine-regression.mjs
+        run: npx tsx tests/interview-state-machine-regression.mjs
       - name: Interview timestamp validation regression
         run: npx tsx tests/interview-window-validation-regression.mjs
       - name: Interview audit actor regression
-        run: node tests/interview-audit-actor-regression.mjs
+        run: npx tsx tests/interview-audit-actor-regression.mjs
       - name: Interview identity regression
         run: npx tsx tests/interview-identity-regression.mjs
       - name: Interview answer boundary regression
