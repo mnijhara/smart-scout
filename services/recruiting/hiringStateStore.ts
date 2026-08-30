@@ -59,6 +59,7 @@ export async function listHiringStates(tenantId:string,jobId:string,type?:string
  const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedType=type?.trim(); const normalizedCandidateId=candidateId?.trim();
  if(type !== undefined && !normalizedType)throw new Error('Hiring state type is required when provided');
  if(normalizedType && normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
+ if(normalizedType === 'offer' && !normalizedCandidateId)throw new Error('Hiring state candidateId is required for offer state queries');
  const client=db();
  if(client){
   let query=client.from('hiring_state_history').select('*').eq('tenant_id',normalizedTenantId).eq('workflow_id',workflowUuid(normalizedJobId)).order('created_at',{ascending:false}).limit(MAX_HIRING_STATE_LIST_ROWS);
