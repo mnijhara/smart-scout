@@ -14,6 +14,8 @@ jobs:
   production-gates:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SMARTSCOUT_SESSION_SECRET: ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
