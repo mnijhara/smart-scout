@@ -3,10 +3,10 @@ import fs from 'node:fs/promises';
 const store = await fs.readFile('services/recruiting/hiringStateStore.ts', 'utf8');
 
 const listBlock = store.match(/export async function listHiringStates[\s\S]*$/)?.[0] || '';
-if (!/eq\(\s*'tenant_id'\s*,\s*tenantId\s*\)/.test(listBlock)) {
+if (!/\.eq\(\s*['"]tenant_id['"]\s*,\s*normalizedTenantId\s*\)/.test(listBlock)) {
   throw new Error('Persistent hiring-state reads must be tenant-scoped');
 }
-if (!/eq\(\s*'workflow_id'\s*,\s*workflowUuid\(jobId\)\s*\)/.test(listBlock)) {
+if (!/\.eq\(\s*['"]workflow_id['"]\s*,\s*workflowUuid\(normalizedJobId\)\s*\)/.test(listBlock)) {
   throw new Error('Persistent hiring-state reads must be workflow-scoped');
 }
 
