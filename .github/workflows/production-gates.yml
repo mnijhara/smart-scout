@@ -47,6 +47,8 @@ jobs:
         run: npm run verify:migrations
       - name: Migration readiness regression
         run: node tests/migration-readiness-regression.mjs
+      - name: Recruiting core RLS migration order regression
+        run: node tests/recruiting-core-rls-migration-order-regression.mjs
       - name: Recruiting core RLS regression
         run: node tests/recruiting-core-rls-regression.mjs
       - name: Tenant isolation regression
@@ -150,7 +152,7 @@ jobs:
           done
           if ! curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then cat /tmp/smartscout-server.log; exit 1; fi
           curl -fsS -c /tmp/cookies.txt http://127.0.0.1:3000/api/recruiting/session > /tmp/session.json
-          grep -q '"ok":true' /tmp/session.json
+          grep -q '\"ok\":true' /tmp/session.json
           test -s /tmp/cookies.txt
           for endpoint in /api/recruiting/jobs /api/recruiting/integrations/health; do
             status=$(curl -sS -b /tmp/cookies.txt -o /tmp/protected.json -w '%{http_code}' "http://127.0.0.1:3000${endpoint}")
@@ -165,7 +167,7 @@ jobs:
           status=$(curl -sS -o /tmp/duplicate-browser.json -w '%{http_code}' -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"source":"linkedin","query":"software engineer"}' http://127.0.0.1:3000/api/recruiting/browser-source/search)
           test "$status" = "400"
           curl -fsS -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"candidate":{"id":"smoke-candidate","name":"Test Candidate","source":"smoke","resumeText":"5 years JavaScript React Node.js experience"},"requirement":{"title":"Software Engineer","description":"","mustHave":["JavaScript","React"],"niceToHave":[],"experienceMin":3}}' http://127.0.0.1:3000/api/recruiting/candidate/knockout > /tmp/knockout.json
-          grep -q '"passed":true' /tmp/knockout.json
+          grep -q '\"passed\":true' /tmp/knockout.json
           SMARTSCOUT_BASE_URL=http://127.0.0.1:3000 npm run e2e:runtime-security
           SMARTSCOUT_BASE_URL=http://127.0.0.1:3000 npm run e2e:public
           node tests/accessibility-regression.mjs
