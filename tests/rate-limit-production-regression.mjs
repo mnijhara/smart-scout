@@ -20,4 +20,8 @@ if (!/res\.setHeader\('x-request-id', requestId\)/.test(source)) {
   throw new Error('Rate-limited API requests must retain request correlation IDs');
 }
 
+if (!/const retryAfterSeconds = Math\.max\(1, Math\.ceil\(\(bucket\.resetAt - now\) \/ 1000\)\)/.test(source) || !/res\.setHeader\('Retry-After', String\(retryAfterSeconds\)\)/.test(source)) {
+  throw new Error('Rate-limited responses must advertise a bounded Retry-After delay');
+}
+
 console.log('rate-limit-production-regression: ok');
