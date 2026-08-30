@@ -127,25 +127,45 @@ jobs:
         run: npm run build:server
       - name: Verify release identity
         run: npm run verify:release
-      - name: Start production server
+      - name: Production runtime and Chromium E2E
         run: |
+          set -euo pipefail
           export NODE_ENV=production
           export PORT=3000
           export SMARTSCOUT_VAULT_KEY="$(openssl rand -hex 32)"
           node server.cjs > /tmp/smartscout-server.log 2>&1 &
-          echo $! > /tmp/smartscout-server.pid
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then exit 0; fi
+            if curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then
+              break
+            fi
             sleep 1
           done
-          cat /tmp/smartscout-server.log
-          exit 1
-      - name: Runtime authentication boundary E2E
-        run: npm run e2e:runtime-security
-      - name: Public E2E
-        run: npm run e2e:public
-      - name: Mobile accessibility regression
-        run: node tests/accessibility-regression.mjs
+          if ! curl -fsS http://127.0.0.1:3000/api/recruiting/health >/dev/null; then
+            cat /tmp/smartscout-server.log
+            exit 1
+          fi
+          curl -fsS -c /tmp/cookies.txt http://127.0.0.1:3000/api/recruiting/session > /tmp/session.json
+          grep -q '"ok":true' /tmp/session.json
+          test -s /tmp/cookies.txt
+          for endpoint in /api/recruiting/jobs /api/recruiting/integrations/health; do
+            status=$(curl -sS -b /tmp/cookies.txt -o /tmp/protected.json -w '%{http_code}' "http://127.0.0.1:3000${endpoint}")
+            test "$status" = "200"
+          done
+          for endpoint in /api/control-plane/usage /api/control-plane/approvals /api/control-plane/schedules; do
+            status=$(curl -sS -b /tmp/cookies.txt -o /tmp/control-plane.json -w '%{http_code}' "http://127.0.0.1:3000${endpoint}")
+            test "$status" = "401"
+          done
+          status=$(curl -sS -o /tmp/unauthenticated.json -w '%{http_code}' http://127.0.0.1:3000/api/recruiting/jobs)
+          test "$status" = "401"
+          status=$(curl -sS -o /tmp/duplicate-browser.json -w '%{http_code}' -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"source":"linkedin","query":"software engineer"}' http://127.0.0.1:3000/api/recruiting/browser-source/search)
+          test "$status" = "400"
+          curl -fsS -b /tmp/cookies.txt -H 'Content-Type: application/json' -d '{"candidate":{"id":"smoke-candidate","name":"Test Candidate","source":"smoke","resumeText":"5 years JavaScript React Node.js experience"},"requirement":{"title":"Software Engineer","description":"","mustHave":["JavaScript","React"],"niceToHave":[],"experienceMin":3}}' http://127.0.0.1:3000/api/recruiting/candidate/knockout > /tmp/knockout.json
+          grep -q '"passed":true' /tmp/knockout.json
+          SMARTSCOUT_BASE_URL=http://127.0.0.1:3000 npm run e2e:runtime-security
+          SMARTSCOUT_BASE_URL=http://127.0.0.1:3000 npm run e2e:public
+          node tests/accessibility-regression.mjs
       - name: Verify release artifacts
         run: |
           test -d dist
