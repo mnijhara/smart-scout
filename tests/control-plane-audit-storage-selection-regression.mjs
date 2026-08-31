@@ -15,8 +15,13 @@ assert.match(
 );
 assert.match(
   source,
-  /return\(await read<AuditEvent>\(files\.audit\)\)\.filter\(x=>x\.tenantId===tenant&&\(!normalizedJobId\|\|x\.jobId===normalizedJobId\)&&\(!normalizedCandidateId\|\|x\.candidateId===normalizedCandidateId\)\);/,
-  'unconfigured audit reads must retain the local fallback with tenant/job/candidate scope',
+  /if\(auditDatabaseConfigured\(\)\)return countAuditEvents\(tenant,normalizedJobId,normalizedCandidateId\);/,
+  'configured audit counts must use the durable audit store with tenant/job/candidate scope',
+);
+assert.match(
+  source,
+  /return\{configured:false,count:\(await read<AuditEvent>\(files\.audit\)\)\.filter\(x=>x\.tenantId===tenant&&\(!normalizedJobId\|\|x\.jobId===normalizedJobId\)&&\(!normalizedCandidateId\|\|x\.candidateId===normalizedCandidateId\)\)\.length\};/,
+  'unconfigured audit counts must retain the local fallback with tenant/job/candidate scope',
 );
 assert.doesNotMatch(
   source,
