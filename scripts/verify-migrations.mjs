@@ -48,6 +48,21 @@ for (const table of ['recruiting_audit_events', 'hiring_state_history']) {
   }
 }
 
+const tenantIntegrityMigration = await readFile(path.join(root, '015_recruiting_tenant_integrity_fks.sql'), 'utf8');
+const requiredTenantIntegrityConstraints = [
+  /create\s+unique\s+index\s+if\s+not\s+exists\s+hiring_workflows_tenant_id_uidx/i,
+  /create\s+unique\s+index\s+if\s+not\s+exists\s+recruiting_candidates_tenant_id_uidx/i,
+  /recruiting_candidates_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+public\.hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /recruiting_audit_events_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+public\.hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /recruiting_audit_events_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+public\.recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /recruiting_interviews_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+public\.hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /recruiting_interviews_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+public\.recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+];
+for (const pattern of requiredTenantIntegrityConstraints) {
+  if (!pattern.test(tenantIntegrityMigration)) throw new Error(`Recruiting tenant integrity guard missing: ${pattern}`);
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
+console.log('Recruiting tenant integrity constraint verification passed');
