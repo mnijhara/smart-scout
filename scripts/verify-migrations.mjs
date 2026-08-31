@@ -28,5 +28,26 @@ for (const pattern of requiredLifecycleGuards) {
   if (!pattern.test(lifecycleMigration)) throw new Error(`Hiring lifecycle persistence guard missing: ${pattern}`);
 }
 
+const rlsMigration = await readFile(path.join(root, '014_recruiting_core_rls_force.sql'), 'utf8');
+const requiredCoreRlsTables = ['hiring_workflows', 'recruiting_candidates', 'recruiting_interviews'];
+for (const table of requiredCoreRlsTables) {
+  const tablePattern = new RegExp(`alter\\s+table\\s+if\\s+exists\\s+public\\.${table}\\s+enable\\s+row\\s+level\\s+security`, 'i');
+  const forcePattern = new RegExp(`alter\\s+table\\s+if\\s+exists\\s+public\\.${table}\\s+force\\s+row\\s+level\\s+security`, 'i');
+  const revokePattern = new RegExp(`revoke\\s+all\\s+on\\s+public\\.${table}\\s+from\\s+anon\\s*,\\s*authenticated`, 'i');
+  if (!tablePattern.test(rlsMigration) || !forcePattern.test(rlsMigration) || !revokePattern.test(rlsMigration)) {
+    throw new Error(`Recruiting core RLS coverage incomplete for ${table}`);
+  }
+}
+
+const defenseMigration = await readFile(path.join(root, '012_recruiting_rls_defense_in_depth.sql'), 'utf8');
+for (const table of ['recruiting_audit_events', 'hiring_state_history']) {
+  const pattern = new RegExp(`alter\\s+table\\s+if\\s+exists\\s+public\\.${table}\\s+(enable|force)\\s+row\\s+level\\s+security`, 'ig');
+  const matches = [...defenseMigration.matchAll(pattern)].map(match => match[1].toLowerCase());
+  if (!matches.includes('enable') || !matches.includes('force')) {
+    throw new Error(`Recruiting audit RLS coverage incomplete for ${table}`);
+  }
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
+console.log('Recruiting core and audit RLS verification passed');
