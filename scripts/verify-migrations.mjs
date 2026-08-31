@@ -67,7 +67,24 @@ if (tenantConstraintNames.length !== 5 || new Set(tenantConstraintNames).size !=
   throw new Error(`Expected five unique recruiting tenant FK constraints, found ${tenantConstraintNames.length}`);
 }
 
+const tenantIndexMigration = await readFile(path.join(root, '016_recruiting_tenant_fk_indexes.sql'), 'utf8');
+const requiredTenantIndexes = [
+  'recruiting_candidates_tenant_workflow_fk_idx',
+  'recruiting_audit_events_tenant_workflow_fk_idx',
+  'recruiting_audit_events_tenant_candidate_fk_idx',
+  'recruiting_interviews_tenant_workflow_fk_idx',
+  'recruiting_interviews_tenant_candidate_fk_idx',
+];
+for (const indexName of requiredTenantIndexes) {
+  const pattern = new RegExp(`create\\s+index\\s+if\\s+not\\s+exists\\s+${indexName}\\s+on\\s+public\\.(recruiting_candidates|recruiting_audit_events|recruiting_interviews)`, 'i');
+  if (!pattern.test(tenantIndexMigration)) throw new Error(`Recruiting tenant FK index missing: ${indexName}`);
+}
+if ((tenantIndexMigration.match(/create\s+index\s+if\s+not\s+exists/gi) || []).length !== requiredTenantIndexes.length) {
+  throw new Error(`Expected ${requiredTenantIndexes.length} recruiting tenant FK indexes`);
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
 console.log('Recruiting tenant integrity constraint verification passed');
+console.log('Recruiting tenant FK index verification passed');
