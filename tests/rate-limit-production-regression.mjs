@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const source = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
 
 const required = [
-  /const rateBuckets = new Map<string; \{ count: number; resetAt: number \}>\(\)/,
+  /const rateBuckets = new Map<string, \{ count: number; resetAt: number \}>\(\)/,
   /req\.path\.startsWith\('\/api\/'\)/,
   /bucket\.count >= 180/,
   /return res\.status\(429\)\.json\(\{ error: 'Too many requests\. Please retry shortly\.' \}\)/,
