@@ -1,18 +1,42 @@
-import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { checkRateLimit, clearRateLimits, resetRateLimit } from '../services/recruiting/rateLimit.ts';
 
-const server = await readFile(new URL('../server.ts', import.meta.url), 'utf8');
+clearRateLimits();
 
-const failures = [];
-if (!/if \(req\.path\.startsWith\('\/api\/'\)\)/.test(server)) failures.push('rate limiting must apply to API routes');
-if (!/bucket\.count >= 180/.test(server)) failures.push('API rate limit threshold must remain 180 requests per minute');
-if (!/resetAt: now \+ 60_000/.test(server)) failures.push('rate-limit buckets must reset after one minute');
-if (!/res\.status\(429\)\.json\(\{ error: 'Too many requests\. Please retry shortly\.' \}\)/.test(server)) failures.push('rate limit must return HTTP 429 with the stable error contract');
-if (!/if \(rateBuckets\.size > 5000\)/.test(server)) failures.push('rate-limit bucket map must be bounded and cleaned up');
+assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1000), {
+  allowed: true,
+  limit: 2,
+  remaining: 1,
+  retryAfterSeconds: 0,
+});
+assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1100), {
+  allowed: true,
+  limit: 2,
+  remaining: 0,
+  retryAfterSeconds: 0,
+});
+const blocked = checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1200);
+assert.equal(blocked.allowed, false);
+assert.equal(blocked.remaining, 0);
+assert.equal(blocked.retryAfterSeconds, 1);
 
-if (failures.length) {
-  console.error('Rate-limit regression checks failed:');
-  for (const failure of failures) console.error(`- ${failure}`);
-  process.exit(1);
-}
+// Keys are isolated so one tenant/user cannot consume another bucket.
+assert.equal(checkRateLimit('tenant_b:user_1:recruiting', 2, 1000, 1200).allowed, true);
+assert.equal(checkRateLimit('tenant_a:user_2:recruiting', 2, 1000, 1200).allowed, true);
 
-console.log('Rate-limit regression checks passed (API scope, threshold, reset, 429 contract, bounded buckets).');
+// A new window resets the quota without requiring an explicit reset.
+assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2000), {
+  allowed: true,
+  limit: 2,
+  remaining: 1,
+  retryAfterSeconds: 0,
+});
+
+resetRateLimit('tenant_a:user_1:recruiting');
+assert.equal(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2050).remaining, 1);
+
+await assert.rejects(() => Promise.resolve(checkRateLimit('', 2, 1000, 0)), /Rate limit key is required/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('key', 0, 1000, 0)), /Rate limit must be a positive integer/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 0, 0)), /Rate limit window must be a positive integer/);
+
+console.log('Rate-limit regression passed.');

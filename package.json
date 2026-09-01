@@ -17,6 +17,7 @@
     "e2e:accessibility": "node tests/accessibility-regression.mjs",
     "e2e:tenant-isolation": "node tests/control-plane-tenant-isolation.mjs",
     "e2e:audit-lifecycle": "tsx tests/control-plane-audit-regression.mjs",
+    "e2e:rate-limit": "tsx tests/rate-limit-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
@@ -35,7 +36,6 @@
     "mammoth": "^1.12.0",
     "marked": "15.0.0",
     "pdfjs-dist": "^5.5.207",
-    "playwright": "^1.55.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "resend": "^6.9.4",
@@ -46,7 +46,6 @@
     "@tailwindcss/postcss": "^4.1.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.27",
-    "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",
     "vite": "^6.4.2"
