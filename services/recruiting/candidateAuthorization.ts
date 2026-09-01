@@ -12,7 +12,7 @@ export function assertCandidateBelongsToJob(
 
   if (!tenant || !job || !id) throw new Error('Candidate ownership context is required');
   if (!candidate || candidate.tenantId !== tenant || candidate.jobId !== job || candidate.id !== id) {
-    throw new Error('Candidate does not belong to this job');
+    throw new Error('Candidate does not belong to this tenant and job');
   }
   return candidate;
 }
