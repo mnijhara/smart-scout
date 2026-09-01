@@ -28,4 +28,41 @@ for (const name of entries) {
   }
 }
 
+const tenantIntegrity = fs.readFileSync(
+  path.join(migrationsDir, '015_recruiting_tenant_integrity_fks.sql'),
+  'utf8',
+);
+const requiredTenantConstraints = [
+  'recruiting_candidates_tenant_workflow_fk',
+  'recruiting_audit_events_tenant_workflow_fk',
+  'recruiting_audit_events_tenant_candidate_fk',
+  'recruiting_interviews_tenant_workflow_fk',
+  'recruiting_interviews_tenant_candidate_fk',
+];
+for (const constraint of requiredTenantConstraints) {
+  if (!new RegExp(`add\\s+constraint\\s+${constraint}\\b`, 'i').test(tenantIntegrity)) {
+    throw new Error(`Migration readiness regression: missing tenant FK ${constraint}`);
+  }
+}
+if ((tenantIntegrity.match(/NOT\s+VALID/gi) || []).length !== requiredTenantConstraints.length) {
+  throw new Error('Migration readiness regression: tenant FKs must remain NOT VALID until legacy data is preflighted');
+}
+
+const preflight = fs.readFileSync(
+  path.join(migrationsDir, '017_recruiting_tenant_integrity_preflight.sql'),
+  'utf8',
+);
+if (!/create\s+or\s+replace\s+function\s+public\.recruiting_tenant_integrity_violation_counts/i.test(preflight)) {
+  throw new Error('Migration readiness regression: tenant integrity preflight function missing');
+}
+if (!/security\s+definer/i.test(preflight) || !/set\s+search_path\s*=\s*public/i.test(preflight)) {
+  throw new Error('Migration readiness regression: preflight function security hardening missing');
+}
+if (!/revoke\s+all\s+on\s+function\s+public\.recruiting_tenant_integrity_violation_counts\(\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i.test(preflight)) {
+  throw new Error('Migration readiness regression: preflight function must not be callable by client roles');
+}
+if (/\b(insert|update|delete|alter|drop|truncate)\b/i.test(preflight)) {
+  throw new Error('Migration readiness regression: tenant integrity preflight must remain read-only');
+}
+
 console.log(`migration-readiness-regression: ok (${entries.length} ordered migrations)`);
