@@ -19,6 +19,8 @@ assert.ok(candidate?.id);
 await updateCandidateScore(tenantId, candidate.id, { score: 88 });
 const updated = await updateCandidateStatus(tenantId, candidate.id, 'screening');
 assert.equal(updated?.candidate?.status, 'screening');
+const unchanged = await updateCandidateStatus(tenantId, candidate.id, 'screening');
+assert.equal(unchanged?.candidate?.status, 'screening');
 
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
@@ -26,10 +28,11 @@ const lifecycle = events.filter(event => event.tenantId === tenantId && event.jo
 assert.deepEqual(lifecycle.map(event => event.action).sort(), ['candidate_score_updated', 'candidate_status_updated', 'candidates_persisted']);
 assert.equal(lifecycle.filter(event => event.action === 'candidates_persisted')[0].metadata.count, 1);
 assert.deepEqual(lifecycle.filter(event => event.action === 'candidate_score_updated')[0].metadata.score, { score: 88 });
-const statusEvent = lifecycle.find(event => event.action === 'candidate_status_updated');
-assert.equal(statusEvent.metadata.previousStatus, 'discovered');
-assert.equal(statusEvent.metadata.nextStatus, 'screening');
-assert.equal(statusEvent.metadata.status, undefined);
+const statusEvents = lifecycle.filter(event => event.action === 'candidate_status_updated');
+assert.equal(statusEvents.length, 1);
+assert.equal(statusEvents[0].metadata.previousStatus, 'discovered');
+assert.equal(statusEvents[0].metadata.nextStatus, 'screening');
+assert.equal(statusEvents[0].metadata.status, undefined);
 
 await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, '   '), /status is required/);
 
