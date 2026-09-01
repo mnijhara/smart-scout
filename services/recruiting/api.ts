@@ -15,12 +15,13 @@ import { createInterview, getInterview, listInterviews, recordInterviewAnswer, c
 import { saveHiringState, listHiringStates } from './hiringStateStore.js';
 import { listApprovals, requestApproval } from './controlPlane.js';
 import { compareCandidates, deriveKnockoutCriteria, integrationHealth, runKnockout, postJson } from './productionIntegrations.js';
+import { authenticatedTenantId } from './firebaseAuth.js';
 import type { HiringRequirement, RecruitingCandidate } from './types.js';
 
 const router = Router();
 type SessionCredential = { provider: AIProvider; apiKey: string; model?: string };
 const sessions = new Map<string, SessionCredential>();
-function tenantId(req: any): string { return String(req.header('x-tenant-id') || ''); }
+function tenantId(req: any): string { return authenticatedTenantId(req); }
 function requireTenantId(req: any): string {
   const tenant = tenantId(req).trim();
   if (!tenant) throw new Error('Workspace identity is missing');
