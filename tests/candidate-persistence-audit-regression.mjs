@@ -9,9 +9,10 @@ process.env.SMARTSCOUT_CONTROL_PLANE_DIR = path.join(dir, 'control-plane');
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const { saveCandidates, updateCandidateScore, updateCandidateStatus } = await import('../services/recruiting/candidateStore.ts');
+const { saveCandidates, listCandidates, updateCandidateScore, updateCandidateStatus } = await import('../services/recruiting/candidateStore.ts');
 
 const tenantId = 'tenant-audit-regression';
+const otherTenantId = 'tenant-audit-regression-other';
 const jobId = 'job_audit-regression';
 const [candidate] = await saveCandidates(tenantId, jobId, [{ name: 'Candidate', status: 'discovered' }]);
 assert.ok(candidate?.id);
@@ -24,6 +25,14 @@ const updated = await updateCandidateStatus(tenantId, candidate.id, 'screening')
 assert.equal(updated?.candidate?.status, 'screening');
 const unchanged = await updateCandidateStatus(tenantId, candidate.id, 'screening');
 assert.equal(unchanged?.candidate?.status, 'screening');
+
+// A candidate identifier must never cross a tenant boundary in either reads or writes.
+assert.deepEqual(await listCandidates(otherTenantId, jobId), []);
+assert.equal(await updateCandidateStatus(otherTenantId, candidate.id, 'hired'), null);
+assert.equal(await updateCandidateScore(otherTenantId, candidate.id, { score: 100 }), null);
+const tenantScoped = await listCandidates(tenantId, jobId);
+assert.equal(tenantScoped[0]?.candidate?.status, 'screening');
+assert.deepEqual(tenantScoped[0]?.score, { score: 88 });
 
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
