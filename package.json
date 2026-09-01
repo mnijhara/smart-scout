@@ -18,6 +18,7 @@
     "e2e:tenant-isolation": "node tests/control-plane-tenant-isolation.mjs",
     "e2e:audit-lifecycle": "tsx tests/control-plane-audit-regression.mjs",
     "e2e:rate-limit": "tsx tests/rate-limit-regression.mjs",
+    "e2e:rate-limit-wiring": "node tests/rate-limit-server-wiring-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
@@ -40,14 +41,13 @@
     "react-dom": "^19.2.6",
     "resend": "^6.9.4",
     "stripe": "^22.0.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "vite": "^6.4.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.27",
-    "tailwindcss": "^4.2.2",
-    "typescript": "^5.7.2",
-    "vite": "^6.4.2"
+    "tailwindcss": "^4.2.2"
   }
 }
