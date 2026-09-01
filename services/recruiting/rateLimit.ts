@@ -22,6 +22,12 @@ function normalizedKey(key: string): string {
   return value;
 }
 
+export function scopedRateLimitKey(...parts: Array<string | number>): string {
+  const normalized = parts.map((part) => String(part ?? '').trim());
+  if (normalized.length === 0 || normalized.some((part) => !part)) throw new Error('Rate limit key parts are required');
+  return normalizedKey(normalized.join(':'));
+}
+
 export function checkRateLimit(key: string, limit: number, windowMs: number, now = Date.now()): RateLimitResult {
   const normalized = normalizedKey(key);
   const max = requiredPositiveInteger(limit, 'Rate limit');
