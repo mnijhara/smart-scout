@@ -83,8 +83,26 @@ if ((tenantIndexMigration.match(/create\s+index\s+if\s+not\s+exists/gi) || []).l
   throw new Error(`Expected ${requiredTenantIndexes.length} recruiting tenant FK indexes`);
 }
 
+const preflightMigration = await readFile(path.join(root, '017_recruiting_tenant_integrity_preflight.sql'), 'utf8');
+const requiredPreflightGuards = [
+  /create\s+or\s+replace\s+function\s+public\.recruiting_tenant_integrity_violation_counts/i,
+  /returns\s+table\s*\(/i,
+  /security\s+definer/i,
+  /set\s+search_path\s*=\s*public/i,
+  /candidates_missing_workflow/i,
+  /audit_events_missing_workflow/i,
+  /audit_events_missing_candidate/i,
+  /interviews_missing_workflow/i,
+  /interviews_missing_candidate/i,
+  /revoke\s+all\s+on\s+function\s+public\.recruiting_tenant_integrity_violation_counts\(\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+];
+for (const pattern of requiredPreflightGuards) {
+  if (!pattern.test(preflightMigration)) throw new Error(`Recruiting tenant integrity preflight guard missing: ${pattern}`);
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
 console.log('Recruiting tenant integrity constraint verification passed');
 console.log('Recruiting tenant FK index verification passed');
+console.log('Recruiting tenant integrity preflight verification passed');
