@@ -3,6 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { audit as recordLifecycleAudit } from './controlPlane.js';
+import { listCandidates } from './candidateStore.js';
+import { assertCandidateBelongsToJob } from './candidateAuthorization.js';
 
 export type HiringState = { id:string; tenantId:string; jobId:string; candidateId?:string; type:string; payload:any; createdAt:string; updatedAt:string };
 const filePath = process.env.SMARTSCOUT_HIRING_STATE_STORE || path.join(process.cwd(), '.smartscout-hiring-state.json');
@@ -34,12 +36,19 @@ async function readAll():Promise<HiringState[]>{
   throw new Error('Hiring state storage is unreadable; refusing to replace potentially corrupted state');
  }
 }
+async function assertLifecycleCandidate(tenantId:string,jobId:string,candidateId?:string){
+ if(!candidateId)return;
+ const candidates=await listCandidates(tenantId,jobId);
+ const candidate=candidates.find(item=>item.id===candidateId);
+ assertCandidateBelongsToJob(candidate,tenantId,jobId,candidateId);
+}
 export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string):Promise<HiringState>{
  requireLifecycleIdentity(tenantId,jobId,candidateId);
  const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim();
  if(!normalizedType)throw new Error('Hiring state type is required');
  if(normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
  requireStatePayload(payload);
+ await assertLifecycleCandidate(normalizedTenantId,normalizedJobId,normalizedCandidateId);
  const client=db();
  if(client){
   const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:normalizedTenantId,workflow_id:workflowUuid(normalizedJobId),candidate_id:normalizedCandidateId||null,state_type:normalizedType,payload:payload||{}}).select('*').single();
