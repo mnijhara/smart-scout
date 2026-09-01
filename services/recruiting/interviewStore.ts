@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { listCandidates } from './candidateStore.js';
+import { assertCandidateBelongsToJob } from './candidateAuthorization.js';
 
 export type SavedInterview = {
   id: string;
@@ -37,9 +38,8 @@ async function writeAll(items: SavedInterview[]) {
 export async function createInterview(tenantId: string, jobId: string, candidateId: string, plan: any): Promise<SavedInterview> {
   requireInterviewIdentity(tenantId, jobId, candidateId);
   const candidates = await listCandidates(tenantId, jobId);
-  if (!candidates.some(candidate => candidate.id === candidateId && candidate.jobId === jobId)) {
-    throw new Error('Candidate does not belong to this job');
-  }
+  const candidate = candidates.find(item => item.id === candidateId);
+  assertCandidateBelongsToJob(candidate, tenantId, jobId, candidateId);
   const now = new Date().toISOString();
   const interview: SavedInterview = {
     id: `interview_${crypto.randomUUID()}`,
