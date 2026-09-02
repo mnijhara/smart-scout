@@ -42,5 +42,7 @@ await assert.rejects(() => Promise.resolve(checkRateLimit('key', Number.MAX_SAFE
 await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 0, 0)), /Rate limit window must be a positive integer/);
 await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, Number.MAX_SAFE_INTEGER + 1, 0)), /Rate limit window must be a positive integer/);
 await assert.rejects(() => Promise.resolve(checkRateLimit('x'.repeat(257), 2, 1000, 0)), /Rate limit key is too long/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 1000, -1)), /Rate limit timestamp must be a non-negative integer/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 1000, Number.MAX_SAFE_INTEGER + 1)), /Rate limit timestamp must be a non-negative integer/);
 
 console.log('Rate-limit regression passed.');
