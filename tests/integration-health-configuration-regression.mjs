@@ -33,8 +33,10 @@ const byId = Object.fromEntries(configured.map(item => [item.id, item]));
 assert.equal(byId['browser-sourcing'].humanActionRequired, true);
 assert.equal(byId['browser-sourcing'].configurationMode, 'browser-session');
 
+// Exercise genuinely partial credentials: every credential-backed provider below
+// is missing at least one required value. A single Resend API key is sufficient
+// for Resend, so it must not be included in this partial-configuration fixture.
 const partial = integrationHealth({
-  RESEND_API_KEY: 'redacted',
   SUPABASE_URL: 'https://example.supabase.co',
   LINKEDIN_CLIENT_ID: 'linkedin-id',
   CALENDAR_API_URL: 'https://calendar.example.test',
