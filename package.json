@@ -21,6 +21,7 @@
     "e2e:rate-limit-wiring": "node tests/rate-limit-server-wiring-regression.mjs",
     "e2e:hiring-state-migrations": "node tests/hiring-state-migration-regression.mjs",
     "e2e:hiring-state-audit-rollback": "tsx tests/hiring-state-audit-failure-rollback-regression.mjs",
+    "e2e:audit-store-boundaries": "tsx tests/audit-store-boundary-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
@@ -34,7 +35,7 @@
     "firebase": "^12.11.0",
     "ics": "^3.11.0",
     "jspdf": "^4.2.1",
-    "jszip": "^3.10.1",
+    "jszip": "^3.10.0",
     "lucide-react": "^1.7.0",
     "marked": "15.0.0",
     "mammoth": "^1.12.0",
@@ -48,7 +49,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
-    "@vitejs/plugin-react": "^4.7.0",
     "tailwindcss": "^4.2.2",
     "vite": "^6.4.2"
   }
