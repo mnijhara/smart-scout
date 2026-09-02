@@ -18,6 +18,11 @@ for (let index = 1; index < versions.length; index += 1) {
   }
 }
 
+const verifier = await readFile(path.resolve('scripts/verify-migrations.mjs'), 'utf8');
+if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier)) {
+  throw new Error('Migration verifier must reject non-positive or unsafe migration versions');
+}
+
 const expected = ['018_recruiting_audit_candidate_workflow_index.sql', '019_recruiting_core_rls_defense_in_depth.sql'];
 for (const file of expected) {
   if (!files.includes(file)) throw new Error(`Missing latest recruiting migration: ${file}`);
