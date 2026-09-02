@@ -2,7 +2,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = path.resolve('supabase/migrations');
-const files = (await readdir(root))
+const allSqlFiles = (await readdir(root)).filter(name => name.endsWith('.sql'));
+const invalidMigrationFiles = allSqlFiles.filter(name => !/^\d+_.+\.sql$/.test(name));
+if (invalidMigrationFiles.length) {
+  throw new Error(`Migration verifier must reject malformed SQL migration filenames: ${invalidMigrationFiles.join(', ')}`);
+}
+const files = allSqlFiles
   .filter(name => /^\d+_.+\.sql$/.test(name))
   .sort((left, right) => Number(left.match(/^(\d+)_/)?.[1]) - Number(right.match(/^(\d+)_/)?.[1]) || left.localeCompare(right));
 
@@ -21,6 +26,9 @@ for (let index = 1; index < versions.length; index += 1) {
 const verifier = await readFile(path.resolve('scripts/verify-migrations.mjs'), 'utf8');
 if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier)) {
   throw new Error('Migration verifier must reject non-positive or unsafe migration versions');
+}
+if (!/Invalid migration filenames/.test(verifier) || !/name\.endsWith\('\.sql'\)/.test(verifier)) {
+  throw new Error('Migration verifier must reject SQL files that do not follow the versioned filename convention');
 }
 
 const expected = ['018_recruiting_audit_candidate_workflow_index.sql', '019_recruiting_core_rls_defense_in_depth.sql'];

@@ -1,7 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 const root = path.resolve('supabase/migrations');
-const files = (await readdir(root))
+const allSqlFiles = (await readdir(root)).filter(name => name.endsWith('.sql'));
+const invalidMigrationFiles = allSqlFiles.filter(name => !/^\d+_.+\.sql$/.test(name));
+if (invalidMigrationFiles.length) throw new Error(`Invalid migration filenames: ${invalidMigrationFiles.join(', ')}`);
+const files = allSqlFiles
   .filter(name => /^\d+_.+\.sql$/.test(name))
   .sort((left, right) => Number(left.match(/^(\d+)_/)?.[1]) - Number(right.match(/^(\d+)_/)?.[1]) || left.localeCompare(right));
 if (!files.length) throw new Error('No Supabase migrations found');
