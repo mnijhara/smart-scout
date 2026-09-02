@@ -15,6 +15,11 @@ for (const file of expected) {
   if (!files.includes(file)) throw new Error(`Missing latest recruiting migration: ${file}`);
 }
 
+const expectedVersions = expected.map(file => Number(file.match(/^(\d+)_/)?.[1]));
+if (expectedVersions[1] !== expectedVersions[0] + 1) {
+  throw new Error(`Latest recruiting migrations must remain sequential: ${expected.join(', ')}`);
+}
+
 const auditIndex = await readFile(path.join(root, expected[0]), 'utf8');
 if (!/create\s+index\s+if\s+not\s+exists\s+recruiting_audit_events_tenant_workflow_candidate_created_at_idx/i.test(auditIndex)) {
   throw new Error('Audit tenant/workflow/candidate index is not declared idempotently');
