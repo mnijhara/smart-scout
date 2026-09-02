@@ -42,7 +42,9 @@ export function checkRateLimit(key: string, limit: number, windowMs: number, now
   const timestamp = requiredTimestamp(now);
   const current = buckets.get(normalized);
 
-  if (!current || timestamp - current.windowStartedAt >= window) {
+  // Wall clocks can move backwards (for example after NTP correction). Never let a
+  // negative elapsed time inflate retry-after or keep a stale bucket indefinitely.
+  if (!current || timestamp < current.windowStartedAt || timestamp - current.windowStartedAt >= window) {
     buckets.set(normalized, { windowStartedAt: timestamp, count: 1 });
     evictOldKeys(timestamp, window);
     return { allowed: true, limit: max, remaining: Math.max(0, max - 1), retryAfterSeconds: 0 };
