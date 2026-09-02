@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
-import { checkRateLimit, clearRateLimits, resetRateLimit } from '../services/recruiting/rateLimit.ts';
+import { checkRateLimit, clearRateLimits, resetRateLimit, scopedRateLimitKey } from '../services/recruiting/rateLimit.ts';
 
 clearRateLimits();
+
+assert.equal(scopedRateLimitKey('tenant_a', 'user_1', 'recruiting'), 'tenant_a:user_1:recruiting');
+assert.equal(scopedRateLimitKey(' tenant_a ', 42, ' recruiting '), 'tenant_a:42:recruiting');
+await assert.rejects(() => Promise.resolve(scopedRateLimitKey()), /Rate limit key parts are required/);
+await assert.rejects(() => Promise.resolve(scopedRateLimitKey('tenant_a', '')), /Rate limit key parts are required/);
+await assert.rejects(() => Promise.resolve(scopedRateLimitKey('x'.repeat(257))), /Rate limit key is too long/);
 
 assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1000), {
   allowed: true,
