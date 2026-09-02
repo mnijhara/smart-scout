@@ -57,8 +57,9 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
   try {
    await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
   } catch (auditError) {
-   const rollback=await client.from('hiring_state_history').delete().eq('id',id).eq('tenant_id',normalizedTenantId);
+   const rollback=await client.from('hiring_state_history').delete().eq('id',id).eq('tenant_id',normalizedTenantId).select('id');
    if(rollback.error)throw new Error(`Hiring state audit failed and rollback failed: ${rollback.error.message}`);
+   if((rollback.data||[]).length !== 1)throw new Error('Hiring state audit failed and rollback did not remove exactly one state');
    throw auditError;
   }
   return state;
