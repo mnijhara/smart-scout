@@ -26,7 +26,8 @@
     "e2e:latest-migration-hardening": "node tests/latest-migration-hardening-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
-    "verify:migrations": "node scripts/verify-migrations.mjs"
+    "verify:migrations": "node scripts/verify-migrations.mjs",
+    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation"
   },
   "dependencies": {
     "@google/genai": "2.7.0",
