@@ -33,6 +33,14 @@ const schedule = await scheduleInterview({
 await updateSchedule(schedule.id, 'confirmed', 'tenant_a', 'recruiter@example.com');
 await updateSchedule(schedule.id, 'cancelled', 'tenant_a', 'recruiter@example.com');
 
+const persistedSchedules = JSON.parse(fs.readFileSync(path.join(dir, 'schedules.json'), 'utf8'));
+assert.equal(persistedSchedules.length, 1);
+assert.equal(persistedSchedules[0].status, 'cancelled');
+assert.equal(Object.hasOwn(persistedSchedules[0], '__previousStatus'), false, 'audit-only transition metadata must never be persisted');
+assert.deepEqual(Object.keys(persistedSchedules[0]).sort(), [
+  'candidateId', 'createdAt', 'endsAt', 'id', 'jobId', 'mode', 'startsAt', 'status', 'tenantId', 'timezone', 'updatedAt'
+].sort(), 'schedule persistence must contain only the public schedule contract');
+
 const events = await listAudit('tenant_a', 'job_1');
 const actions = events.map(event => event.action);
 assert.ok(actions.includes('approval_requested'), 'approval request must be audited');
@@ -46,4 +54,4 @@ assert.equal(statusEvents.length, 2);
 assert.ok(statusEvents.every(event => event.actor === 'recruiter@example.com'), 'status audit must retain authenticated actor');
 assert.ok(events.every(event => event.persistence === 'local-fallback'), 'unconfigured audit provider must be explicit');
 
-console.log('Control-plane audit lifecycle and persistence-state checks passed.');
+console.log('Control-plane audit lifecycle and schedule persistence checks passed.');
