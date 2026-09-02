@@ -2,7 +2,9 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = path.resolve('supabase/migrations');
-const files = (await readdir(root)).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
+const files = (await readdir(root))
+  .filter(name => /^\d+_.+\.sql$/.test(name))
+  .sort((left, right) => Number(left.match(/^(\d+)_/)?.[1]) - Number(right.match(/^(\d+)_/)?.[1]) || left.localeCompare(right));
 
 const versions = files.map(file => Number(file.match(/^(\d+)_/)?.[1])).filter(Number.isInteger);
 const duplicateVersions = versions.filter((version, index) => versions.indexOf(version) !== index);
