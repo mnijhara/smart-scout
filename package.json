@@ -19,6 +19,7 @@
     "e2e:audit-lifecycle": "tsx tests/control-plane-audit-regression.mjs",
     "e2e:rate-limit": "tsx tests/rate-limit-regression.mjs",
     "e2e:rate-limit-wiring": "node tests/rate-limit-server-wiring-regression.mjs",
+    "e2e:hiring-state-migrations": "node tests/hiring-state-migration-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
@@ -34,8 +35,8 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
-    "mammoth": "^1.12.0",
     "marked": "15.0.0",
+    "mammoth": "^1.12.0",
     "pdfjs-dist": "^5.5.207",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
@@ -46,7 +47,6 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.27",
     "tailwindcss": "^4.2.2",
     "vite": "^6.4.2"
   }
