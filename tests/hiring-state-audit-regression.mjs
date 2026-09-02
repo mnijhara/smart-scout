@@ -23,14 +23,21 @@ assert.equal(ownStates[0].jobId, 'job_1');
 assert.equal(ownStates[0].id.startsWith('state_'), true);
 assert.equal(first.candidateId, 'candidate_1');
 
+const ownOffers = await listHiringStates('tenant_a', 'job_1', 'offer', 'candidate_1');
+assert.equal(ownOffers.length, 1, 'state type and candidate filters must compose');
+assert.equal(ownOffers[0].type, 'offer');
+assert.equal(ownOffers[0].candidateId, 'candidate_1');
+
 const foreignStates = await listHiringStates('tenant_b', 'job_1');
 assert.equal(foreignStates.length, 1);
 assert.equal(foreignStates[0].candidateId, 'candidate_2');
+assert.equal(foreignStates[0].tenantId, 'tenant_b');
 
 const audit = await listAudit('tenant_a', 'job_1');
 const savedEvents = audit.filter(event => event.action.startsWith('hiring_state_') && event.action.endsWith('_saved'));
 assert.equal(savedEvents.length, 2, 'every local hiring-state write must create an audit event');
 assert.ok(savedEvents.every(event => event.persistence === 'local-fallback'), 'unconfigured audit provider must be explicit');
 assert.ok(savedEvents.every(event => event.metadata?.stateType), 'audit must identify the persisted state type');
+assert.ok(savedEvents.every(event => event.tenantId === 'tenant_a' && event.workflowId === 'job_1'), 'audit events must preserve tenant/workflow identity');
 
-console.log('Hiring-state persistence, tenant isolation, and audit regression checks passed.');
+console.log('Hiring-state persistence, tenant isolation, candidate filtering, and audit regression checks passed.');
