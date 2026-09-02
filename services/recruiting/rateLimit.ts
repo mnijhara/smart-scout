@@ -1,5 +1,7 @@
 type Bucket = { windowStartedAt: number; count: number };
 
+type RateLimitStore = Map<string, Bucket>;
+
 export type RateLimitResult = {
   allowed: boolean;
   limit: number;
@@ -7,7 +9,7 @@ export type RateLimitResult = {
   retryAfterSeconds: number;
 };
 
-const buckets = new Map<string, Bucket>();
+const buckets: RateLimitStore = new Map();
 const MAX_KEYS = 10_000;
 
 function requiredPositiveInteger(value: number, name: string): number {
@@ -59,8 +61,18 @@ export function clearRateLimits(): void {
 
 function evictOldKeys(now: number, windowMs: number): void {
   if (buckets.size <= MAX_KEYS) return;
+
   for (const [key, bucket] of buckets) {
     if (now - bucket.windowStartedAt >= windowMs) buckets.delete(key);
-    if (buckets.size <= MAX_KEYS) break;
+  }
+
+  if (buckets.size <= MAX_KEYS) return;
+
+  const excess = buckets.size - MAX_KEYS;
+  const iterator = buckets.keys();
+  for (let index = 0; index < excess; index += 1) {
+    const oldestKey = iterator.next().value;
+    if (oldestKey === undefined) break;
+    buckets.delete(oldestKey);
   }
 }
