@@ -27,7 +27,8 @@
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs",
-    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation"
+    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation",
+    "test:production-regressions": "npm run e2e:hiring-state-production-guard && npm run e2e:hiring-state-audit-rollback && npm run e2e:audit-store-boundaries && npm run e2e:audit-store-query-isolation && npm run e2e:hiring-state-migrations && npm run e2e:latest-migration-hardening"
   },
   "dependencies": {
     "@google/genai": "2.7.0",
@@ -53,7 +54,6 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "tailwindcss": "^4.2.2",
-    "vite": "^6.4.2",
     "@vitejs/plugin-react": "^5.0.4"
   }
 }
