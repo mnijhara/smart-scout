@@ -54,13 +54,25 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
   const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:normalizedTenantId,workflow_id:workflowUuid(normalizedJobId),candidate_id:normalizedCandidateId||null,state_type:normalizedType,payload:payload||{}}).select('*').single();
   if(error)throw new Error(`Unable to persist hiring state: ${error.message}`);
   const state=publicState(data);
-  await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
+  try {
+   await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
+  } catch (auditError) {
+   const rollback=await client.from('hiring_state_history').delete().eq('id',id).eq('tenant_id',normalizedTenantId);
+   if(rollback.error)throw new Error(`Hiring state audit failed and rollback failed: ${rollback.error.message}`);
+   throw auditError;
+  }
   return state;
  }
  if(process.env.NODE_ENV==='production')throw new Error('Persistent hiring state storage is not configured');
  const now=new Date().toISOString(); const state:HiringState={id:`state_${crypto.randomUUID()}`,tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId,type:normalizedType,payload,createdAt:now,updatedAt:now};
  writeQueue=writeQueue.then(async()=>{const all=await readAll();all.unshift(state);await fs.writeFile(filePath,JSON.stringify(all,null,2),'utf8');}); await writeQueue;
- await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
+ try {
+  await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
+ } catch (auditError) {
+  writeQueue=writeQueue.then(async()=>{const all=await readAll();const remaining=all.filter(item=>item.id!==state.id);if(remaining.length!==all.length)await fs.writeFile(filePath,JSON.stringify(remaining,null,2),'utf8');});
+  try { await writeQueue; } catch (rollbackError) { throw new Error(`Hiring state audit failed and rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`); }
+  throw auditError;
+ }
  return state;
 }
 export async function listHiringStates(tenantId:string,jobId:string,type?:string,candidateId?:string):Promise<HiringState[]>{
