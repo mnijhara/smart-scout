@@ -23,6 +23,7 @@
     "e2e:hiring-state-production-guard": "tsx tests/hiring-state-production-persistence-guard-regression.mjs",
     "e2e:audit-store-boundaries": "tsx tests/audit-store-boundary-regression.mjs",
     "e2e:audit-store-query-isolation": "node tests/audit-store-query-isolation-regression.mjs",
+    "e2e:latest-migration-hardening": "node tests/latest-migration-hardening-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs"
