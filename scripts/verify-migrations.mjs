@@ -6,7 +6,7 @@ const files = (await readdir(root))
   .sort((left, right) => Number(left.match(/^(\d+)_/)?.[1]) - Number(right.match(/^(\d+)_/)?.[1]) || left.localeCompare(right));
 if (!files.length) throw new Error('No Supabase migrations found');
 const versions = files.map(name => Number(name.split('_', 1)[0]));
-if (versions.some(version => !Number.isSafeInteger(version))) throw new Error('Migration versions must be safe integers');
+if (versions.some(version => !Number.isSafeInteger(version) || version < 1)) throw new Error('Migration versions must be positive safe integers');
 const duplicates = versions.filter((v, i) => versions.indexOf(v) !== i);
 if (duplicates.length) throw new Error(`Duplicate migration versions: ${[...new Set(duplicates)].join(', ')}`);
 for (let i = 1; i < versions.length; i++) if (versions[i] !== versions[i - 1] + 1) throw new Error(`Migration sequence gap between ${versions[i - 1]} and ${versions[i]}`);
