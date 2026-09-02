@@ -41,6 +41,17 @@ assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2000), {
 resetRateLimit('tenant_a:user_1:recruiting');
 assert.equal(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2050).remaining, 1);
 
+// A backwards wall-clock adjustment must not inflate retry-after or reuse the stale window.
+clearRateLimits();
+assert.equal(checkRateLimit('clock:key', 1, 1000, 5000).allowed, true);
+const afterClockRollback = checkRateLimit('clock:key', 1, 1000, 4500);
+assert.deepEqual(afterClockRollback, {
+  allowed: true,
+  limit: 1,
+  remaining: 0,
+  retryAfterSeconds: 0,
+});
+
 // Reject malformed or unbounded rate-limit inputs before they can create unsafe buckets.
 await assert.rejects(() => Promise.resolve(checkRateLimit('', 2, 1000, 0)), /Rate limit key is required/);
 await assert.rejects(() => Promise.resolve(checkRateLimit('key', 0, 1000, 0)), /Rate limit must be a positive integer/);
