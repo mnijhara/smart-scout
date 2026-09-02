@@ -4,10 +4,12 @@ const store = await fs.readFile('services/recruiting/hiringStateStore.ts', 'utf8
 
 const listBlock = store.match(/export async function listHiringStates[\s\S]*$/)?.[0] || '';
 const normalizedList = listBlock.replace(/\s+/g, '');
-if (!normalizedList.includes(".eq('tenant_id',normalizedTenantId)") && !normalizedList.includes('.eq("tenant_id",normalizedTenantId)')) {
+const tenantScopedRead = /\.eq\((['"])tenant_id\1,normalizedTenantId\)/.test(normalizedList);
+const workflowScopedRead = /\.eq\((['"])workflow_id\1,workflowUuid\(normalizedJobId\)\)/.test(normalizedList);
+if (!tenantScopedRead) {
   throw new Error('Persistent hiring-state reads must be tenant-scoped');
 }
-if (!normalizedList.includes('.eq(\'workflow_id\',workflowUuid(normalizedJobId))') && !normalizedList.includes('.eq("workflow_id",workflowUuid(normalizedJobId))')) {
+if (!workflowScopedRead) {
   throw new Error('Persistent hiring-state reads must be workflow-scoped');
 }
 
@@ -19,7 +21,7 @@ if (!normalizedFallback.includes('all.filter(x=>x.tenantId===normalizedTenantId&
 
 const saveBlock = store.match(/export async function saveHiringState[\s\S]*?\n}\nexport async function listHiringStates/)?.[0] || '';
 const normalizedSave = saveBlock.replace(/\s+/g, '');
-if (!normalizedSave.includes('tenant_id:normalizedTenantId') || !normalizedSave.includes('workflow_id:workflowUuid(normalizedJobId)')) {
+if (!/tenant_id:normalizedTenantId/.test(normalizedSave) || !/workflow_id:workflowUuid\(normalizedJobId\)/.test(normalizedSave)) {
   throw new Error('Hiring-state writes must persist tenant and workflow identity');
 }
 
