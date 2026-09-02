@@ -35,8 +35,12 @@ assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2000), {
 resetRateLimit('tenant_a:user_1:recruiting');
 assert.equal(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2050).remaining, 1);
 
+// Reject malformed or unbounded rate-limit inputs before they can create unsafe buckets.
 await assert.rejects(() => Promise.resolve(checkRateLimit('', 2, 1000, 0)), /Rate limit key is required/);
 await assert.rejects(() => Promise.resolve(checkRateLimit('key', 0, 1000, 0)), /Rate limit must be a positive integer/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('key', Number.MAX_SAFE_INTEGER + 1, 1000, 0)), /Rate limit must be a positive integer/);
 await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 0, 0)), /Rate limit window must be a positive integer/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, Number.MAX_SAFE_INTEGER + 1, 0)), /Rate limit window must be a positive integer/);
+await assert.rejects(() => Promise.resolve(checkRateLimit('x'.repeat(257), 2, 1000, 0)), /Rate limit key is too long/);
 
 console.log('Rate-limit regression passed.');
