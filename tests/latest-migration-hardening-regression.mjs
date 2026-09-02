@@ -4,10 +4,16 @@ import path from 'node:path';
 const root = path.resolve('supabase/migrations');
 const files = (await readdir(root)).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
 
-const versions = files.map(file => file.match(/^(\d+)_/)?.[1]).filter(Boolean);
+const versions = files.map(file => Number(file.match(/^(\d+)_/)?.[1])).filter(Number.isInteger);
 const duplicateVersions = versions.filter((version, index) => versions.indexOf(version) !== index);
 if (duplicateVersions.length) {
   throw new Error(`Duplicate migration versions detected: ${[...new Set(duplicateVersions)].join(', ')}`);
+}
+
+for (let index = 1; index < versions.length; index += 1) {
+  if (versions[index] !== versions[index - 1] + 1) {
+    throw new Error(`Migration versions must remain contiguous: expected ${versions[index - 1] + 1}, found ${versions[index]}`);
+  }
 }
 
 const expected = ['018_recruiting_audit_candidate_workflow_index.sql', '019_recruiting_core_rls_defense_in_depth.sql'];
