@@ -4,6 +4,12 @@ import path from 'node:path';
 const root = path.resolve('supabase/migrations');
 const files = (await readdir(root)).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
 
+const versions = files.map(file => file.match(/^(\d+)_/)?.[1]).filter(Boolean);
+const duplicateVersions = versions.filter((version, index) => versions.indexOf(version) !== index);
+if (duplicateVersions.length) {
+  throw new Error(`Duplicate migration versions detected: ${[...new Set(duplicateVersions)].join(', ')}`);
+}
+
 const expected = ['018_recruiting_audit_candidate_workflow_index.sql', '019_recruiting_core_rls_defense_in_depth.sql'];
 for (const file of expected) {
   if (!files.includes(file)) throw new Error(`Missing latest recruiting migration: ${file}`);
