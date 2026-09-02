@@ -14,15 +14,21 @@ const { listAudit } = await import('../services/recruiting/controlPlane.ts');
 
 const first = await saveHiringState('tenant_a', 'job_1', 'decision', { recommendation: 'hire' }, 'candidate_1');
 await saveHiringState('tenant_a', 'job_1', 'offer', { status: 'draft' }, 'candidate_1');
+await saveHiringState('tenant_a', 'job_2', 'decision', { recommendation: 'hold' }, 'candidate_3');
 await saveHiringState('tenant_b', 'job_1', 'decision', { recommendation: 'reject' }, 'candidate_2');
 
 const ownStates = await listHiringStates('tenant_a', 'job_1');
-assert.equal(ownStates.length, 2, 'workspace must read only its own hiring states');
+assert.equal(ownStates.length, 2, 'workspace must read only its own hiring states for the requested workflow');
 assert.equal(ownStates[0].tenantId, 'tenant_a');
 assert.equal(ownStates[0].jobId, 'job_1');
 assert.equal(ownStates[0].id.startsWith('state_'), true);
 assert.notEqual(ownStates[0].id, ownStates[1].id, 'each persisted state must have a unique identity');
 assert.equal(first.candidateId, 'candidate_1');
+
+const otherWorkflowStates = await listHiringStates('tenant_a', 'job_2');
+assert.equal(otherWorkflowStates.length, 1, 'same-tenant reads must not leak state from another workflow');
+assert.equal(otherWorkflowStates[0].jobId, 'job_2');
+assert.equal(otherWorkflowStates[0].candidateId, 'candidate_3');
 
 const ownOffers = await listHiringStates('tenant_a', 'job_1', 'offer', 'candidate_1');
 assert.equal(ownOffers.length, 1, 'state type and candidate filters must compose');
@@ -48,4 +54,4 @@ assert.equal(candidateAudit.length, 2, 'candidate-scoped audit reads must return
 assert.ok(candidateAudit.every(event => event.candidateId === 'candidate_1'));
 assert.equal((await listAudit('tenant_b', 'job_1', 'candidate_1')).length, 0, 'tenant isolation must hold for candidate-scoped audit reads');
 
-console.log('Hiring-state persistence, tenant isolation, candidate filtering, and audit regression checks passed.');
+console.log('Hiring-state persistence, tenant/workflow isolation, candidate filtering, and audit regression checks passed.');
