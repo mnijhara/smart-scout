@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const baseline = fs.readFileSync('supabase/migrations/003_control_plane_persistence.sql', 'utf8');
-const migration = fs.readFileSync('supabase/migrations/005_control_plane_actor_constraints.sql', 'utf8');
+const migration = fs.readFileSync('supabase/migrations/018_control_plane_actor_constraints.sql', 'utf8');
 
 assert.match(baseline, /recruiting_approvals\s*\([\s\S]*?requested_by text not null/i);
 assert.match(baseline, /recruiting_audit_events\s*\([\s\S]*?actor text not null/i);
