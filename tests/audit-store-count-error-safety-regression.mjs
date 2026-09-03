@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../services/recruiting/auditStore.ts', import.meta.url), 'utf8');
 const failures = [];
 
-if (!source.includes("const auditQueryError=()=>new Error('Unable to load audit events')")) {
+if (!/const\s+auditQueryError\s*=\s*\(\)\s*=>\s*new\s+Error\('Unable to load audit events'\)/.test(source)) {
   failures.push('audit query error helper missing');
 }
 
-if (!/export async function countAuditEvents[\s\S]*?if\(error\)throw new Error\('Unable to count audit events'\)/.test(source)) {
+if (!/export\s+async\s+function\s+countAuditEvents[\s\S]*?if\s*\(\s*error\s*\)\s*throw\s+new\s+Error\('Unable to count audit events'\)/.test(source)) {
   failures.push('audit count does not expose a stable client-safe error');
 }
 
