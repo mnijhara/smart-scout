@@ -94,7 +94,10 @@ export async function requireFirebaseAuth(req:Request,res:Response,next:NextFunc
     (req as any).firebaseUser=identity;
     req.headers['x-tenant-id']=identity.uid;
     next();
-  }catch(error:any){res.status(401).json({error:error?.message||'Authentication failed'});}
+  }catch(error:any){
+    console.error('Firebase authentication failure:', error);
+    res.status(401).json({error:'Authentication failed'});
+  }
 }
 
 export async function requireWorkspaceAuth(req:Request,res:Response,next:NextFunction){
@@ -103,7 +106,10 @@ export async function requireWorkspaceAuth(req:Request,res:Response,next:NextFun
     (req as any).workspaceIdentity=identity;
     req.headers['x-tenant-id']=identity.id;
     next();
-  }catch(error:any){res.status(401).json({error:error?.message||'Workspace authentication failed'});}
+  }catch(error:any){
+    console.error('Workspace authentication failure:', error);
+    res.status(401).json({error:'Workspace authentication failed'});
+  }
 }
 
 export function authenticatedTenantId(req:Request):string{
