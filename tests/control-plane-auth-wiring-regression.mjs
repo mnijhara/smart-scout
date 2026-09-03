@@ -15,6 +15,19 @@ assert.ok(tenantIndex > authIndex, 'tenant identity must be resolved after authe
 assert.ok(rateLimitIndex > tenantIndex, 'API rate limiting must run after authenticated tenant resolution');
 assert.ok(routerIndex > rateLimitIndex, 'control-plane handlers must run after authentication and rate limiting');
 
+for (const router of ['recruitingRouter', 'documentRouter', 'browserSourceRouter']) {
+  const mount = server.match(new RegExp(`app\\.use\\('\\/api\\/recruiting',[^;]*${router}\\);`, 's'))?.[0];
+  assert.ok(mount, `${router} must be mounted explicitly under the recruiting API`);
+  const auth = mount.indexOf('requireWorkspaceAuth');
+  const tenant = mount.indexOf('rateLimitTenant');
+  const limit = mount.indexOf('requireApiRateLimit');
+  const handler = mount.indexOf(router);
+  assert.ok(auth >= 0, `${router} must require workspace authentication`);
+  assert.ok(tenant > auth, `${router} tenant identity must be resolved after authentication`);
+  assert.ok(limit > tenant, `${router} rate limiting must run after authenticated tenant resolution`);
+  assert.ok(handler > limit, `${router} handlers must run after authentication and rate limiting`);
+}
+
 assert.equal(server.includes("./server/controlPlaneRouter"), false, 'server.ts must not mount the legacy duplicate control-plane router');
 
-console.log('Control-plane authentication, tenant resolution, rate limiting, and handler ordering are wired safely.');
+console.log('Recruiting and control-plane API authentication, tenant resolution, rate limiting, and handler ordering are wired safely.');
