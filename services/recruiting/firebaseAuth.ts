@@ -59,7 +59,7 @@ export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity
 
 export async function verifyFirebaseIdToken(token:string):Promise<FirebaseIdentity>{
   if(!FIREBASE_API_KEY)throw new Error('Firebase authentication is not configured on this server');
-  if(token.length > MAX_FIREBASE_TOKEN_LENGTH)throw new Error('Invalid Firebase authentication token');
+  if(!token.trim() || token.length > MAX_FIREBASE_TOKEN_LENGTH)throw new Error('Invalid Firebase authentication token');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FIREBASE_LOOKUP_TIMEOUT_MS);
   try {
