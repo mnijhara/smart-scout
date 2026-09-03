@@ -16,7 +16,7 @@ for (let i = 1; i < versions.length; i++) if (versions[i] !== versions[i - 1] + 
 for (const file of files) {
   const sql = await readFile(path.join(root, file), 'utf8');
   if (!sql.trim()) throw new Error(`Empty migration: ${file}`);
-  if (/DROP\s+TABLE\s+public\.(hiring_workflows|recruiting_candidates|recruiting_audit_events|recruiting_interviews)/i.test(sql)) throw new Error(`Destructive protected-table drop found in ${file}`);
+  if (/DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?public\.(hiring_workflows|recruiting_candidates|recruiting_audit_events|recruiting_interviews)/i.test(sql)) throw new Error(`Destructive protected-table drop found in ${file}`);
 }
 
 const lifecycleMigration = await readFile(path.join(root, '007_hiring_state_persistence.sql'), 'utf8');
