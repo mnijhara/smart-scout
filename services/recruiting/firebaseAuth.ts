@@ -3,6 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypt
 
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || '';
 const FIREBASE_LOOKUP_TIMEOUT_MS = 8_000;
+const MAX_FIREBASE_TOKEN_LENGTH = 4096;
 const SESSION_SECRET = (() => {
   const explicit = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY;
   if (explicit) return explicit;
@@ -58,6 +59,7 @@ export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity
 
 export async function verifyFirebaseIdToken(token:string):Promise<FirebaseIdentity>{
   if(!FIREBASE_API_KEY)throw new Error('Firebase authentication is not configured on this server');
+  if(token.length > MAX_FIREBASE_TOKEN_LENGTH)throw new Error('Invalid Firebase authentication token');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FIREBASE_LOOKUP_TIMEOUT_MS);
   try {
