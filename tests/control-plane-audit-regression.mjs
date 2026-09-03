@@ -56,6 +56,16 @@ assert.deepEqual(Object.keys(persistedSchedule).sort(), [
   'candidateId', 'createdAt', 'endsAt', 'id', 'jobId', 'mode', 'startsAt', 'status', 'tenantId', 'timezone', 'updatedAt'
 ].sort(), 'schedule persistence must contain only the public schedule contract');
 
+const concurrentStartsAt = '2026-08-28T10:00:00.000Z';
+const concurrentEndsAt = '2026-08-28T11:00:00.000Z';
+const concurrentResults = await Promise.allSettled([
+  scheduleInterview({ tenantId: 'tenant_a', jobId: 'job_3', candidateId: 'candidate_3', startsAt: concurrentStartsAt, endsAt: concurrentEndsAt, timezone: 'Asia/Calcutta', mode: 'human', status: 'proposed' }),
+  scheduleInterview({ tenantId: 'tenant_a', jobId: 'job_4', candidateId: 'candidate_4', startsAt: concurrentStartsAt, endsAt: concurrentEndsAt, timezone: 'Asia/Calcutta', mode: 'human', status: 'proposed' })
+]);
+assert.equal(concurrentResults.filter(result => result.status === 'fulfilled').length, 1, 'overlapping concurrent bookings must serialize so only one succeeds');
+assert.equal(concurrentResults.filter(result => result.status === 'rejected').length, 1, 'the overlapping concurrent booking must be rejected');
+assert.equal((await listSchedules('tenant_a')).filter(item => item.startsAt === concurrentStartsAt).length, 1, 'concurrent overlap rejection must leave exactly one persisted booking');
+
 const events = await listAudit('tenant_a', 'job_1');
 const actions = events.map(event => event.action);
 assert.ok(actions.includes('approval_requested'), 'approval request must be audited');
@@ -70,4 +80,4 @@ assert.equal(statusEvents.length, 2);
 assert.ok(statusEvents.every(event => event.actor === 'recruiter@example.com'), 'status audit must retain authenticated actor');
 assert.ok(events.every(event => event.persistence === 'local-fallback'), 'unconfigured audit provider must be explicit');
 
-console.log('Control-plane audit lifecycle, schedule persistence, and tenant isolation checks passed.');
+console.log('Control-plane audit lifecycle, schedule persistence, tenant isolation, and concurrent booking checks passed.');
