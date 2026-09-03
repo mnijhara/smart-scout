@@ -1,6 +1,8 @@
 -- Harden control-plane actor persistence so malformed or placeholder actor values
 -- cannot enter the durable recruiting audit/approval trail.
--- Idempotent constraints make this safe to apply after the baseline migrations.
+-- This migration is deliberately versioned after the existing 017 migration set.
+-- The constraints are idempotent so a deployment that previously applied the
+-- incorrectly numbered 005 migration can safely converge on this migration.
 
 alter table recruiting_approvals
   drop constraint if exists recruiting_approvals_requested_by_nonblank_check;
