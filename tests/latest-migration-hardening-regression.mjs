@@ -30,6 +30,9 @@ if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier))
 if (!/Invalid migration filenames/.test(verifier) || !/name\.endsWith\('\.sql'\)/.test(verifier)) {
   throw new Error('Migration verifier must reject SQL files that do not follow the versioned filename convention');
 }
+if (!/DROP\\s\+TABLE\\s\+\(\?:IF\\s\+EXISTS\\s\+\)\?public\\\.\(hiring_workflows\|recruiting_candidates\|recruiting_audit_events\|recruiting_interviews\)/.test(verifier)) {
+  throw new Error('Migration verifier must reject protected-table drops whether or not IF EXISTS is used');
+}
 
 const expected = ['018_recruiting_audit_candidate_workflow_index.sql', '019_recruiting_core_rls_defense_in_depth.sql'];
 for (const file of expected) {
