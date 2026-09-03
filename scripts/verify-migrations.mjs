@@ -106,9 +106,21 @@ for (const pattern of requiredPreflightGuards) {
   if (!pattern.test(preflightMigration)) throw new Error(`Recruiting tenant integrity preflight guard missing: ${pattern}`);
 }
 
+const actorConstraintMigration = await readFile(path.join(root, '018_control_plane_actor_constraints.sql'), 'utf8');
+const requiredActorConstraints = [
+  /alter\s+table\s+recruiting_approvals[\s\S]*add\s+constraint\s+recruiting_approvals_requested_by_nonblank_check/i,
+  /check\s*\(length\(btrim\(requested_by\)\)\s+between\s+1\s+and\s+256\)/i,
+  /alter\s+table\s+recruiting_audit_events[\s\S]*add\s+constraint\s+recruiting_audit_events_actor_nonblank_check/i,
+  /check\s*\(length\(btrim\(actor\)\)\s+between\s+1\s+and\s+256\)/i,
+];
+for (const pattern of requiredActorConstraints) {
+  if (!pattern.test(actorConstraintMigration)) throw new Error(`Control-plane actor persistence guard missing: ${pattern}`);
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
 console.log('Recruiting tenant integrity constraint verification passed');
 console.log('Recruiting tenant FK index verification passed');
 console.log('Recruiting tenant integrity preflight verification passed');
+console.log('Control-plane actor persistence constraint verification passed');
