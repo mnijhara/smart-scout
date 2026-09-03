@@ -15,17 +15,17 @@ assert.match(
 );
 assert.match(
   authSource,
-  /; Path=\/; Max-Age=\$\{SESSION_MAX_AGE\}; HttpOnly; Secure; SameSite=Lax`/,
+  /;\s*Path=\/;\s*Max-Age=\$\{SESSION_MAX_AGE\};\s*HttpOnly;\s*Secure;\s*SameSite=Lax`/,
   'workspace session cookies must be HttpOnly, Secure, path-scoped, and SameSite=Lax',
 );
 assert.match(
   authSource,
-  /if\(signature\.length !== expected\.length \|\| !timingSafeEqual\(Buffer\.from\(signature\),Buffer\.from\(expected\)\)\)return null;/,
+  /if\s*\(signature\.length\s*!==\s*expected\.length\s*\|\|\s*!timingSafeEqual\(Buffer\.from\(signature\),\s*Buffer\.from\(expected\)\)\)\s*return null;/,
   'workspace session signatures must use constant-time comparison',
 );
 assert.match(
   authSource,
-  /if\(!Number\.isSafeInteger\(expiresAt\) \|\| expiresAt <= Date\.now\(\)\)return null;/,
+  /if\s*\(!Number\.isSafeInteger\(expiresAt\)\s*\|\|\s*expiresAt\s*<=\s*Date\.now\(\)\)\s*return null;/,
   'expired or malformed workspace sessions must be rejected',
 );
 
