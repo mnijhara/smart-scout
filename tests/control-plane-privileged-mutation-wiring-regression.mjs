@@ -11,9 +11,9 @@ function routeBody(route) {
   return source.slice(start, end);
 }
 
-// Approval mutations already enforce privileged recruiting roles. Keep that boundary
-// explicit while also ensuring the remaining control-plane mutations derive their
-// actor from the authenticated workspace identity rather than request input.
+// Approval mutations enforce privileged recruiting roles. Other mutating control-plane
+// routes must derive their actor/context from authenticated workspace identity rather
+// than request input or tenant-only caller data.
 for (const route of ["r.post('/approvals'", "r.post('/approvals/:id/decision'"]) {
   const body = routeBody(route);
   assert.match(body, /requireRecruitingRole\(req\)/, `${route} must enforce a privileged recruiting role`);
@@ -23,5 +23,11 @@ for (const route of ["r.post('/schedules'", "r.post('/schedules/:id/status'", "r
   const body = routeBody(route);
   assert.match(body, /workspaceIdentity/, `${route} must derive request context from authenticated workspace identity`);
 }
+
+assert.match(
+  routeBody("r.post('/usage'"),
+  /actorFromRequest\(req\)/,
+  "usage mutations must require an authenticated actor before persistence",
+);
 
 console.log('Control-plane privileged and authenticated mutation boundaries remain wired.');
