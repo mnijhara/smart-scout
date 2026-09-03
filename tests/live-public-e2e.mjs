@@ -4,6 +4,13 @@ const baseUrl = (process.env.SMARTSCOUT_BASE_URL || 'https://smartscout.online')
 const expectedRelease = process.env.EXPECTED_RELEASE_SHA;
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const consoleErrors = [];
+const pageErrors = [];
+
+page.on('console', (message) => {
+  if (message.type() === 'error') consoleErrors.push(message.text());
+});
+page.on('pageerror', (error) => pageErrors.push(error.message));
 
 try {
   const response = await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -26,6 +33,7 @@ try {
 
   await page.getByText('From hiring intent', { exact: false }).first().waitFor({ state: 'visible', timeout: 15000 });
   await page.getByText('Fictional product simulation').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('img[alt="Smart Scout"]').first().waitFor({ state: 'visible', timeout: 5000 });
 
   await page.getByRole('button', { name: /See the magic demo/i }).click();
   await page.getByText('Full hiring journey · fictional demo data').waitFor({ state: 'visible', timeout: 5000 });
@@ -51,6 +59,10 @@ try {
   await page.getByRole('button', { name: /^06 Decision$/ }).click();
   await page.getByRole('button', { name: /^07 Offer$/ }).click();
   await page.getByText('Comp benchmark').waitFor({ state: 'visible', timeout: 5000 });
+
+  if (consoleErrors.length || pageErrors.length) {
+    throw new Error(`LIVE_BROWSER_ERRORS console=${JSON.stringify(consoleErrors)} page=${JSON.stringify(pageErrors)}`);
+  }
 
   console.log(`LIVE_PUBLIC_E2E_OK ${baseUrl}`);
 } finally {
