@@ -27,11 +27,12 @@
     "e2e:audit-store-boundaries": "tsx tests/audit-store-boundary-regression.mjs",
     "e2e:audit-store-query-isolation": "node tests/audit-store-query-isolation-regression.mjs",
     "e2e:latest-migration-hardening": "node tests/latest-migration-hardening-regression.mjs",
+    "e2e:provider-error-safety": "node tests/provider-error-safety-regression.mjs",
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs",
-    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation && npm run e2e:control-plane-auth-wiring && npm run e2e:request-origin-security",
-    "test:production-regressions": "npm run e2e:hiring-state-production-guard && npm run e2e:hiring-state-audit-rollback && npm run e2e:audit-store-boundaries && npm run e2e:audit-store-query-isolation && npm run e2e:hiring-state-migrations && npm run e2e:latest-migration-hardening && npm run e2e:audit-lifecycle && npm run e2e:schedule-overlap && npm run e2e:control-plane-auth-wiring && npm run e2e:request-origin-security"
+    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation && npm run e2e:control-plane-auth-wiring && npm run e2e:request-origin-security && npm run e2e:provider-error-safety",
+    "test:production-regressions": "npm run e2e:hiring-state-production-guard && npm run e2e:hiring-state-audit-rollback && npm run e2e:audit-store-boundaries && npm run e2e:audit-store-query-isolation && npm run e2e:hiring-state-migrations && npm run e2e:latest-migration-hardening && npm run e2e:audit-lifecycle && npm run e2e:schedule-overlap && npm run e2e:control-plane-auth-wiring && npm run e2e:request-origin-security && npm run e2e:provider-error-safety"
   },
   "dependencies": {
     "@google/genai": "2.7.0",
@@ -47,7 +48,6 @@
     "marked": "15.0.0",
     "mammoth": "^1.12.0",
     "pdfjs-dist": "^5.5.207",
-    "playwright": "^1.55.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "resend": "^6.9.4",
