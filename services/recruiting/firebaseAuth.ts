@@ -15,8 +15,8 @@ const SESSION_COOKIE = 'smartscout_workspace';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 const MAX_COOKIE_VALUE_LENGTH = 512;
 
-export type FirebaseIdentity = { uid:string; email?:string; emailVerified?:boolean; displayName?:string };
-export type WorkspaceIdentity = { kind:'firebase'|'guest'; id:string; email?:string; emailVerified?:boolean; displayName?:string };
+export type FirebaseIdentity = { uid:string; email?:string; emailVerified?:boolean; displayName?:string; role?:string };
+export type WorkspaceIdentity = { kind:'firebase'|'guest'; id:string; email?:string; emailVerified?:boolean; displayName?:string; role?:string };
 
 function signSession(payload:string):string {
   return createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
@@ -57,6 +57,16 @@ export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity
   return {kind:'guest',id:`guest:${id}`};
 }
 
+function extractFirebaseRole(user:any):string|undefined {
+  try {
+    const raw = typeof user?.customAttributes === 'string' ? JSON.parse(user.customAttributes) : user?.customAttributes;
+    const role = typeof raw?.role === 'string' ? raw.role.trim().toLowerCase() : '';
+    return role || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function verifyFirebaseIdToken(token:string):Promise<FirebaseIdentity>{
   if(!FIREBASE_API_KEY)throw new Error('Firebase authentication is not configured on this server');
   if(!token.trim() || token.length > MAX_FIREBASE_TOKEN_LENGTH)throw new Error('Invalid Firebase authentication token');
@@ -68,7 +78,7 @@ export async function verifyFirebaseIdToken(token:string):Promise<FirebaseIdenti
     const user=data?.users?.[0];
     if(!response.ok||!user?.localId)throw new Error('Invalid Firebase authentication token');
     if(user.disabled)throw new Error('Firebase account is disabled');
-    return {uid:String(user.localId),email:user.email,emailVerified:Boolean(user.emailVerified),displayName:user.displayName};
+    return {uid:String(user.localId),email:user.email,emailVerified:Boolean(user.emailVerified),displayName:user.displayName,role:extractFirebaseRole(user)};
   } catch(error:any) {
     if(error?.name === 'AbortError') throw new Error('Firebase authentication service timed out');
     throw error;
@@ -82,7 +92,7 @@ export async function resolveWorkspaceIdentity(req:Request,res:Response):Promise
   const token=header.startsWith('Bearer ')?header.slice(7).trim():'';
   if(token){
     const identity=await verifyFirebaseIdToken(token);
-    return {kind:'firebase',id:identity.uid,email:identity.email,emailVerified:identity.emailVerified,displayName:identity.displayName};
+    return {kind:'firebase',id:identity.uid,email:identity.email,emailVerified:identity.emailVerified,displayName:identity.displayName,role:identity.role};
   }
   return ensureGuestWorkspace(req,res);
 }
