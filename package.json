@@ -19,6 +19,7 @@
     "e2e:schedule-overlap": "node tests/interview-schedule-overlap-tenant-regression.mjs",
     "e2e:control-plane-auth-wiring": "node tests/control-plane-auth-wiring-regression.mjs",
     "e2e:control-plane-authorization-wiring": "node tests/control-plane-authorization-wiring-regression.mjs",
+    "e2e:control-plane-actor-wiring": "node tests/control-plane-actor-wiring-regression.mjs",
     "e2e:request-origin-security": "node tests/request-origin-security-regression.mjs",
     "e2e:rate-limit": "tsx tests/rate-limit-regression.mjs",
     "e2e:rate-limit-wiring": "node tests/rate-limit-server-wiring-regression.mjs",
@@ -32,12 +33,12 @@
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs",
-    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation && npm run e2e:control-plane-auth-wiring && npm run e2e:control-plane-authorization-wiring && npm run e2e:request-origin-security && npm run e2e:provider-error-safety",
-    "test:production-regressions": "npm run e2e:hiring-state-production-guard && npm run e2e:hiring-state-audit-rollback && npm run e2e:audit-store-boundaries && npm run e2e:audit-store-query-isolation && npm run e2e:hiring-state-migrations && npm run e2e:latest-migration-hardening && npm run e2e:audit-lifecycle && npm run e2e:schedule-overlap && npm run e2e:control-plane-auth-wiring && npm run e2e:control-plane-authorization-wiring && npm run e2e:request-origin-security && npm run e2e:provider-error-safety"
+    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation && npm run e2e:control-plane-auth-wiring && npm run e2e:control-plane-authorization-wiring && npm run e2e:control-plane-actor-wiring && npm run e2e:request-origin-security && npm run e2e:provider-error-safety",
+    "test:production-regressions": "npm run e2e:hiring-state-production-guard && npm run e2e:hiring-state-audit-rollback && npm run e2e:audit-store-boundaries && npm run e2e:audit-store-query-isolation && npm run e2e:hiring-state-migrations && npm run e2e:latest-migration-hardening && npm run e2e:audit-lifecycle && npm run e2e:schedule-overlap && npm run e2e:control-plane-auth-wiring && npm run e2e:control-plane-authorization-wiring && npm run e2e:control-plane-actor-wiring && npm run e2e:request-origin-security && npm run e2e:provider-error-safety"
   },
   "dependencies": {
     "@google/genai": "2.7.0",
-    "@stripe/stripe-js": "^9.0.1",
+    "@stripe/stripe-js": "^9.0.0",
     "@supabase/supabase-js": "2.47.10",
     "esbuild": "^0.25.0",
     "express": "^5.2.1",
@@ -57,7 +58,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "tailwindcss": "^4.2.2",
-    "vite": "^6.4.2",
-    "@vitejs/plugin-react": "^5.0.4"
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^6.4.2"
   }
 }
