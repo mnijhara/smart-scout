@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
-const server = await readFile(new URL('../server.ts', import.meta.url), 'utf8');
+const [server, rateLimitMiddleware] = await Promise.all([
+  readFile(new URL('../server.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../services/recruiting/rateLimitMiddleware.ts', import.meta.url), 'utf8')
+]);
 const required = [
   ['request correlation', /x-request-id/],
   ['content-type sniffing protection', /X-Content-Type-Options/],
@@ -14,7 +17,10 @@ const required = [
   ['request body size limit', /express\.json\(\{ limit: ['\"]50mb['\"] \}\)/]
 ];
 
-const failures = required.filter(([, pattern]) => !pattern.test(server));
+const failures = required.filter(([name, pattern]) => {
+  const source = name === 'API rate limiting' ? rateLimitMiddleware : server;
+  return !pattern.test(source);
+});
 if (failures.length) {
   console.error('Security regression checks failed:');
   for (const [name] of failures) console.error(`- ${name}`);
