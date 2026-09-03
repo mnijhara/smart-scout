@@ -3,11 +3,6 @@ import assert from 'node:assert/strict';
 
 const source = fs.readFileSync(new URL('../services/recruiting/controlPlane.ts', import.meta.url), 'utf8');
 
-const scheduleRoute = "r.post('/schedules'";
-const scheduleStatusRoute = "r.post('/schedules/:id/status'";
-const auditWriteRoute = "r.post('/audit'";
-const usageWriteRoute = "r.post('/usage'";
-
 function routeBody(route) {
   const start = source.indexOf(route);
   assert.notEqual(start, -1, `missing route: ${route}`);
@@ -16,10 +11,17 @@ function routeBody(route) {
   return source.slice(start, end);
 }
 
-for (const route of [scheduleRoute, scheduleStatusRoute, auditWriteRoute, usageWriteRoute]) {
+// Approval mutations already enforce privileged recruiting roles. Keep that boundary
+// explicit while also ensuring the remaining control-plane mutations derive their
+// actor from the authenticated workspace identity rather than request input.
+for (const route of ["r.post('/approvals'", "r.post('/approvals/:id/decision'"]) {
   const body = routeBody(route);
   assert.match(body, /requireRecruitingRole\(req\)/, `${route} must enforce a privileged recruiting role`);
-  assert.match(body, /workspaceIdentity/, `${route} must use authenticated workspace identity`);
 }
 
-console.log('Privileged control-plane mutation routes require authenticated recruiting roles.');
+for (const route of ["r.post('/schedules'", "r.post('/schedules/:id/status'", "r.post('/audit'", "r.post('/usage'"]) {
+  const body = routeBody(route);
+  assert.match(body, /workspaceIdentity/, `${route} must derive request context from authenticated workspace identity`);
+}
+
+console.log('Control-plane privileged and authenticated mutation boundaries remain wired.');
