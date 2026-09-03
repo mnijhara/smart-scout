@@ -6,17 +6,17 @@ const apiSource = await readFile(new URL('../services/recruiting/api.ts', import
 
 assert.match(
   authSource,
-  /\(req as any\)\.firebaseUser=identity;\s*req\.headers\['x-tenant-id'\]=identity\.uid;/,
+  /\(req as any\)\.firebaseUser\s*=\s*identity;\s*req\.headers\['x-tenant-id'\]\s*=\s*identity\.uid;/,
   'Firebase authentication must bind the authenticated UID to the request tenant context',
 );
 assert.match(
   authSource,
-  /\(req as any\)\.workspaceIdentity=identity;\s*req\.headers\['x-tenant-id'\]=identity\.id;/,
+  /\(req as any\)\.workspaceIdentity\s*=\s*identity;\s*req\.headers\['x-tenant-id'\]\s*=\s*identity\.id;/,
   'workspace authentication must bind the resolved identity to the request tenant context',
 );
 assert.match(
   authSource,
-  /export function authenticatedTenantId\(req:Request\):string\{const identity=\(req as any\)\.workspaceIdentity as WorkspaceIdentity\|undefined;/,
+  /export function authenticatedTenantId\(req:Request\):string\{\s*const identity\s*=\s*\(req as any\)\.workspaceIdentity as WorkspaceIdentity\|undefined;/,
   'authenticatedTenantId must resolve from authenticated server-side identity state',
 );
 assert.doesNotMatch(
