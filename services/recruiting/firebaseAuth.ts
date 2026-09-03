@@ -4,6 +4,7 @@ import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypt
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || '';
 const FIREBASE_LOOKUP_TIMEOUT_MS = 8_000;
 const MAX_FIREBASE_TOKEN_LENGTH = 4096;
+const MAX_FIREBASE_ROLE_LENGTH = 64;
 const SESSION_SECRET = (() => {
   const explicit = process.env.SMARTSCOUT_SESSION_SECRET || process.env.SMARTSCOUT_VAULT_KEY;
   if (explicit) return explicit;
@@ -61,7 +62,7 @@ function extractFirebaseRole(user:any):string|undefined {
   try {
     const raw = typeof user?.customAttributes === 'string' ? JSON.parse(user.customAttributes) : user?.customAttributes;
     const role = typeof raw?.role === 'string' ? raw.role.trim().toLowerCase() : '';
-    return role || undefined;
+    return role && role.length <= MAX_FIREBASE_ROLE_LENGTH ? role : undefined;
   } catch {
     return undefined;
   }
