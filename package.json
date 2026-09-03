@@ -18,6 +18,7 @@
     "e2e:audit-lifecycle": "tsx tests/control-plane-audit-regression.mjs",
     "e2e:schedule-overlap": "node tests/interview-schedule-overlap-tenant-regression.mjs",
     "e2e:control-plane-auth-wiring": "node tests/control-plane-auth-wiring-regression.mjs",
+    "e2e:request-origin-security": "node tests/request-origin-security-regression.mjs",
     "e2e:rate-limit": "tsx tests/rate-limit-regression.mjs",
     "e2e:rate-limit-wiring": "node tests/rate-limit-server-wiring-regression.mjs",
     "e2e:hiring-state-migrations": "node tests/hiring-state-migration-regression.mjs",
@@ -29,7 +30,7 @@
     "verify:release": "node tests/release-identity.mjs",
     "verify:live-release": "node tests/live-release-contract.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs",
-    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation && npm run e2e:control-plane-auth-wiring",
+    "test:security-regressions": "npm run e2e:rate-limit && npm run e2e:rate-limit-wiring && npm run e2e:runtime-security && npm run e2e:tenant-isolation && npm run e2e:control-plane-auth-wiring && npm run e2e:request-origin-security",
     "test:production-regressions": "npm run e2e:hiring-state-production-guard && npm run e2e:hiring-state-audit-rollback && npm run e2e:audit-store-boundaries && npm run e2e:audit-store-query-isolation && npm run e2e:hiring-state-migrations && npm run e2e:latest-migration-hardening && npm run e2e:audit-lifecycle && npm run e2e:schedule-overlap && npm run e2e:control-plane-auth-wiring"
   },
   "dependencies": {
