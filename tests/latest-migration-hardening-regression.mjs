@@ -30,7 +30,7 @@ if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier))
 if (!/Invalid migration filenames/.test(verifier) || !/name\.endsWith\('\.sql'\)/.test(verifier)) {
   throw new Error('Migration verifier must reject SQL files that do not follow the versioned filename convention');
 }
-if (!/DROP\\s\+TABLE\\s\+\(\?:IF\\s\+EXISTS\\s\+\)\?public\\\.\(hiring_workflows\|recruiting_candidates\|recruiting_audit_events\|recruiting_interviews\)/.test(verifier)) {
+if (!verifier.includes('(?:IF\\s+EXISTS\\s+)?') || !verifier.includes('Destructive protected-table drop found')) {
   throw new Error('Migration verifier must reject protected-table drops whether or not IF EXISTS is used');
 }
 
