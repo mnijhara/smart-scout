@@ -65,7 +65,7 @@
   },
   "dependencies": {
     "@google/genai": "2.7.0",
-    "@stripe/stripe-js": "^9.0.0",
+    "@stripe/stripe-js": "^9.0.1",
     "@supabase/supabase-js": "2.47.10",
     "esbuild": "^0.25.0",
     "express": "5.2.1",
