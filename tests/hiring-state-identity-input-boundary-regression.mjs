@@ -8,15 +8,15 @@ if (!/function requireLifecycleIdentity\(tenantId:string,jobId:string,candidateI
 
 const fn = source.match(/function requireLifecycleIdentity\(tenantId:string,jobId:string,candidateId\?:string\)\{([\s\S]*?)\n\}/)?.[1] || '';
 
-if (!/tenantId\?\.trim\(\)/.test(fn) || !/jobId\?\.trim\(\)/.test(fn)) {
-  throw new Error('Hiring state identity validation must guard tenantId and jobId before trimming');
+if (!/typeof tenantId !== 'string' \|\| !tenantId\.trim\(\)/.test(fn) || !/typeof jobId !== 'string' \|\| !jobId\.trim\(\)/.test(fn)) {
+  throw new Error('Hiring state identity validation must reject non-string or blank tenant/job identities before trimming');
 }
 
-if (!/candidateId !== undefined && !candidateId\.trim\(\)/.test(fn)) {
-  throw new Error('Hiring state identity validation must guard candidateId before trimming when provided');
+if (!/candidateId !== undefined && \(typeof candidateId !== 'string' \|\| !candidateId\.trim\(\)\)/.test(fn)) {
+  throw new Error('Hiring state identity validation must reject non-string or blank candidate IDs when provided');
 }
 
-if (!/tenantId\?\.trim\(\)\.length>MAX_HIRING_STATE_IDENTITY_LENGTH/.test(fn) || !/jobId\?\.trim\(\)\.length>MAX_HIRING_STATE_IDENTITY_LENGTH/.test(fn)) {
+if (!/tenantId\.trim\(\)\.length>MAX_HIRING_STATE_IDENTITY_LENGTH/.test(fn) || !/jobId\.trim\(\)\.length>MAX_HIRING_STATE_IDENTITY_LENGTH/.test(fn)) {
   throw new Error('Hiring state identity validation must retain the 256-character tenant/job bounds');
 }
 
