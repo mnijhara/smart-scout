@@ -20,6 +20,14 @@ function db(){
 }
 function workflowUuid(id:string){return id.startsWith('job_')?id.slice(4):id;}
 function publicState(row:any):HiringState{return {id:`state_${row.id}`,tenantId:row.tenant_id,jobId:`job_${row.workflow_id}`,candidateId:row.candidate_id||undefined,type:row.state_type,payload:row.payload||{},createdAt:row.created_at,updatedAt:row.updated_at};}
+function requirePersistedStateRow(row:unknown){
+ if(!row || typeof row!=='object')throw new Error('Atomic hiring state RPC returned an invalid state row');
+ const value=row as Record<string,unknown>;
+ for(const key of ['id','tenant_id','workflow_id','state_type','created_at','updated_at']){
+  if(typeof value[key]!=='string' || !String(value[key]).trim())throw new Error(`Atomic hiring state RPC returned an invalid ${key}`);
+ }
+ return row;
+}
 function requireLifecycleIdentity(tenantId:string,jobId:string,candidateId?:string){
  if(typeof tenantId !== 'string' || !tenantId.trim())throw new Error('Hiring state tenantId is required');
  if(tenantId.trim().length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state tenantId exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
@@ -69,7 +77,7 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
  const client=db();
  if(client){
   const atomic=await persistWithAtomicAudit(client,normalizedTenantId,normalizedJobId,normalizedCandidateId,normalizedType,payload,normalizedActor);
-  if(!atomic.error) return publicState(atomic.data);
+  if(!atomic.error) return publicState(requirePersistedStateRow(atomic.data));
   if(!atomicRpcUnavailable(atomic.error)) throw new Error(`Unable to persist hiring state atomically: ${atomic.error.message}`);
   const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:normalizedTenantId,workflow_id:workflowUuid(normalizedJobId),candidate_id:normalizedCandidateId||null,state_type:normalizedType,payload:payload||{}}).select('*').single();
   if(error)throw new Error(`Unable to persist hiring state: ${error.message}`);
