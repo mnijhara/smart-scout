@@ -52,6 +52,8 @@ jobs:
         run: npm run verify:migrations
       - name: Migration verifier hiring-state integrity regression
         run: node tests/migration-verifier-hiring-state-integrity-regression.mjs
+      - name: Hiring lifecycle migration chain verification
+        run: node scripts/verify-hiring-lifecycle-migration-chain.mjs
       - name: Migration readiness regression
         run: node tests/migration-readiness-regression.mjs
       - name: Recruiting core RLS migration order regression
