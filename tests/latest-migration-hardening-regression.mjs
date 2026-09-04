@@ -38,6 +38,7 @@ const expected = [
   '020_recruiting_integration_tenant_integrity.sql',
   '021_recruiting_comparison_tenant_integrity.sql',
   '022_recruiting_interview_tenant_integrity.sql',
+  '023_recruiting_audit_tenant_integrity.sql',
 ];
 for (const file of expected) {
   if (!files.includes(file)) throw new Error(`Missing latest recruiting migration: ${file}`);
@@ -78,6 +79,23 @@ if (!/recruiting_interviews_tenant_workflow_fk_idx/i.test(interviewTenant) || !/
 }
 if (!/alter\s+table\s+if\s+exists\s+public\.recruiting_interviews\s+force\s+row\s+level\s+security/i.test(interviewTenant)) {
   throw new Error('Interview tenant migration must force RLS');
+}
+
+const auditTenant = await readFile(path.join(root, expected[3]), 'utf8');
+for (const relation of [
+  /recruiting_audit_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /recruiting_audit_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+]) {
+  if (!relation.test(auditTenant)) throw new Error('Audit tenant migration must preserve same-tenant workflow/candidate identity');
+}
+if (!/recruiting_audit_tenant_workflow_idx/i.test(auditTenant) || !/recruiting_audit_tenant_candidate_idx/i.test(auditTenant)) {
+  throw new Error('Audit tenant migration must index both tenant foreign keys');
+}
+if (!/recruiting_audit_actor_not_blank[\s\S]*check\s*\(actor_id\s+is\s+null\s+or\s+length\(btrim\(actor_id\)\)\s+between\s+1\s+and\s+256\)[\s\S]*not\s+valid/i.test(auditTenant)) {
+  throw new Error('Audit tenant migration must reject blank or oversized actor identities');
+}
+if (!/alter\s+table\s+recruiting_audit_events\s+force\s+row\s+level\s+security/i.test(auditTenant)) {
+  throw new Error('Audit tenant migration must force RLS');
 }
 
 console.log('Latest recruiting migration hardening regression passed');
