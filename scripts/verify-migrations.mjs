@@ -127,6 +127,21 @@ for (const table of requiredIntegrationTables) {
   }
 }
 
+const integrationTenantMigration = await readFile(path.join(root, '020_recruiting_integration_tenant_integrity.sql'), 'utf8');
+const requiredIntegrationTenantGuards = [
+  /create\s+unique\s+index\s+if\s+not\s+exists\s+recruiting_documents_tenant_id_uidx/i,
+  /create\s+unique\s+index\s+if\s+not\s+exists\s+recruiting_knockout_results_tenant_id_uidx/i,
+  /recruiting_documents_tenant_job_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*job_id\)[\s\S]*references\s+hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /recruiting_documents_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /recruiting_knockout_results_tenant_job_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*job_id\)[\s\S]*references\s+recruiting_candidates|hiring_workflows/i,
+  /recruiting_knockout_results_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /alter\s+table\s+recruiting_documents\s+force\s+row\s+level\s+security/i,
+  /alter\s+table\s+recruiting_knockout_results\s+force\s+row\s+level\s+security/i,
+];
+for (const pattern of requiredIntegrationTenantGuards) {
+  if (!pattern.test(integrationTenantMigration)) throw new Error(`Recruiting integration tenant guard missing: ${pattern}`);
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
@@ -135,3 +150,4 @@ console.log('Recruiting tenant FK index verification passed');
 console.log('Recruiting tenant integrity preflight verification passed');
 console.log('Control-plane actor persistence constraint verification passed');
 console.log('Production recruiting integration RLS verification passed');
+console.log('Production recruiting integration tenant integrity verification passed');
