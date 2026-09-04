@@ -11,6 +11,8 @@ const required = [
   /insert\s+into\s+public\.hiring_state_history/i,
   /insert\s+into\s+public\.recruiting_audit_events/i,
   /hiring_state_.*_saved/i,
+  /if\s+length\(btrim\(p_actor\)\)\s*>\s*256\s+then/i,
+  /raise\s+exception\s+'hiring state actor exceeds 256 characters'/i,
   /revoke\s+all\s+on\s+function\s+public\.persist_hiring_state_with_audit\(text,\s*uuid,\s*uuid,\s*text,\s*jsonb,\s*text\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i,
   /grant\s+execute\s+on\s+function\s+public\.persist_hiring_state_with_audit\(text,\s*uuid,\s*uuid,\s*text,\s*jsonb,\s*text\)\s+to\s+service_role/i,
 ];
