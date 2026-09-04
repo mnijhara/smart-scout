@@ -29,6 +29,13 @@ function requireLifecycleIdentity(tenantId:string,jobId:string,candidateId?:stri
  if(candidateId !== undefined && candidateId.trim().length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state candidateId exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
 }
 function requireStatePayload(payload:unknown){let serialized:string;try{serialized=JSON.stringify(payload ?? {});}catch{throw new Error('Hiring state payload must be JSON serializable');}if(Buffer.byteLength(serialized,'utf8')>MAX_HIRING_STATE_PAYLOAD_BYTES)throw new Error(`Hiring state payload exceeds ${MAX_HIRING_STATE_PAYLOAD_BYTES} bytes`);}
+function normalizeLifecycleActor(actor:unknown){
+ if(typeof actor !== 'string')throw new Error('Hiring state actor is required');
+ const normalized=actor.trim();
+ if(!normalized)throw new Error('Hiring state actor is required');
+ if(normalized.length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state actor exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
+ return normalized;
+}
 async function readAll():Promise<HiringState[]>{
  try { return JSON.parse(await fs.readFile(filePath,'utf8')); }
  catch (error:any) {
@@ -44,11 +51,9 @@ async function assertLifecycleCandidate(tenantId:string,jobId:string,candidateId
 }
 export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string,actor='hiring-lifecycle'):Promise<HiringState>{
  requireLifecycleIdentity(tenantId,jobId,candidateId);
- const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim(); const normalizedActor=actor.trim();
+ const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim(); const normalizedActor=normalizeLifecycleActor(actor);
  if(!normalizedType)throw new Error('Hiring state type is required');
  if(normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
- if(!normalizedActor)throw new Error('Hiring state actor is required');
- if(normalizedActor.length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state actor exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
  requireStatePayload(payload);
  await assertLifecycleCandidate(normalizedTenantId,normalizedJobId,normalizedCandidateId);
  const client=db();
