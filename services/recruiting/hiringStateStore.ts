@@ -42,11 +42,13 @@ async function assertLifecycleCandidate(tenantId:string,jobId:string,candidateId
  const candidate=candidates.find(item=>item.id===candidateId);
  assertCandidateBelongsToJob(candidate,tenantId,jobId,candidateId);
 }
-export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string):Promise<HiringState>{
+export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string,actor='hiring-lifecycle'):Promise<HiringState>{
  requireLifecycleIdentity(tenantId,jobId,candidateId);
- const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim();
+ const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim(); const normalizedActor=actor.trim();
  if(!normalizedType)throw new Error('Hiring state type is required');
  if(normalizedType.length>MAX_HIRING_STATE_TYPE_LENGTH)throw new Error(`Hiring state type exceeds ${MAX_HIRING_STATE_TYPE_LENGTH} characters`);
+ if(!normalizedActor)throw new Error('Hiring state actor is required');
+ if(normalizedActor.length>MAX_HIRING_STATE_IDENTITY_LENGTH)throw new Error(`Hiring state actor exceeds ${MAX_HIRING_STATE_IDENTITY_LENGTH} characters`);
  requireStatePayload(payload);
  await assertLifecycleCandidate(normalizedTenantId,normalizedJobId,normalizedCandidateId);
  const client=db();
@@ -55,7 +57,7 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
   if(error)throw new Error(`Unable to persist hiring state: ${error.message}`);
   const state=publicState(data);
   try {
-   await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
+   await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:normalizedActor,metadata:{stateId:state.id,stateType:normalizedType}});
   } catch (auditError) {
    const rollback=await client.from('hiring_state_history').delete().eq('id',id).eq('tenant_id',normalizedTenantId).select('id');
    if(rollback.error)throw new Error(`Hiring state audit failed and rollback failed: ${rollback.error.message}`);
@@ -68,7 +70,7 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
  const now=new Date().toISOString(); const state:HiringState={id:`state_${crypto.randomUUID()}`,tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId,type:normalizedType,payload,createdAt:now,updatedAt:now};
  writeQueue=writeQueue.then(async()=>{const all=await readAll();all.unshift(state);await fs.writeFile(filePath,JSON.stringify(all,null,2),'utf8');}); await writeQueue;
  try {
-  await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:'hiring-lifecycle',metadata:{stateId:state.id,stateType:normalizedType}});
+  await recordLifecycleAudit({tenantId:normalizedTenantId,jobId:normalizedJobId,candidateId:normalizedCandidateId||null,action:`hiring_state_${normalizedType}_saved`,actor:normalizedActor,metadata:{stateId:state.id,stateType:normalizedType}});
  } catch (auditError) {
   writeQueue=writeQueue.then(async()=>{const all=await readAll();const remaining=all.filter(item=>item.id!==state.id);if(remaining.length!==all.length)await fs.writeFile(filePath,JSON.stringify(remaining,null,2),'utf8');});
   try { await writeQueue; } catch (rollbackError) { throw new Error(`Hiring state audit failed and rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`); }
