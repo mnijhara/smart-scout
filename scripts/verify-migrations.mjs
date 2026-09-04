@@ -51,7 +51,7 @@ for (const indexName of requiredTenantIndexes) {
 if ((tenantIndexMigration.match(/create\s+index\s+if\s+not\s+exists/gi) || []).length !== requiredTenantIndexes.length) throw new Error(`Expected ${requiredTenantIndexes.length} recruiting tenant FK indexes`);
 
 const preflightMigration = await readFile(path.join(root, '017_recruiting_tenant_integrity_preflight.sql'), 'utf8');
-const requiredPreflightGuards = [/create\s+or\s+replace\s+function\s+public\.recruiting_tenant_integrity_violation_counts/i,/returns\s+table\s*\(/i,/security\s+definer/i,/set\s+search_path\s*=\s*public/i,/candidates_missing_workflow/i,/audit_events_missing_workflow/i,/audit_events_missing_candidate/i,/interviews_missing_workflow/i,/interviews_missing_candidate/i,/revoke\s+all\s+on\s+function\s+public\.recruiting_tenant_integrity_violation_counts\(\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i];
+const requiredPreflightGuards = [/create\s+or\s+replace\s+function\s+public\.recruiting_tenant_integrity_violation_counts/i,/returns\s+table\s*\(/i,/security\s+definer/i,/set\s+search_path\s*=\s+public/i,/candidates_missing_workflow/i,/audit_events_missing_workflow/i,/audit_events_missing_candidate/i,/interviews_missing_workflow/i,/interviews_missing_candidate/i,/revoke\s+all\s+on\s+function\s+public\.recruiting_tenant_integrity_violation_counts\(\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i];
 for (const pattern of requiredPreflightGuards) if (!pattern.test(preflightMigration)) throw new Error(`Recruiting tenant integrity preflight guard missing: ${pattern}`);
 
 const actorConstraintMigration = await readFile(path.join(root, '018_control_plane_actor_constraints.sql'), 'utf8');
@@ -79,6 +79,24 @@ const requiredIntegrationTenantGuards = [
 ];
 for (const pattern of requiredIntegrationTenantGuards) if (!pattern.test(integrationTenantMigration)) throw new Error(`Recruiting integration tenant guard missing: ${pattern}`);
 
+const comparisonTenantMigration = await readFile(path.join(root, '021_recruiting_comparison_tenant_integrity.sql'), 'utf8');
+const requiredComparisonTenantGuards = [
+  /recruiting_comparisons_tenant_job_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*job_id\)[\s\S]*references\s+hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /create\s+index\s+if\s+not\s+exists\s+recruiting_comparisons_tenant_job_fk_idx/i,
+  /alter\s+table\s+recruiting_comparisons\s+force\s+row\s+level\s+security/i,
+];
+for (const pattern of requiredComparisonTenantGuards) if (!pattern.test(comparisonTenantMigration)) throw new Error(`Recruiting comparison tenant guard missing: ${pattern}`);
+
+const interviewTenantMigration = await readFile(path.join(root, '022_recruiting_interview_tenant_integrity.sql'), 'utf8');
+const requiredInterviewTenantGuards = [
+  /recruiting_interviews_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+public\.hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /recruiting_interviews_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+public\.recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /create\s+index\s+if\s+not\s+exists\s+recruiting_interviews_tenant_workflow_fk_idx/i,
+  /create\s+index\s+if\s+not\s+exists\s+recruiting_interviews_tenant_candidate_fk_idx/i,
+  /alter\s+table\s+if\s+exists\s+public\.recruiting_interviews\s+force\s+row\s+level\s+security/i,
+];
+for (const pattern of requiredInterviewTenantGuards) if (!pattern.test(interviewTenantMigration)) throw new Error(`Recruiting interview tenant guard missing: ${pattern}`);
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
@@ -88,3 +106,5 @@ console.log('Recruiting tenant integrity preflight verification passed');
 console.log('Control-plane actor persistence constraint verification passed');
 console.log('Production recruiting integration RLS verification passed');
 console.log('Production recruiting integration tenant integrity verification passed');
+console.log('Recruiting comparison tenant integrity verification passed');
+console.log('Recruiting interview tenant integrity verification passed');
