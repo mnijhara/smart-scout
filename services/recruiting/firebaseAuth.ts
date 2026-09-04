@@ -133,6 +133,14 @@ export function authenticatedTenantId(req:Request):string{
   throw new Error('Workspace identity is missing');
 }
 
+export function actorFromRequest(req:Request):string {
+  const identity=(req as any).workspaceIdentity as WorkspaceIdentity|undefined;
+  if(identity?.id)return String(identity.id).trim();
+  const firebaseUser=(req as any).firebaseUser as FirebaseIdentity|undefined;
+  if(firebaseUser?.uid)return String(firebaseUser.uid).trim();
+  throw new Error('Workspace identity is missing');
+}
+
 export function workspaceSessionInfo(req:Request,res:Response){
   const identity=ensureGuestWorkspace(req,res);
   res.json({ok:true,workspaceId:identity.id,kind:identity.kind});
