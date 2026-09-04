@@ -27,6 +27,9 @@ begin
   if nullif(btrim(p_actor), '') is null then
     raise exception 'hiring state actor is required';
   end if;
+  if length(btrim(p_actor)) > 256 then
+    raise exception 'hiring state actor exceeds 256 characters';
+  end if;
 
   insert into public.hiring_state_history (
     tenant_id, workflow_id, candidate_id, state_type, payload
