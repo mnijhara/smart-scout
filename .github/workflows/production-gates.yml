@@ -146,6 +146,8 @@ jobs:
         run: npm run build:server
       - name: Verify release identity
         run: npm run verify:release
+      - name: Install Chromium for E2E
+        run: npm run browser:install
       - name: Production runtime and Chromium E2E
         run: |
           set -euo pipefail
