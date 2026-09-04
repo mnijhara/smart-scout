@@ -49,6 +49,16 @@ async function assertLifecycleCandidate(tenantId:string,jobId:string,candidateId
  const candidate=candidates.find(item=>item.id===candidateId);
  assertCandidateBelongsToJob(candidate,tenantId,jobId,candidateId);
 }
+function atomicRpcUnavailable(error:any){
+ const code=String(error?.code||'').toUpperCase();
+ const message=String(error?.message||'').toLowerCase();
+ return code==='42883' || code==='PGRST202' || (message.includes('persist_hiring_state_with_audit') && (message.includes('does not exist') || message.includes('not found')));
+}
+async function persistWithAtomicAudit(client:any,tenantId:string,jobId:string,candidateId:string|undefined,type:string,payload:any,actor:string){
+ const {data,error}=await client.rpc('persist_hiring_state_with_audit',{p_tenant_id:tenantId,p_workflow_id:workflowUuid(jobId),p_candidate_id:candidateId||null,p_state_type:type,p_payload:payload||{},p_actor:actor});
+ if(error) return {data:null,error};
+ return {data,error:null};
+}
 export async function saveHiringState(tenantId:string,jobId:string,type:string,payload:any,candidateId?:string,actor='hiring-lifecycle'):Promise<HiringState>{
  requireLifecycleIdentity(tenantId,jobId,candidateId);
  const normalizedTenantId=tenantId.trim(); const normalizedJobId=jobId.trim(); const normalizedCandidateId=candidateId?.trim(); const normalizedType=type?.trim(); const normalizedActor=normalizeLifecycleActor(actor);
@@ -58,6 +68,9 @@ export async function saveHiringState(tenantId:string,jobId:string,type:string,p
  await assertLifecycleCandidate(normalizedTenantId,normalizedJobId,normalizedCandidateId);
  const client=db();
  if(client){
+  const atomic=await persistWithAtomicAudit(client,normalizedTenantId,normalizedJobId,normalizedCandidateId,normalizedType,payload,normalizedActor);
+  if(!atomic.error) return publicState(atomic.data);
+  if(!atomicRpcUnavailable(atomic.error)) throw new Error(`Unable to persist hiring state atomically: ${atomic.error.message}`);
   const id=crypto.randomUUID(); const {data,error}=await client.from('hiring_state_history').insert({id,tenant_id:normalizedTenantId,workflow_id:workflowUuid(normalizedJobId),candidate_id:normalizedCandidateId||null,state_type:normalizedType,payload:payload||{}}).select('*').single();
   if(error)throw new Error(`Unable to persist hiring state: ${error.message}`);
   const state=publicState(data);
