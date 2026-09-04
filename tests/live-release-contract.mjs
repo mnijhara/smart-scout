@@ -1,12 +1,16 @@
 const liveUrl = (process.env.LIVE_URL || 'https://smartscout.online/').replace(/\/$/, '');
 const expected = process.env.GITHUB_SHA;
+const REQUEST_TIMEOUT_MS = 15000;
 
 if (!expected || !/^[0-9a-f]{40}$/i.test(expected)) {
   throw new Error('GITHUB_SHA must be a full 40-character commit SHA for live release verification');
 }
 
 async function getText(path) {
-  const response = await fetch(`${liveUrl}${path}`, { redirect: 'follow' });
+  const response = await fetch(`${liveUrl}${path}`, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
   return response.text();
 }
