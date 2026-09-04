@@ -10,6 +10,14 @@ const required = [
   /run:\s*node tests\/migration-verifier-hiring-state-integrity-regression\.mjs/,
   /run:\s*node tests\/hiring-state-tenant-integrity-migration-order-regression\.mjs/,
   /run:\s*node tests\/hiring-state-atomic-audit-migration-regression\.mjs/,
+  /run:\s*npm run verify:release/,
+  /name:\s*Verify release artifacts/,
+  /test -d dist/,
+  /dist\/release\.json/,
+  /\$GITHUB_SHA/,
+  /name:\s*Verify live release identity \(external, non-blocking\)/,
+  /continue-on-error:\s*true/,
+  /LIVE_URL:\s*https:\/\/smartscout\.online\//,
 ];
 
 for (const pattern of required) {
