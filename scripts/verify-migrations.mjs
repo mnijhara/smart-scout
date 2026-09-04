@@ -97,6 +97,17 @@ const requiredInterviewTenantGuards = [
 ];
 for (const pattern of requiredInterviewTenantGuards) if (!pattern.test(interviewTenantMigration)) throw new Error(`Recruiting interview tenant guard missing: ${pattern}`);
 
+const auditTenantMigration = await readFile(path.join(root, '023_recruiting_audit_tenant_integrity.sql'), 'utf8');
+const requiredAuditTenantGuards = [
+  /recruiting_audit_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /recruiting_audit_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*on\s+delete\s+cascade[\s\S]*not\s+valid/i,
+  /create\s+index\s+if\s+not\s+exists\s+recruiting_audit_tenant_workflow_idx/i,
+  /create\s+index\s+if\s+not\s+exists\s+recruiting_audit_tenant_candidate_idx/i,
+  /recruiting_audit_actor_not_blank[\s\S]*check\s*\(actor_id\s+is\s+null\s+or\s+length\(btrim\(actor_id\)\)\s+between\s+1\s+and\s+256\)[\s\S]*not\s+valid/i,
+  /alter\s+table\s+recruiting_audit_events\s+force\s+row\s+level\s+security/i,
+];
+for (const pattern of requiredAuditTenantGuards) if (!pattern.test(auditTenantMigration)) throw new Error(`Recruiting audit tenant guard missing: ${pattern}`);
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
@@ -108,3 +119,4 @@ console.log('Production recruiting integration RLS verification passed');
 console.log('Production recruiting integration tenant integrity verification passed');
 console.log('Recruiting comparison tenant integrity verification passed');
 console.log('Recruiting interview tenant integrity verification passed');
+console.log('Recruiting audit tenant integrity verification passed');
