@@ -117,6 +117,16 @@ for (const pattern of requiredActorConstraints) {
   if (!pattern.test(actorConstraintMigration)) throw new Error(`Control-plane actor persistence guard missing: ${pattern}`);
 }
 
+const integrationMigration = await readFile(path.join(root, '019_production_recruiting_integrations.sql'), 'utf8');
+const requiredIntegrationTables = ['recruiting_documents', 'recruiting_knockout_results', 'recruiting_comparisons', 'recruiting_integration_events'];
+for (const table of requiredIntegrationTables) {
+  const enablePattern = new RegExp(`alter\\s+table\\s+${table}\\s+enable\\s+row\\s+level\\s+security`, 'i');
+  const revokePattern = new RegExp(`revoke\\s+all\\s+on\\s+${table}\\s+from\\s+anon\\s*,\\s*authenticated`, 'i');
+  if (!enablePattern.test(integrationMigration) || !revokePattern.test(integrationMigration)) {
+    throw new Error(`Production recruiting integration RLS/revoke coverage incomplete for ${table}`);
+  }
+}
+
 console.log(`Supabase migration verification passed: ${files.join(', ')}`);
 console.log('Hiring lifecycle persistence tenant guard verification passed');
 console.log('Recruiting core and audit RLS verification passed');
@@ -124,3 +134,4 @@ console.log('Recruiting tenant integrity constraint verification passed');
 console.log('Recruiting tenant FK index verification passed');
 console.log('Recruiting tenant integrity preflight verification passed');
 console.log('Control-plane actor persistence constraint verification passed');
+console.log('Production recruiting integration RLS verification passed');
