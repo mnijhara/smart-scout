@@ -12,12 +12,12 @@ delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 const { saveHiringState } = await import('../services/recruiting/hiringStateStore.ts');
 const { listAudit } = await import('../services/recruiting/controlPlane.ts');
 
-await saveHiringState('tenant_actor', 'job_1', 'decision', { recommendation: 'hire' }, undefined, 'recruiter@example.com');
+await saveHiringState('tenant_actor', 'job_1', 'decision', { recommendation: 'hire' }, undefined, ' recruiter@example.com ');
 const events = await listAudit('tenant_actor', 'job_1');
 const event = events.find(item => item.action === 'hiring_state_decision_saved');
 
 assert.ok(event, 'hiring-state persistence must emit its lifecycle audit event');
-assert.equal(event.actor, 'recruiter@example.com', 'audit must preserve the authenticated lifecycle actor');
+assert.equal(event.actor, 'recruiter@example.com', 'audit must preserve the normalized authenticated lifecycle actor');
 assert.notEqual(event.actor, 'hiring-lifecycle', 'production lifecycle audit must not silently use the generic actor when one is supplied');
 assert.equal(event.metadata?.stateType, 'decision');
 
@@ -25,6 +25,18 @@ await assert.rejects(
   () => saveHiringState('tenant_actor', 'job_1', 'offer', { status: 'draft' }, undefined, '   '),
   /Hiring state actor is required/,
   'blank lifecycle actors must be rejected before persistence'
+);
+
+await assert.rejects(
+  () => saveHiringState('tenant_actor', 'job_1', 'offer', { status: 'draft' }, undefined, null),
+  /Hiring state actor is required/,
+  'non-string lifecycle actors must be rejected before persistence'
+);
+
+await assert.rejects(
+  () => saveHiringState('tenant_actor', 'job_1', 'offer', { status: 'draft' }, undefined, 'a'.repeat(257)),
+  /Hiring state actor exceeds 256 characters/,
+  'oversized lifecycle actors must be rejected before persistence'
 );
 
 console.log('Hiring-state authenticated actor propagation and validation regression checks passed.');
