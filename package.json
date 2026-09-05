@@ -93,6 +93,7 @@
     "tailwindcss": "^4.2.2",
     "@vitejs/plugin-react": "^5.0.4",
     "playwright": "^1.55.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
   }
 }
