@@ -4,12 +4,14 @@ import { dirname, resolve } from 'node:path';
 
 const output = resolve(process.argv[2] || 'dist/release.json');
 
-// Deployment platforms may expose their checkout SHA directly. Prefer that over
-// a manually configured release label so production can never stamp an old build.
-let commit = process.env.HOSTINGER_GIT_COMMIT_SHA || '';
-if (!commit && process.env.CI === 'true' && process.env.GITHUB_SHA) {
+// CI's immutable commit identity is authoritative whenever available. Deployment
+// metadata is only a fallback, preventing stale platform labels from stamping a
+// release artifact that can never pass exact GitHub/live parity checks.
+let commit = '';
+if (process.env.CI === 'true' && process.env.GITHUB_SHA) {
   commit = process.env.GITHUB_SHA;
 }
+if (!commit) commit = process.env.HOSTINGER_GIT_COMMIT_SHA || '';
 if (!commit) {
   try {
     commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
