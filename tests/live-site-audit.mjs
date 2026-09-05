@@ -37,10 +37,11 @@ const health = await get('/api/recruiting/health');
 const healthPayload = await health.json();
 if (healthPayload?.ok !== true) throw new Error('Recruiting health endpoint is not healthy');
 
-const unauthenticatedApi = await fetch(`${baseUrl}/api/recruiting/session`, { redirect: 'follow' });
-if (unauthenticatedApi.status !== 401 && unauthenticatedApi.status !== 403) {
-  throw new Error(`/api/recruiting/session should reject unauthenticated access, got HTTP ${unauthenticatedApi.status}`);
-}
+// Session bootstrap is intentionally public: it establishes the anonymous
+// browser session/cookie that subsequent recruiting APIs require.
+const session = await get('/api/recruiting/session');
+const sessionPayload = await session.json();
+if (sessionPayload?.ok !== true) throw new Error('Recruiting session bootstrap is not healthy');
 
 const release = await get('/release.json');
 const contentType = String(release.headers.get('content-type') || '').toLowerCase();
