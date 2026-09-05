@@ -1,0 +1,57 @@
+name: Repair Release JSON Route
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Fix production release JSON route
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('server.ts')
+          s = p.read_text()
+          marker = "  if (process.env.NODE_ENV !== 'production') {"
+          route = "  if (process.env.NODE_ENV === 'production') { app.get('/release.json', (_req, res) => { res.type('application/json'); res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.sendFile(path.join(process.cwd(), 'dist', 'release.json')); }); }\n"
+          if route.strip() in s:
+              raise SystemExit('release JSON route already present')
+          if marker not in s:
+              raise SystemExit('production Vite/static marker not found')
+          p.write_text(s.replace(marker, route + marker, 1))
+          PY
+          grep -q "app.get('/release.json'" server.ts
+      - name: Add regression contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > tests/release-json-route-regression.mjs <<'EOF'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const source = fs.readFileSync('server.ts', 'utf8');
+          assert.match(source, /app\.get\('\/release\.json'/, 'production server must expose release.json explicitly');
+          assert.match(source, /res\.type\('application\/json'\)/, 'release.json must declare JSON content type');
+          assert.match(source, /sendFile\(path\.join\(process\.cwd\(\), 'dist', 'release\.json'\)\)/, 'release.json must resolve to the generated release artifact');
+          console.log('Release JSON route contract: OK');
+          EOF
+          node tests/release-json-route-regression.mjs
+      - name: Commit source fix and remove repair workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server.ts tests/release-json-route-regression.mjs
+          git rm .github/workflows/repair-release-json-route.yml
+          git commit -m 'fix: serve release metadata as json'
+          git push origin HEAD:main
