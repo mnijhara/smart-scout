@@ -1,0 +1,24 @@
+name: Hiring Lifecycle Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-role-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Candidate role contract
+        run: node tests/hiring-lifecycle-candidate-role-contract.mjs
