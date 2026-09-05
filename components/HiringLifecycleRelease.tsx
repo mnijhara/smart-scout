@@ -3,7 +3,7 @@ import{ArrowLeft,Check,ChevronRight,KeyRound,Loader2,ShieldCheck,X}from'lucide-r
 import BrowserSourceConnect from'./BrowserSourceConnect';
 
 type Stage='intent'|'job'|'source'|'screen'|'interview'|'decision'|'comp'|'offer'|'engagement'|'onboarding';
-type Candidate={id?:string;name:string;headline?:string;location?:string;profileUrl?:string;source?:string;summary?:string;reason?:string;evidence?:string[];score?:any};
+type Candidate={id?:string;name:string;role?:string;headline?:string;location?:string;profileUrl?:string;source?:string;summary?:string;reason?:string;evidence?:string[];score?:any};
 type Analysis={title?:string;description?:string;mustHave?:string[];niceToHave?:string[];location?:string;experienceMin?:number;experienceMax?:number;compensationMin?:number;compensationMax?:number;department?:string;competencies?:string[];interviewFocus?:string[]};
 const stages:Array<[Stage,string]>= [['intent','Command'],['job','JD'],['source','Source'],['screen','Shortlist'],['interview','Interview'],['decision','Decision'],['comp','Comp'],['offer','Offer'],['engagement','Engage'],['onboarding','Onboard']];
 const api=async(path:string,body?:any,method='POST')=>{const r=await fetch(`/api/recruiting/${path}`,{method,headers:{'content-type':'application/json'},credentials:'include',body:method==='GET'?undefined:JSON.stringify(body||{})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Request failed');return d};
