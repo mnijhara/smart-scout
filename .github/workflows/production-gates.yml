@@ -88,19 +88,19 @@ jobs:
       - name: Store tenant identity regression
         run: npx tsx tests/store-tenant-identity-regression.mjs
       - name: Interview state machine regression
-        run: npx tsx tests/interview-state-machine-regression.mjs
+        run: node tests/interview-state-machine-regression.mjs
       - name: Interview timestamp validation regression
-        run: npx tsx tests/interview-window-validation-regression.mjs
+        run: node tests/interview-window-validation-regression.mjs
       - name: Interview audit actor regression
-        run: npx tsx tests/interview-audit-actor-regression.mjs
+        run: node tests/interview-audit-actor-regression.mjs
       - name: Interview identity regression
-        run: npx tsx tests/interview-identity-regression.mjs
+        run: node tests/interview-identity-regression.mjs
       - name: Interview answer boundary regression
-        run: npx tsx tests/interview-answer-boundary-regression.mjs
+        run: node tests/interview-answer-boundary-regression.mjs
       - name: Interview schedule input regression
-        run: npx tsx tests/interview-schedule-input-regression.mjs
+        run: node tests/interview-schedule-input-regression.mjs
       - name: Interview schedule tenant isolation regression
-        run: npx tsx tests/interview-schedule-tenant-isolation-regression.mjs
+        run: node tests/interview-schedule-tenant-isolation-regression.mjs
       - name: Audit persistence count regression
         run: node tests/audit-persistence-count-regression.mjs
       - name: Audit identity validation regression
@@ -198,15 +198,4 @@ jobs:
         continue-on-error: true
         env:
           LIVE_URL: https://smartscout.online/
-        run: |
-          set +e
-          LIVE_HTTP_CODE=$(curl -sS -o /tmp/smartscout-live.html -w '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 "$LIVE_URL")
-          CURL_EXIT=$?
-          set -e
-          if [ "$CURL_EXIT" -ne 0 ]; then echo "WARNING: live release verification could not reach $LIVE_URL (curl exit $CURL_EXIT)"; cat /tmp/smartscout-live.html 2>/dev/null || true; exit 1; fi
-          if [ "$LIVE_HTTP_CODE" != "200" ]; then echo "WARNING: live release verification blocked: $LIVE_URL returned HTTP $LIVE_HTTP_CODE"; cat /tmp/smartscout-live.html || true; exit 1; fi
-          LIVE_MARKER=$(sed -n 's/.*smart-scout-release[^>]*content="\([^"]*\)".*/\1/p' /tmp/smartscout-live.html | head -n 1)
-          LIVE_SHA=$(curl -fsS --max-time 10 "$LIVE_URL/release.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).commit))")
-          test "$LIVE_MARKER" = "$GITHUB_SHA"
-          test "$LIVE_SHA" = "$GITHUB_SHA"
-          echo "Live SmartScout release verified: $GITHUB_SHA"
+        run: npm run verify:live-release
