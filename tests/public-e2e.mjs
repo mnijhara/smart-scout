@@ -2,9 +2,8 @@ import { chromium } from 'playwright';
 
 const baseUrl = process.env.SMARTSCOUT_BASE_URL || 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
-try {
+async function assertLandingJourney(page) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.getByText('Watch the hiring work happen on screen.', { exact: false }).waitFor({ state: 'visible', timeout: 15000 });
   await page.getByText('Smart Scout · product simulation').waitFor({ state: 'visible', timeout: 5000 });
@@ -31,8 +30,20 @@ try {
   await page.getByRole('button', { name: /^08 Offer$/ }).click();
   await page.getByText('Comp benchmark').waitFor({ state: 'visible', timeout: 5000 });
   await page.getByRole('button', { name: /Run your real hiring need/i }).waitFor({ state: 'visible', timeout: 5000 });
+}
 
-  console.log('PUBLIC_MAGIC_DEMO_E2E_OK');
+try {
+  const desktop = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await assertLandingJourney(desktop);
+  console.log('PUBLIC_MAGIC_DEMO_DESKTOP_E2E_OK');
+  await desktop.close();
+
+  const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  await assertLandingJourney(mobile);
+  const horizontalOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  if (horizontalOverflow) throw new Error('Mobile landing page has horizontal overflow');
+  console.log('PUBLIC_MAGIC_DEMO_MOBILE_E2E_OK');
+  await mobile.close();
 } finally {
   await browser.close();
 }
