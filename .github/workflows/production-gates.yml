@@ -66,6 +66,10 @@ jobs:
         run: node tests/hiring-state-isolation-regression.mjs
       - name: Hiring state persistence and audit regression
         run: npx tsx tests/hiring-state-audit-regression.mjs
+      - name: Hiring state audit rollback regression
+        run: npm run e2e:hiring-state-audit-rollback
+      - name: Hiring state audit actor regression
+        run: npm run e2e:hiring-state-audit-actor
       - name: Hiring state query identity regression
         run: npx tsx tests/hiring-state-query-identity-regression.mjs
       - name: Hiring state candidate identity regression
