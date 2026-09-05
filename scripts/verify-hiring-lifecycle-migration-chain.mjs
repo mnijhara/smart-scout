@@ -29,6 +29,8 @@ requirePatterns(tenantIntegrity, '024 hiring-state tenant integrity', [
   /alter\s+table\s+public\.hiring_state_history\s+force\s+row\s+level\s+security/i,
 ]);
 
+const lifecycleRpcSignature = /public\.persist_hiring_state_with_audit\(text,\s*uuid,\s*uuid,\s*text,\s*jsonb,\s*text\)/i;
+
 requirePatterns(atomicAudit, '025 atomic hiring-state audit', [
   /create\s+or\s+replace\s+function\s+public\.persist_hiring_state_with_audit\s*\(/i,
   /returns\s+public\.hiring_state_history/i,
@@ -43,16 +45,33 @@ requirePatterns(atomicAudit, '025 atomic hiring-state audit', [
 
 requirePatterns(inputBounds, '026 hiring-state RPC input bounds', [
   /create\s+or\s+replace\s+function\s+public\.persist_hiring_state_with_audit\s*\(/i,
+  /returns\s+public\.hiring_state_history/i,
+  /language\s+plpgsql/i,
+  /security\s+definer/i,
+  /set\s+search_path\s*=\s*public/i,
   /length\(btrim\(p_tenant_id\)\)\s*>\s*256/i,
   /length\(btrim\(p_state_type\)\)\s*>\s*128/i,
   /length\(btrim\(p_actor\)\)\s*>\s*256/i,
   /octet_length\(convert_to\(/i,
+  /revoke\s+all\s+on\s+function\s+public\.persist_hiring_state_with_audit\(text,\s*uuid,\s*uuid,\s*text,\s*jsonb,\s*text\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+  /grant\s+execute\s+on\s+function\s+public\.persist_hiring_state_with_audit\(text,\s*uuid,\s*uuid,\s*text,\s*jsonb,\s*text\)\s+to\s+service_role/i,
+  /comment\s+on\s+function\s+public\.persist_hiring_state_with_audit[\s\S]*atomically\s+persists/i,
 ]);
 
 const stateInsert = /insert\s+into\s+public\.hiring_state_history/i.exec(atomicAudit)?.index ?? -1;
 const auditInsert = /insert\s+into\s+public\.recruiting_audit_events/i.exec(atomicAudit)?.index ?? -1;
 if (stateInsert < 0 || auditInsert < 0 || auditInsert < stateInsert) {
   throw new Error('025 must write the lifecycle state before its corresponding audit event');
+}
+
+const firstValidation = /if\s+nullif\(btrim\(p_tenant_id\),\s*''\)\s+is\s+null\s+then/i.exec(inputBounds)?.index ?? -1;
+const boundedInsert = /insert\s+into\s+public\.hiring_state_history/i.exec(inputBounds)?.index ?? -1;
+if (firstValidation < 0 || boundedInsert < 0 || firstValidation > boundedInsert) {
+  throw new Error('026 must validate lifecycle inputs before writing state');
+}
+
+if (!lifecycleRpcSignature.test(inputBounds)) {
+  throw new Error('026 must preserve the canonical hiring-state RPC signature');
 }
 
 for (let i = 0; i < migrationFiles.length; i += 1) {
