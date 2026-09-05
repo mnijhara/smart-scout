@@ -9,4 +9,4 @@ alter table if exists public.recruiting_candidates enable row level security;
 alter table if exists public.recruiting_candidates force row level security;
 
 -- Intentionally create no permissive policies. Until the runtime supplies an authenticated
-authenticated tenant claim to Postgres, non-service clients must receive no rows and cannot mutate data.
+-- tenant claim to Postgres, non-service clients must receive no rows and cannot mutate data.
