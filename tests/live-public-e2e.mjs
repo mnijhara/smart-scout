@@ -11,6 +11,17 @@ async function exerciseHiringJourney(page) {
   const logo = page.locator('img[alt="Smart Scout"]').first();
   if (await logo.count()) await logo.waitFor({ state: 'visible', timeout: 5000 });
 
+  const accessibility = await page.evaluate(() => {
+    const imagesMissingAlt = [...document.images].filter((image) => !image.hasAttribute('alt'));
+    const unnamedButtons = [...document.querySelectorAll('button')].filter((button) => {
+      const text = (button.textContent || '').trim();
+      return !text && !button.getAttribute('aria-label') && !button.getAttribute('title');
+    });
+    return { imagesMissingAlt: imagesMissingAlt.length, unnamedButtons: unnamedButtons.length };
+  });
+  if (accessibility.imagesMissingAlt) throw new Error(`Live page has ${accessibility.imagesMissingAlt} image(s) without alt text`);
+  if (accessibility.unnamedButtons) throw new Error(`Live page has ${accessibility.unnamedButtons} unnamed button(s)`);
+
   await page.getByRole('button', { name: /See the magic demo/i }).click();
   await page.getByText('Full hiring journey · fictional demo data').waitFor({ state: 'visible', timeout: 5000 });
   await page.getByText('Screen 1 of 7').waitFor({ state: 'visible', timeout: 5000 });
