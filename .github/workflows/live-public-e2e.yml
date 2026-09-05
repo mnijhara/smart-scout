@@ -47,4 +47,13 @@ jobs:
         env:
           SMARTSCOUT_BASE_URL: https://smartscout.online
           EXPECTED_RELEASE_SHA: ${{ github.sha }}
+          LIVE_E2E_DIAGNOSTICS_DIR: artifacts/live-public-e2e
         run: node tests/live-public-e2e.mjs
+      - name: Upload live Chromium diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartscout-live-public-e2e-diagnostics-${{ github.sha }}
+          path: artifacts/live-public-e2e
+          if-no-files-found: ignore
+          retention-days: 7
