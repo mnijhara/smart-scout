@@ -19,12 +19,11 @@ jobs:
         with:
           node-version: 22
       - name: Audit live public UI and release identity
-        continue-on-error: true
         run: node tests/live-site-audit.mjs
         env:
           LIVE_URL: https://smartscout.online
+          EXPECTED_COMMIT: ${{ github.sha }}
       - name: Require exact GitHub/live release parity
-        continue-on-error: true
         run: node tests/live-release-contract.mjs
         env:
           LIVE_URL: https://smartscout.online
