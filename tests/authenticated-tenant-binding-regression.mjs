@@ -27,8 +27,13 @@ assert.doesNotMatch(
 
 assert.match(
   apiSource,
-  /function tenantId\(req: any\): string \{ return String\(req\.header\('x-tenant-id'\) \|\| ''\); \}/,
-  'recruiting routes may consume the tenant context only after authentication middleware binds it',
+  /function tenantId\(req: any\): string \{ return authenticatedTenantId\(req\); \}/,
+  'recruiting routes must consume the server-derived authenticated tenant context',
+);
+assert.match(
+  apiSource,
+  /function requireTenantId\(req: any\): string \{[\s\S]*?if \(!tenant\) throw new Error\('Workspace identity is missing'\);/,
+  'recruiting mutations must reject requests without authenticated workspace identity',
 );
 
 console.log('Authenticated tenant binding regression passed');
