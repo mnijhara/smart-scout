@@ -1,8 +1,10 @@
 import { chromium } from 'playwright';
+import fs from 'node:fs/promises';
 
 const baseUrl = (process.env.SMARTSCOUT_BASE_URL || 'https://smartscout.online').replace(/\/$/, '');
 const expectedRelease = process.env.EXPECTED_RELEASE_SHA;
 const browser = await chromium.launch({ headless: true });
+const diagnosticsDir = process.env.LIVE_E2E_DIAGNOSTICS_DIR || 'artifacts/live-public-e2e';
 
 async function exerciseHiringJourney(page) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -47,11 +49,29 @@ async function exerciseHiringJourney(page) {
 
 const consoleErrors = [];
 const pageErrors = [];
+const requestFailures = [];
+
+async function attachDiagnostics(page, name) {
+  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(`${name}: ${message.text()}`); });
+  page.on('pageerror', (error) => pageErrors.push(`${name}: ${error.message}`));
+  page.on('requestfailed', (request) => {
+    requestFailures.push(`${name}: ${request.method()} ${request.url()} :: ${request.failure()?.errorText || 'request failed'}`);
+  });
+}
+
+async function captureDiagnostics(page, name) {
+  await fs.mkdir(diagnosticsDir, { recursive: true });
+  await page.screenshot({ path: `${diagnosticsDir}/${name}.png`, fullPage: true });
+  await fs.writeFile(`${diagnosticsDir}/errors.txt`, [
+    'Console errors:', ...consoleErrors,
+    '', 'Page errors:', ...pageErrors,
+    '', 'Request failures:', ...requestFailures,
+  ].join('\n'));
+}
 
 try {
   const desktop = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  desktop.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
-  desktop.on('pageerror', (error) => pageErrors.push(error.message));
+  await attachDiagnostics(desktop, 'desktop');
 
   const response = await desktop.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   if (!response || response.status() !== 200) {
@@ -75,18 +95,27 @@ try {
   await desktop.close();
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
-  mobile.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
-  mobile.on('pageerror', (error) => pageErrors.push(error.message));
+  await attachDiagnostics(mobile, 'mobile');
   await exerciseHiringJourney(mobile);
   const horizontalOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   if (horizontalOverflow) throw new Error('Live mobile landing journey has horizontal overflow');
   await mobile.close();
 
-  if (consoleErrors.length || pageErrors.length) {
-    throw new Error(`LIVE_BROWSER_ERRORS console=${JSON.stringify(consoleErrors)} page=${JSON.stringify(pageErrors)}`);
+  if (consoleErrors.length || pageErrors.length || requestFailures.length) {
+    throw new Error(`LIVE_BROWSER_ERRORS console=${JSON.stringify(consoleErrors)} page=${JSON.stringify(pageErrors)} requests=${JSON.stringify(requestFailures)}`);
   }
 
   console.log(`LIVE_PUBLIC_E2E_OK ${baseUrl}`);
+} catch (error) {
+  try {
+    const diagnosticPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    await diagnosticPage.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await captureDiagnostics(diagnosticPage, 'failure');
+    await diagnosticPage.close();
+  } catch (diagnosticError) {
+    console.error(`LIVE_E2E_DIAGNOSTICS_FAILED ${diagnosticError.message}`);
+  }
+  throw error;
 } finally {
   await browser.close();
 }
