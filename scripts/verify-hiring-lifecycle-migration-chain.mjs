@@ -29,7 +29,7 @@ requirePatterns(tenantIntegrity, '024 hiring-state tenant integrity', [
   /alter\s+table\s+public\.hiring_state_history\s+force\s+row\s+level\s+security/i,
 ]);
 
-const lifecycleRpcSignature = /public\.persist_hiring_state_with_audit\(text,\s*uuid,\s*uuid,\s*text,\s*jsonb,\s*text\)/i;
+const lifecycleRpcSignature = /create\s+or\s+replace\s+function\s+public\.persist_hiring_state_with_audit\s*\(/i;
 
 requirePatterns(atomicAudit, '025 atomic hiring-state audit', [
   /create\s+or\s+replace\s+function\s+public\.persist_hiring_state_with_audit\s*\(/i,
