@@ -57,6 +57,8 @@ jobs:
         run: node tests/production-gates-hiring-chain-order-regression.mjs
       - name: Migration readiness regression
         run: node tests/migration-readiness-regression.mjs
+      - name: Hiring-state tenant integrity migration order regression
+        run: node tests/hiring-state-tenant-integrity-migration-order-regression.mjs
       - name: Recruiting core RLS migration order regression
         run: node tests/recruiting-core-rls-migration-order-regression.mjs
       - name: Recruiting core RLS regression
