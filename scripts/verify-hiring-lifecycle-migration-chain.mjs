@@ -1,12 +1,19 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = path.resolve('supabase/migrations');
+const migrationFiles = [
+  '024_hiring_state_tenant_integrity.sql',
+  '025_hiring_state_atomic_audit.sql',
+  '026_hiring_state_rpc_input_bounds.sql',
+];
 const readMigration = async (name) => readFile(path.join(root, name), 'utf8');
 
-const tenantIntegrity = await readMigration('024_hiring_state_tenant_integrity.sql');
-const atomicAudit = await readMigration('025_hiring_state_atomic_audit.sql');
-const inputBounds = await readMigration('026_hiring_state_rpc_input_bounds.sql');
+for (const name of migrationFiles) {
+  await access(path.join(root, name));
+}
+
+const [tenantIntegrity, atomicAudit, inputBounds] = await Promise.all(migrationFiles.map(readMigration));
 
 const requirePatterns = (source, label, patterns) => {
   for (const pattern of patterns) {
@@ -42,17 +49,18 @@ requirePatterns(inputBounds, '026 hiring-state RPC input bounds', [
   /octet_length\(convert_to\(/i,
 ]);
 
-const stateInsert = atomicAudit.indexOf('insert into public.hiring_state_history');
-const auditInsert = atomicAudit.indexOf('insert into public.recruiting_audit_events');
+const stateInsert = /insert\s+into\s+public\.hiring_state_history/i.exec(atomicAudit)?.index ?? -1;
+const auditInsert = /insert\s+into\s+public\.recruiting_audit_events/i.exec(atomicAudit)?.index ?? -1;
 if (stateInsert < 0 || auditInsert < 0 || auditInsert < stateInsert) {
   throw new Error('025 must write the lifecycle state before its corresponding audit event');
 }
 
-const migrationFiles = ['024_hiring_state_tenant_integrity.sql', '025_hiring_state_atomic_audit.sql', '026_hiring_state_rpc_input_bounds.sql'];
 for (let i = 0; i < migrationFiles.length; i += 1) {
-  const previousVersion = Number(migrationFiles[i - 1]?.match(/^(\d+)_/)?.[1] ?? 23);
   const currentVersion = Number(migrationFiles[i].match(/^(\d+)_/)?.[1]);
-  if (currentVersion !== previousVersion + 1) throw new Error(`Hiring lifecycle migration sequence broken before ${migrationFiles[i]}`);
+  const expectedVersion = 24 + i;
+  if (currentVersion !== expectedVersion) {
+    throw new Error(`Hiring lifecycle migration sequence broken: expected ${expectedVersion}, found ${currentVersion}`);
+  }
 }
 
 console.log('Hiring lifecycle migration chain verification passed.');
