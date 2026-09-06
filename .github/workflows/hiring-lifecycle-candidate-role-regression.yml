@@ -1,0 +1,35 @@
+name: Hiring Lifecycle Candidate Role Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'components/HiringLifecycleRelease.tsx'
+      - 'tests/hiring-lifecycle-candidate-role-contract.mjs'
+      - '.github/workflows/hiring-lifecycle-candidate-role-regression.yml'
+  pull_request:
+    paths:
+      - 'components/HiringLifecycleRelease.tsx'
+      - 'tests/hiring-lifecycle-candidate-role-contract.mjs'
+      - '.github/workflows/hiring-lifecycle-candidate-role-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hiring-lifecycle-candidate-role-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate-role-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Run candidate role contract
+        run: node tests/hiring-lifecycle-candidate-role-contract.mjs
