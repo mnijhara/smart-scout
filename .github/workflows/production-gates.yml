@@ -59,6 +59,8 @@ jobs:
         run: node tests/migration-readiness-regression.mjs
       - name: Hiring-state tenant integrity migration order regression
         run: node tests/hiring-state-tenant-integrity-migration-order-regression.mjs
+      - name: Hiring-state atomic audit migration regression
+        run: node tests/hiring-state-atomic-audit-migration-regression.mjs
       - name: Recruiting core RLS migration order regression
         run: node tests/recruiting-core-rls-migration-order-regression.mjs
       - name: Recruiting core RLS regression
