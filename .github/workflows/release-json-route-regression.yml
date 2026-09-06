@@ -1,0 +1,39 @@
+name: Release JSON Route Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server.ts'
+      - 'server.cjs'
+      - 'tests/release-json-route-regression.mjs'
+      - '.github/workflows/release-json-route-regression.yml'
+  pull_request:
+    paths:
+      - 'server.ts'
+      - 'server.cjs'
+      - 'tests/release-json-route-regression.mjs'
+      - '.github/workflows/release-json-route-regression.yml'
+
+concurrency:
+  group: release-json-route-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  release-json-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Run release JSON route regression
+        run: node tests/release-json-route-regression.mjs
