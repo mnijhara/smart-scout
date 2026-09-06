@@ -1,0 +1,28 @@
+name: Brand Spacing Regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brand-spacing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  brand-spacing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Smart Scout logo spacing regression
+        run: node tests/brand-spacing-regression.mjs
