@@ -43,6 +43,22 @@ const session = await get('/api/recruiting/session');
 const sessionPayload = await session.json();
 if (sessionPayload?.ok !== true) throw new Error('Recruiting session bootstrap is not healthy');
 
+const securityHeaders = [
+  ['x-content-type-options', 'nosniff'],
+  ['x-frame-options', 'SAMEORIGIN'],
+  ['referrer-policy', 'strict-origin-when-cross-origin'],
+  ['permissions-policy', 'camera=(), geolocation=(), payment=(self), microphone=()'],
+];
+for (const [name, expected] of securityHeaders) {
+  const actual = String(health.headers.get(name) || '').trim();
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(`Live security header mismatch for ${name}: expected ${expected}, got ${actual || 'missing'}`);
+  }
+}
+if (baseUrl.startsWith('https://') && !String(health.headers.get('strict-transport-security') || '').toLowerCase().includes('max-age=31536000')) {
+  throw new Error('Live HTTPS response is missing the expected one-year HSTS policy');
+}
+
 const release = await get('/release.json');
 const contentType = String(release.headers.get('content-type') || '').toLowerCase();
 if (!contentType.includes('application/json')) {
