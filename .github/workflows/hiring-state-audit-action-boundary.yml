@@ -20,8 +20,5 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
       - name: Verify hiring-state audit action boundary
         run: node tests/hiring-state-rpc-audit-action-boundary-regression.mjs
