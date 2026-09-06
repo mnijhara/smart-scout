@@ -9,5 +9,7 @@ assert.match(source, /if\s*\(!commit\)\s*commit\s*=\s*process\.env\.HOSTINGER_GI
 assert.match(source, /<meta name=\\"smart-scout-release\\" content=\\"\$\{commit\}/,'HTML must receive the same release SHA as release.json');
 assert.match(source, /JSON\.stringify\(\{\s*name:\s*['"]smart-scout['"]\s*,\s*commit\s*,/s,'release.json must persist the exact release SHA');
 assert.match(source, /\^\[0-9a-f\]\{40\}\$\/i/,'Release SHA must be a full 40-character hexadecimal commit');
+assert.match(source, /markerPattern\s*=\s*\/<meta name=\\"smart-scout-release\\"[^>]*>\/g/,'Release stamping must inspect every release marker');
+assert.match(source, /markers\.length\s*!==\s*1/,'Release stamping must reject ambiguous duplicate markers');
 
 console.log('Release stamp contract regression passed');
