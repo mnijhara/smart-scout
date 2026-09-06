@@ -5,9 +5,9 @@ clearRateLimits();
 
 assert.equal(scopedRateLimitKey('tenant_a', 'user_1', 'recruiting'), 'tenant_a:user_1:recruiting');
 assert.equal(scopedRateLimitKey(' tenant_a ', 42, ' recruiting '), 'tenant_a:42:recruiting');
-await assert.rejects(() => Promise.resolve(scopedRateLimitKey()), /Rate limit key parts are required/);
-await assert.rejects(() => Promise.resolve(scopedRateLimitKey('tenant_a', '')), /Rate limit key parts are required/);
-await assert.rejects(() => Promise.resolve(scopedRateLimitKey('x'.repeat(257))), /Rate limit key is too long/);
+assert.throws(() => scopedRateLimitKey(), /Rate limit key parts are required/);
+assert.throws(() => scopedRateLimitKey('tenant_a', ''), /Rate limit key parts are required/);
+assert.throws(() => scopedRateLimitKey('x'.repeat(257)), /Rate limit key is too long/);
 
 assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1000), {
   allowed: true,
@@ -53,13 +53,13 @@ assert.deepEqual(afterClockRollback, {
 });
 
 // Reject malformed or unbounded rate-limit inputs before they can create unsafe buckets.
-await assert.rejects(() => Promise.resolve(checkRateLimit('', 2, 1000, 0)), /Rate limit key is required/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('key', 0, 1000, 0)), /Rate limit must be a positive integer/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('key', Number.MAX_SAFE_INTEGER + 1, 1000, 0)), /Rate limit must be a positive integer/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 0, 0)), /Rate limit window must be a positive integer/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, Number.MAX_SAFE_INTEGER + 1, 0)), /Rate limit window must be a positive integer/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('x'.repeat(257), 2, 1000, 0)), /Rate limit key is too long/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 1000, -1)), /Rate limit timestamp must be a non-negative integer/);
-await assert.rejects(() => Promise.resolve(checkRateLimit('key', 2, 1000, Number.MAX_SAFE_INTEGER + 1)), /Rate limit timestamp must be a non-negative integer/);
+assert.throws(() => checkRateLimit('', 2, 1000, 0), /Rate limit key is required/);
+assert.throws(() => checkRateLimit('key', 0, 1000, 0), /Rate limit must be a positive integer/);
+assert.throws(() => checkRateLimit('key', Number.MAX_SAFE_INTEGER + 1, 1000, 0), /Rate limit must be a positive integer/);
+assert.throws(() => checkRateLimit('key', 2, 0, 0), /Rate limit window must be a positive integer/);
+assert.throws(() => checkRateLimit('key', 2, Number.MAX_SAFE_INTEGER + 1, 0), /Rate limit window must be a positive integer/);
+assert.throws(() => checkRateLimit('x'.repeat(257), 2, 1000, 0), /Rate limit key is too long/);
+assert.throws(() => checkRateLimit('key', 2, 1000, -1), /Rate limit timestamp must be a non-negative integer/);
+assert.throws(() => checkRateLimit('key', 2, 1000, Number.MAX_SAFE_INTEGER + 1), /Rate limit timestamp must be a non-negative integer/);
 
 console.log('Rate-limit regression passed.');
