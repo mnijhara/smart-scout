@@ -32,9 +32,12 @@ writeFileSync(output, JSON.stringify({ name: 'smart-scout', commit, builtAt: new
 const indexPath = resolve(dirname(output), 'index.html');
 try {
   let html = readFileSync(indexPath, 'utf8');
+  const markerPattern = /<meta name="smart-scout-release"[^>]*>/g;
+  const markers = html.match(markerPattern) || [];
+  if (markers.length === 0) throw new Error('smart-scout-release meta tag missing from dist/index.html');
+  if (markers.length !== 1) throw new Error(`Expected exactly one smart-scout-release meta tag, found ${markers.length}`);
   const marker = `<meta name="smart-scout-release" content="${commit}" />`;
-  if (!/<meta name="smart-scout-release"/.test(html)) throw new Error('smart-scout-release meta tag missing from dist/index.html');
-  html = html.replace(/<meta name="smart-scout-release"[^>]*>/, marker);
+  html = html.replace(markerPattern, marker);
   writeFileSync(indexPath, html);
 } catch (error) {
   if (error.code === 'ENOENT') throw new Error('dist/index.html is missing; run the Vite build before release stamping');
