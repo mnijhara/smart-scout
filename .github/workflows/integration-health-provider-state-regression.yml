@@ -1,0 +1,35 @@
+name: Integration Health Provider State Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/recruiting/productionIntegrations.ts'
+      - 'tests/integration-health-provider-state-regression.mjs'
+      - '.github/workflows/integration-health-provider-state-regression.yml'
+  pull_request:
+    paths:
+      - 'services/recruiting/productionIntegrations.ts'
+      - 'tests/integration-health-provider-state-regression.mjs'
+      - '.github/workflows/integration-health-provider-state-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-health-provider-state-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Run provider-state regression
+        run: node tests/integration-health-provider-state-regression.mjs
