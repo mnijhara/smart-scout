@@ -7,15 +7,16 @@ import { audit } from './controlPlane.js';
 export type SavedCandidate = { id:string; tenantId:string; jobId:string; candidate:any; score?:any; createdAt:string; updatedAt:string };
 const filePath=process.env.SMARTSCOUT_CANDIDATE_STORE||path.join(process.cwd(),'.smartscout-candidates.json');
 const MAX_CANDIDATES_PER_BATCH=5000;
+const MAX_IDENTIFIER_LENGTH=256;
 let writeQueue=Promise.resolve();
 function db(){const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;return url&&key?createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}):null}
-function requireTenantId(tenantId:string){if(!tenantId?.trim())throw new Error('tenantId is required');return tenantId.trim()}
+function requireTenantId(tenantId:string){const normalized=String(tenantId??'').trim();if(!normalized)throw new Error('tenantId is required');if(normalized.length>MAX_IDENTIFIER_LENGTH)throw new Error('tenantId is too long');return normalized}
 function workflowUuid(id:string){return id.startsWith('job_')?id.slice(4):id}
 function publicCandidate(row:any):SavedCandidate{return{id:`candidate_${row.id}`,tenantId:row.tenant_id,jobId:`job_${row.workflow_id}`,candidate:{id:`candidate_${row.id}`,name:row.name,email:row.email,phone:row.phone,profileUrl:row.profile_url,source:row.source,resumeText:row.resume_text,evidence:row.evidence,status:row.status},score:row.score,createdAt:row.created_at,updatedAt:row.updated_at}}
 async function readAll():Promise<SavedCandidate[]>{try{return JSON.parse(await fs.readFile(filePath,'utf8'))}catch{return[]}}
-function requiredJobId(jobId:string){const normalized=String(jobId??'').trim();if(!normalized)throw new Error('jobId is required');if(normalized.length>256)throw new Error('jobId is too long');return normalized}
+function requiredJobId(jobId:string){const normalized=String(jobId??'').trim();if(!normalized)throw new Error('jobId is required');if(normalized.length>MAX_IDENTIFIER_LENGTH)throw new Error('jobId is too long');return normalized}
 function requiredCandidateBatch(candidates:any[]){if(!Array.isArray(candidates))throw new Error('candidates must be an array');if(candidates.length>MAX_CANDIDATES_PER_BATCH)throw new Error(`candidate batch is too large; maximum is ${MAX_CANDIDATES_PER_BATCH}`);if(candidates.some(candidate=>!candidate||typeof candidate!=='object'||Array.isArray(candidate)))throw new Error('candidate entries must be objects');return candidates}
-function requiredCandidateId(id:string){const normalized=String(id??'').trim();if(!normalized)throw new Error('candidateId is required');if(normalized.length>256)throw new Error('candidateId is too long');return normalized}
+function requiredCandidateId(id:string){const normalized=String(id??'').trim();if(!normalized)throw new Error('candidateId is required');if(normalized.length>MAX_IDENTIFIER_LENGTH)throw new Error('candidateId is too long');return normalized}
 function requiredStatus(status:string){const normalized=String(status??'').trim();if(!normalized)throw new Error('status is required');if(normalized.length>64)throw new Error('status is too long');return normalized}
 function sameScore(left:any,right:any){return JSON.stringify(left)===JSON.stringify(right)}
 export async function saveCandidates(tenantId:string,jobId:string,candidates:any[]):Promise<SavedCandidate[]>{
