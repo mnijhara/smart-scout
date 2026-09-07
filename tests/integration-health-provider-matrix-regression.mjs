@@ -15,6 +15,13 @@ const expectedMissing = {
   hris: ['HRIS_API_URL', 'HRIS_API_TOKEN'],
 };
 
+assert.equal(byId.size, health.length, 'integration health must not expose duplicate provider ids');
+assert.deepEqual(
+  new Set(health.map(provider => provider.id)),
+  new Set([...Object.keys(expectedMissing), 'browser-sourcing']),
+  'integration health provider ids must match the supported provider matrix',
+);
+
 for (const [id, missing] of Object.entries(expectedMissing)) {
   const provider = byId.get(id);
   assert.equal(provider?.status, 'unconfigured', `${id} must be unconfigured without credentials`);
