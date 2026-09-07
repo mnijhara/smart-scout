@@ -57,6 +57,7 @@ await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, { score:
 const cyclicScore = {};
 cyclicScore.self = cyclicScore;
 await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, cyclicScore), /score is invalid/);
+await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, { score: 1n }), /score is invalid/);
 
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
