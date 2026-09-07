@@ -36,8 +36,10 @@ assert.deepEqual(tenantScoped[0]?.score, { score: 88 });
 
 // Persistence inputs are bounded at the boundary to prevent oversized lookup or write batches.
 const oversizedCandidateId = `candidate_${'x'.repeat(300)}`;
+const oversizedJobId = `job_${'x'.repeat(300)}`;
 await assert.rejects(() => updateCandidateStatus(tenantId, oversizedCandidateId, 'hired'), /candidateId is too long/);
 await assert.rejects(() => updateCandidateScore(tenantId, oversizedCandidateId, { score: 100 }), /candidateId is too long/);
+await assert.rejects(() => saveCandidates(tenantId, oversizedJobId, [{ name: 'Candidate' }]), /jobId is too long/);
 await assert.rejects(() => saveCandidates(tenantId, jobId, Array.from({ length: 5001 }, () => ({ name: 'Candidate' }))), /candidate batch is too large/);
 await assert.rejects(() => saveCandidates(tenantId, jobId, null), /candidates must be an array/);
 
@@ -57,5 +59,6 @@ assert.equal(statusEvents[0].metadata.nextStatus, 'screening');
 assert.equal(statusEvents[0].metadata.status, undefined);
 
 await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, '   '), /status is required/);
+await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, 'x'.repeat(65)), /status is too long/);
 
 console.log('candidate persistence audit regression: PASS');
