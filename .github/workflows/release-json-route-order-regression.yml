@@ -1,0 +1,29 @@
+name: Release JSON Route Order Regression
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smartscout-release-json-route-order
+  cancel-in-progress: true
+
+jobs:
+  release-json-route-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run release JSON route regression
+        run: node tests/release-json-route-order-regression.mjs
