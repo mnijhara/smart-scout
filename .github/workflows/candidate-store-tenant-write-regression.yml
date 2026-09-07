@@ -1,0 +1,35 @@
+name: Candidate Store Tenant Write Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/recruiting/candidateStore.ts'
+      - 'tests/candidate-store-tenant-write-regression.mjs'
+      - '.github/workflows/candidate-store-tenant-write-regression.yml'
+  pull_request:
+    paths:
+      - 'services/recruiting/candidateStore.ts'
+      - 'tests/candidate-store-tenant-write-regression.mjs'
+      - '.github/workflows/candidate-store-tenant-write-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: candidate-store-tenant-write-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Run tenant-write regression
+        run: node tests/candidate-store-tenant-write-regression.mjs
