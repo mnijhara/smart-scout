@@ -42,6 +42,9 @@ await assert.rejects(() => updateCandidateScore(tenantId, oversizedCandidateId, 
 await assert.rejects(() => saveCandidates(tenantId, oversizedJobId, [{ name: 'Candidate' }]), /jobId is too long/);
 await assert.rejects(() => saveCandidates(tenantId, jobId, Array.from({ length: 5001 }, () => ({ name: 'Candidate' }))), /candidate batch is too large/);
 await assert.rejects(() => saveCandidates(tenantId, jobId, null), /candidates must be an array/);
+await assert.rejects(() => saveCandidates(tenantId, jobId, [null]), /candidate entries must be objects/);
+await assert.rejects(() => saveCandidates(tenantId, jobId, ['candidate']), /candidate entries must be objects/);
+await assert.rejects(() => saveCandidates(tenantId, jobId, [[]]), /candidate entries must be objects/);
 
 // Empty/whitespace identifiers must fail before any persistence lookup or mutation.
 await assert.rejects(() => saveCandidates('   ', jobId, [{ name: 'Candidate' }]), /tenantId is required/);
