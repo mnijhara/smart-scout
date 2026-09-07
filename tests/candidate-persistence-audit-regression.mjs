@@ -34,6 +34,9 @@ const tenantScoped = await listCandidates(tenantId, jobId);
 assert.equal(tenantScoped[0]?.candidate?.status, 'screening');
 assert.deepEqual(tenantScoped[0]?.score, { score: 88 });
 
+const auditPath = path.join(dir, 'control-plane', 'audit.json');
+const auditCountBeforeInvalidInputs = JSON.parse(await fs.readFile(auditPath, 'utf8')).length;
+
 // Persistence inputs are bounded at the boundary to prevent oversized lookup or write batches.
 const oversizedCandidateId = `candidate_${'x'.repeat(300)}`;
 const oversizedJobId = `job_${'x'.repeat(300)}`;
@@ -59,8 +62,8 @@ cyclicScore.self = cyclicScore;
 await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, cyclicScore), /score is invalid/);
 await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, { score: 1n }), /score is invalid/);
 
-const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
+assert.equal(events.length, auditCountBeforeInvalidInputs, 'rejected persistence inputs must not emit audit events');
 const lifecycle = events.filter(event => event.tenantId === tenantId && event.jobId === jobId && event.candidateId === candidate.id);
 assert.deepEqual(lifecycle.map(event => event.action).sort(), ['candidate_score_updated', 'candidate_status_updated', 'candidates_persisted']);
 assert.equal(lifecycle.filter(event => event.action === 'candidates_persisted')[0].metadata.count, 1);
