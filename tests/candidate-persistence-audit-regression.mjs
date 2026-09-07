@@ -52,6 +52,12 @@ await assert.rejects(() => listCandidates(tenantId, '   '), /jobId is required/)
 await assert.rejects(() => updateCandidateStatus(tenantId, '   ', 'hired'), /candidateId is required/);
 await assert.rejects(() => updateCandidateScore(tenantId, '   ', { score: 100 }), /candidateId is required/);
 
+// Score payloads are bounded before any database or file mutation.
+await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, { score: 'x'.repeat(8200) }), /score is too large/);
+const cyclicScore = {};
+cyclicScore.self = cyclicScore;
+await assert.rejects(() => updateCandidateScore(tenantId, candidate.id, cyclicScore), /score is invalid/);
+
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
 const lifecycle = events.filter(event => event.tenantId === tenantId && event.jobId === jobId && event.candidateId === candidate.id);
