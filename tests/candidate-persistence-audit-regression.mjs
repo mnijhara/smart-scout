@@ -34,6 +34,11 @@ const tenantScoped = await listCandidates(tenantId, jobId);
 assert.equal(tenantScoped[0]?.candidate?.status, 'screening');
 assert.deepEqual(tenantScoped[0]?.score, { score: 88 });
 
+// Candidate IDs are bounded at the persistence boundary to prevent unbounded lookup input.
+const oversizedCandidateId = `candidate_${'x'.repeat(300)}`;
+await assert.rejects(() => updateCandidateStatus(tenantId, oversizedCandidateId, 'hired'), /candidateId is too long/);
+await assert.rejects(() => updateCandidateScore(tenantId, oversizedCandidateId, { score: 100 }), /candidateId is too long/);
+
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
 const lifecycle = events.filter(event => event.tenantId === tenantId && event.jobId === jobId && event.candidateId === candidate.id);
