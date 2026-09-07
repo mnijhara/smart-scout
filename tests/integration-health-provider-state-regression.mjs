@@ -22,6 +22,21 @@ assert.deepEqual(byId.get('supabase')?.missing, ['SUPABASE_URL', 'SUPABASE_SERVI
 assert.equal(byId.get('calendar')?.status, 'unconfigured');
 assert.deepEqual(byId.get('calendar')?.missing, ['CALENDAR_API_URL', 'CALENDAR_API_TOKEN']);
 
+const whitespaceHealth = module.integrationHealth({
+  RESEND_API_KEY: '   ',
+  SUPABASE_URL: ' https://example.supabase.co ',
+  SUPABASE_SERVICE_ROLE_KEY: '\t',
+  CALENDAR_API_URL: '\n',
+  CALENDAR_API_TOKEN: ' test-calendar ',
+});
+const whitespaceById = new Map(whitespaceHealth.map(provider => [provider.id, provider]));
+assert.equal(whitespaceById.get('resend')?.status, 'unconfigured');
+assert.deepEqual(whitespaceById.get('resend')?.missing, ['RESEND_API_KEY']);
+assert.equal(whitespaceById.get('supabase')?.status, 'unconfigured');
+assert.deepEqual(whitespaceById.get('supabase')?.missing, ['SUPABASE_SERVICE_ROLE_KEY']);
+assert.equal(whitespaceById.get('calendar')?.status, 'unconfigured');
+assert.deepEqual(whitespaceById.get('calendar')?.missing, ['CALENDAR_API_URL']);
+
 const configured = module.integrationHealth({
   RESEND_API_KEY: 'test-resend',
   SUPABASE_URL: 'https://example.supabase.co',
