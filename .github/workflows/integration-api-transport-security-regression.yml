@@ -1,0 +1,35 @@
+name: Integration API Transport Security Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/recruiting/productionIntegrations.ts'
+      - 'tests/integration-api-transport-security-regression.mjs'
+      - '.github/workflows/integration-api-transport-security-regression.yml'
+  pull_request:
+    paths:
+      - 'services/recruiting/productionIntegrations.ts'
+      - 'tests/integration-api-transport-security-regression.mjs'
+      - '.github/workflows/integration-api-transport-security-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-api-transport-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Verify integration transport security
+        run: node tests/integration-api-transport-security-regression.mjs
