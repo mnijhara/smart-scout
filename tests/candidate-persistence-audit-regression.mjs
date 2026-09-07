@@ -43,6 +43,12 @@ await assert.rejects(() => saveCandidates(tenantId, oversizedJobId, [{ name: 'Ca
 await assert.rejects(() => saveCandidates(tenantId, jobId, Array.from({ length: 5001 }, () => ({ name: 'Candidate' }))), /candidate batch is too large/);
 await assert.rejects(() => saveCandidates(tenantId, jobId, null), /candidates must be an array/);
 
+// Empty/whitespace identifiers must fail before any persistence lookup or mutation.
+await assert.rejects(() => saveCandidates('   ', jobId, [{ name: 'Candidate' }]), /tenantId is required/);
+await assert.rejects(() => listCandidates(tenantId, '   '), /jobId is required/);
+await assert.rejects(() => updateCandidateStatus(tenantId, '   ', 'hired'), /candidateId is required/);
+await assert.rejects(() => updateCandidateScore(tenantId, '   ', { score: 100 }), /candidateId is required/);
+
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const events = JSON.parse(await fs.readFile(auditPath, 'utf8'));
 const lifecycle = events.filter(event => event.tenantId === tenantId && event.jobId === jobId && event.candidateId === candidate.id);
