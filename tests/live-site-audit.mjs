@@ -1,5 +1,6 @@
 const baseUrl = (process.env.LIVE_URL || 'https://smartscout.online').replace(/\/$/, '');
 const expectedCommit = process.env.EXPECTED_COMMIT || process.env.GITHUB_SHA || '';
+const REQUEST_TIMEOUT_MS = 15_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -7,7 +8,10 @@ async function get(path, attempts = 3) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetch(`${baseUrl}${path}`, { redirect: 'follow' });
+      const response = await fetch(`${baseUrl}${path}`, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
       if (response.ok) return response;
       const body = await response.text();
       lastError = new Error(`${path} returned HTTP ${response.status}: ${body.slice(0, 160).replace(/\s+/g, ' ')}`);
