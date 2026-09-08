@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'supabase/migrations/019_recruiting_candidates_tenant_email_uniqueness.sql'
+      - 'supabase/migrations/029_recruiting_candidates_tenant_email_uniqueness.sql'
       - 'tests/recruiting-candidates-tenant-email-index-regression.mjs'
       - '.github/workflows/candidate-email-tenant-index-regression.yml'
   workflow_dispatch:
