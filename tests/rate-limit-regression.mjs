@@ -9,6 +9,7 @@ assert.notEqual(scopedRateLimitKey('tenant:a', 'user'), scopedRateLimitKey('tena
 assert.throws(() => scopedRateLimitKey(), /Rate limit key parts are required/);
 assert.throws(() => scopedRateLimitKey('tenant_a', ''), /Rate limit key parts are required/);
 assert.throws(() => scopedRateLimitKey('x'.repeat(257)), /Rate limit key is too long/);
+assert.throws(() => scopedRateLimitKey('x'.repeat(200), 'y'.repeat(100)), /Rate limit key is too long/);
 
 assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1000), {
   allowed: true,
