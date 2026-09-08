@@ -1,6 +1,15 @@
 const baseUrl = (process.env.LIVE_URL || 'https://smartscout.online').replace(/\/$/, '');
 const expectedCommit = process.env.EXPECTED_COMMIT || process.env.GITHUB_SHA || '';
-const REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const MAX_REQUEST_TIMEOUT_MS = 60_000;
+
+function requestTimeoutMs() {
+  const configured = Number(process.env.LIVE_REQUEST_TIMEOUT_MS);
+  if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_REQUEST_TIMEOUT_MS;
+  return Math.min(MAX_REQUEST_TIMEOUT_MS, Math.floor(configured));
+}
+
+const REQUEST_TIMEOUT_MS = requestTimeoutMs();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -77,5 +86,6 @@ if (expectedCommit && payload.commit.toLowerCase() !== expectedCommit.toLowerCas
 }
 
 console.log(`Live static/security audit passed: ${baseUrl}`);
+console.log(`Live request timeout: ${REQUEST_TIMEOUT_MS}ms`);
 console.log(`Recruiting health: ${healthPayload.version || 'unknown'}`);
 console.log(`Live release SHA: ${payload.commit}`);
