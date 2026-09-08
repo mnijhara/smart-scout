@@ -33,7 +33,10 @@ function normalizedKey(key: string): string {
 export function scopedRateLimitKey(...parts: Array<string | number>): string {
   const normalized = parts.map((part) => String(part ?? '').trim());
   if (normalized.length === 0 || normalized.some((part) => !part)) throw new Error('Rate limit key parts are required');
-  return normalizedKey(normalized.join(':'));
+
+  // Length-prefix each identity component so delimiter-containing tenant/user/path
+  // values cannot collide and share a bucket with a different identity tuple.
+  return normalizedKey(normalized.map((part) => `${part.length}:${part}`).join('|'));
 }
 
 export function checkRateLimit(key: string, limit: number, windowMs: number, now = Date.now()): RateLimitResult {
