@@ -46,4 +46,26 @@ await assert.rejects(
   /payload exceeds 65536 bytes/
 );
 
+// Evidence is stored separately from payload, so enforce its byte boundary too.
+const exactEvidence = ['x'.repeat(65_525)];
+assert.equal(Buffer.byteLength(JSON.stringify(exactEvidence), 'utf8'), 65_529);
+assert.deepEqual(
+  await recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', evidence: exactEvidence }),
+  { persisted: false }
+);
+
+const oversizedEvidence = ['x'.repeat(65_532)];
+assert.equal(Buffer.byteLength(JSON.stringify(oversizedEvidence), 'utf8'), 65_536);
+assert.deepEqual(
+  await recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', evidence: oversizedEvidence }),
+  { persisted: false }
+);
+
+const evidenceOneByteOver = ['x'.repeat(65_533)];
+assert.equal(Buffer.byteLength(JSON.stringify(evidenceOneByteOver), 'utf8'), 65_537);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', evidence: evidenceOneByteOver }),
+  /evidence exceeds 65536 bytes/
+);
+
 console.log('Audit payload boundary regression passed.');
