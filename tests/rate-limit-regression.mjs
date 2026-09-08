@@ -79,4 +79,16 @@ for (let index = 1; index <= 10_000; index += 1) {
 }
 assert.equal(checkRateLimit('eviction:0', 2, 60_000, 10_000).remaining, 1, 'oldest rate-limit bucket should be evicted when the store exceeds MAX_KEYS');
 
+// A refreshed window must become newest for bounded eviction; otherwise an active
+// bucket can be evicted solely because its key was created long ago.
+clearRateLimits();
+assert.equal(checkRateLimit('refresh:old', 1, 1000, 0).allowed, true);
+for (let index = 0; index < 9_999; index += 1) {
+  checkRateLimit(`refresh:filler:${index}`, 1, 1000, 10_000);
+}
+assert.equal(checkRateLimit('refresh:old', 1, 1000, 10_000).allowed, true, 'expired bucket should start a fresh window');
+assert.equal(checkRateLimit('refresh:new', 1, 1000, 10_000).allowed, true);
+assert.equal(checkRateLimit('refresh:old', 1, 1000, 10_000).allowed, false, 'refreshed bucket must survive eviction of an older active bucket');
+assert.equal(checkRateLimit('refresh:filler:0', 1, 1000, 10_000).allowed, true, 'oldest active bucket should be evicted after the refresh');
+
 console.log('Rate-limit regression passed.');
