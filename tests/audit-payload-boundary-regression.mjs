@@ -68,4 +68,30 @@ await assert.rejects(
   /evidence exceeds 65536 bytes/
 );
 
+// Audit identity fields have bounded lengths so malformed or abusive identifiers cannot grow without bound.
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'x'.repeat(257), eventType: 'candidate_created' }),
+  /tenantId exceeds 256 characters/
+);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'x'.repeat(129) }),
+  /eventType exceeds 128 characters/
+);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', workflowId: 'x'.repeat(129) }),
+  /workflowId exceeds 128 characters/
+);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', candidateId: 'x'.repeat(129) }),
+  /candidateId exceeds 128 characters/
+);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', actorId: 'x'.repeat(129) }),
+  /actorId exceeds 128 characters/
+);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', provider: 'x'.repeat(129) }),
+  /provider exceeds 128 characters/
+);
+
 console.log('Audit payload boundary regression passed.');
