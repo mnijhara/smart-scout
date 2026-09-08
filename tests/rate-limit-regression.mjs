@@ -91,4 +91,24 @@ assert.equal(checkRateLimit('refresh:new', 1, 1000, 10_000).allowed, true);
 assert.equal(checkRateLimit('refresh:old', 1, 1000, 10_000).allowed, false, 'refreshed bucket must survive eviction of an older active bucket');
 assert.equal(checkRateLimit('refresh:filler:0', 1, 1000, 10_000).allowed, true, 'oldest active bucket should be evicted after the refresh');
 
+// A key may be reused by different endpoint policies. Its bucket must not retain
+// the previous policy's window or accidentally use that policy for retry-after.
+clearRateLimits();
+assert.equal(checkRateLimit('policy:key', 1, 60_000, 1_000).allowed, true);
+assert.equal(checkRateLimit('policy:key', 1, 1_000, 1_500).allowed, true, 'changing the window policy should restart the bucket');
+const policyBlocked = checkRateLimit('policy:key', 1, 1_000, 1_600);
+assert.equal(policyBlocked.allowed, false);
+assert.equal(policyBlocked.retryAfterSeconds, 1);
+assert.equal(policyBlocked.resetAtEpochSeconds, 3);
+
+// Eviction must respect each bucket's own window rather than the window of the
+// request that happened to trigger the cleanup pass.
+clearRateLimits();
+assert.equal(checkRateLimit('mixed:long', 1, 60_000, 10_000).allowed, true);
+for (let index = 0; index < 9_999; index += 1) {
+  checkRateLimit(`mixed:short:${index}`, 1, 1_000, 10_000);
+}
+assert.equal(checkRateLimit('mixed:trigger', 1, 1_000, 10_000).allowed, true);
+assert.equal(checkRateLimit('mixed:long', 1, 60_000, 10_000).allowed, false, 'active long-window bucket must survive short-window cleanup');
+
 console.log('Rate-limit regression passed.');

@@ -1,4 +1,4 @@
-type Bucket = { windowStartedAt: number; count: number };
+type Bucket = { windowStartedAt: number; count: number; windowMs: number };
 
 type RateLimitStore = Map<string, Bucket>;
 
@@ -49,14 +49,19 @@ export function checkRateLimit(key: string, limit: number, windowMs: number, now
   }
   const current = buckets.get(normalized);
 
+  // A bucket belongs to the exact limit window that created it. If callers change
+  // the window for the same key, restart that bucket instead of applying the new
+  // policy to stale state.
+  const policyChanged = current && current.windowMs !== window;
+
   // Wall clocks can move backwards (for example after NTP correction). Never let a
   // negative elapsed time inflate retry-after or keep a stale bucket indefinitely.
-  if (!current || timestamp < current.windowStartedAt || timestamp - current.windowStartedAt >= window) {
+  if (!current || policyChanged || timestamp < current.windowStartedAt || timestamp - current.windowStartedAt >= current.windowMs) {
     // Move refreshed buckets to the newest insertion position so MAX_KEYS eviction
     // reflects the age of the current window rather than the age of the original key.
     buckets.delete(normalized);
-    buckets.set(normalized, { windowStartedAt: timestamp, count: 1 });
-    evictOldKeys(timestamp, window);
+    buckets.set(normalized, { windowStartedAt: timestamp, count: 1, windowMs: window });
+    evictOldKeys(timestamp);
     return {
       allowed: true,
       limit: max,
@@ -66,10 +71,10 @@ export function checkRateLimit(key: string, limit: number, windowMs: number, now
     };
   }
 
-  const resetAtEpochSeconds = Math.ceil((current.windowStartedAt + window) / 1000);
+  const resetAtEpochSeconds = Math.ceil((current.windowStartedAt + current.windowMs) / 1000);
 
   if (current.count >= max) {
-    const retryAfterSeconds = Math.max(1, Math.ceil((window - (timestamp - current.windowStartedAt)) / 1000));
+    const retryAfterSeconds = Math.max(1, Math.ceil((current.windowMs - (timestamp - current.windowStartedAt)) / 1000));
     return { allowed: false, limit: max, remaining: 0, retryAfterSeconds, resetAtEpochSeconds };
   }
 
@@ -85,11 +90,11 @@ export function clearRateLimits(): void {
   buckets.clear();
 }
 
-function evictOldKeys(now: number, windowMs: number): void {
+function evictOldKeys(now: number): void {
   if (buckets.size <= MAX_KEYS) return;
 
   for (const [key, bucket] of buckets) {
-    if (now - bucket.windowStartedAt >= windowMs) buckets.delete(key);
+    if (now - bucket.windowStartedAt >= bucket.windowMs) buckets.delete(key);
   }
 
   if (buckets.size <= MAX_KEYS) return;
