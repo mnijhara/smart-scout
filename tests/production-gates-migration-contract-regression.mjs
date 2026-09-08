@@ -14,7 +14,7 @@ const required = [
   'run: node tests/hiring-state-atomic-audit-migration-regression.mjs',
   'run: npm run verify:release',
   'name: Verify release artifacts',
-  'test -d dist/',
+  'test -d dist',
   'dist/release.json',
   '$GITHUB_SHA',
   'name: Verify live release identity (external, non-blocking)',
