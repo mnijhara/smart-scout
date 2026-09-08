@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const migration = fs.readFileSync('supabase/migrations/019_recruiting_candidates_tenant_email_uniqueness.sql', 'utf8');
+const migration = fs.readFileSync('supabase/migrations/029_recruiting_candidates_tenant_email_uniqueness.sql', 'utf8');
 
 const dropIndex = migration.search(/drop index if exists public\.recruiting_candidates_email_workflow_idx/i);
 const createIndex = migration.search(/create unique index if not exists recruiting_candidates_tenant_email_workflow_idx/i);
