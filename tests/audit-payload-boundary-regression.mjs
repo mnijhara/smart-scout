@@ -12,6 +12,10 @@ await assert.rejects(
   () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: { value: BigInt(1) } }),
   /payload must be JSON serializable/
 );
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: { value: '😀'.repeat(20 * 1024) } }),
+  /payload exceeds 65536 bytes/
+);
 assert.deepEqual(
   await recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: { source: 'e2e' } }),
   { persisted: false }
