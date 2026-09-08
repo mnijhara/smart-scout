@@ -19,11 +19,13 @@ middleware(request, response, () => calls.push('next'));
 assert.deepEqual(calls, ['next']);
 assert.equal(headers.get('RateLimit-Limit'), '1');
 assert.equal(headers.get('RateLimit-Remaining'), '0');
+assert.ok(Number(headers.get('RateLimit-Reset')) >= Math.floor(Date.now() / 1000));
 
 middleware(request, response, () => calls.push('next'));
 assert.equal(response.statusCode, 429);
 assert.equal(response.payload.error, 'Too many requests. Please retry shortly.');
 assert.ok(Number(headers.get('Retry-After')) >= 1);
+assert.ok(Number(headers.get('RateLimit-Reset')) >= Math.floor(Date.now() / 1000));
 assert.deepEqual(calls, ['next']);
 
 const missingIdentity = { rateLimitTenant: '', method: 'POST', path: '/api/recruiting/candidates', ip: '203.0.113.10' };
