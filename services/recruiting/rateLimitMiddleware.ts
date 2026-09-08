@@ -40,6 +40,7 @@ export function createApiRateLimitMiddleware(options: RateLimitMiddlewareOptions
     const result = checkRateLimit(key, limit, windowMs);
     res.setHeader('RateLimit-Limit', String(result.limit));
     res.setHeader('RateLimit-Remaining', String(result.remaining));
+    res.setHeader('RateLimit-Reset', String(result.resetAtEpochSeconds));
 
     if (!result.allowed) {
       res.setHeader('Retry-After', String(result.retryAfterSeconds));
