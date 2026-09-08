@@ -9,6 +9,9 @@ assert.match(source, /id:'browser-sourcing'.*configured:true.*humanActionRequire
 assert.match(source, /id:'resend'.*configured:configured\(env\.RESEND_API_KEY\).*status:healthStatus\(configured\(env\.RESEND_API_KEY\),false\)/s, 'Resend readiness must depend on its credential');
 assert.match(source, /id:'supabase'.*configured:configured\(env\.SUPABASE_URL,env\.SUPABASE_SERVICE_ROLE_KEY\).*status:healthStatus\(configured\(env\.SUPABASE_URL,env\.SUPABASE_SERVICE_ROLE_KEY\),false\)/s, 'Supabase readiness must depend on both required credentials');
 assert.match(source, /id:'calendar'.*configured:configured\(env\.CALENDAR_API_URL,env\.CALENDAR_API_TOKEN\).*status:healthStatus\(configured\(env\.CALENDAR_API_URL,env\.CALENDAR_API_TOKEN\),false\)/s, 'calendar readiness must depend on its endpoint and token');
+assert.match(source, /const MAX_INTEGRATION_RESPONSE_BYTES = 1024 \* 1024;/, 'integration responses must have a bounded memory budget');
+assert.match(source, /response\.headers\.get\('content-length'\)/, 'declared provider response size must be rejected before buffering');
+assert.match(source, /new TextEncoder\(\)\.encode\(text\)\.byteLength>MAX_INTEGRATION_RESPONSE_BYTES/, 'chunked provider responses must be bounded after buffering');
 
 // Keep the contract test executable without requiring production credentials.
 const module = await import('../services/recruiting/productionIntegrations.ts');
