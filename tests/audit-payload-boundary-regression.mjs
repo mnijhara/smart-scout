@@ -16,9 +16,19 @@ await assert.rejects(
   () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: { value: '😀'.repeat(20 * 1024) } }),
   /payload exceeds 65536 bytes/
 );
+
+const exactAsciiPayload = { value: 'x'.repeat(65525) };
+assert.equal(Buffer.byteLength(JSON.stringify(exactAsciiPayload), 'utf8'), 65536);
 assert.deepEqual(
-  await recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: { source: 'e2e' } }),
+  await recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: exactAsciiPayload }),
   { persisted: false }
+);
+
+const oneByteOverPayload = { value: 'x'.repeat(65526) };
+assert.equal(Buffer.byteLength(JSON.stringify(oneByteOverPayload), 'utf8'), 65537);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: oneByteOverPayload }),
+  /payload exceeds 65536 bytes/
 );
 
 console.log('Audit payload boundary regression passed.');
