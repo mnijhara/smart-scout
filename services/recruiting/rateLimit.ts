@@ -52,6 +52,9 @@ export function checkRateLimit(key: string, limit: number, windowMs: number, now
   // Wall clocks can move backwards (for example after NTP correction). Never let a
   // negative elapsed time inflate retry-after or keep a stale bucket indefinitely.
   if (!current || timestamp < current.windowStartedAt || timestamp - current.windowStartedAt >= window) {
+    // Move refreshed buckets to the newest insertion position so MAX_KEYS eviction
+    // reflects the age of the current window rather than the age of the original key.
+    buckets.delete(normalized);
     buckets.set(normalized, { windowStartedAt: timestamp, count: 1 });
     evictOldKeys(timestamp, window);
     return {
