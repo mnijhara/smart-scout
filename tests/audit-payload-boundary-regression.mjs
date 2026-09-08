@@ -31,4 +31,19 @@ await assert.rejects(
   /payload exceeds 65536 bytes/
 );
 
+// The limit is byte-based, so exercise an exact UTF-8 boundary with multibyte data.
+const exactUtf8Payload = { value: '😀'.repeat(16_381) };
+assert.equal(Buffer.byteLength(JSON.stringify(exactUtf8Payload), 'utf8'), 65_536);
+assert.deepEqual(
+  await recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: exactUtf8Payload }),
+  { persisted: false }
+);
+
+const utf8OneByteOverPayload = { value: `${'😀'.repeat(16_381)}x` };
+assert.equal(Buffer.byteLength(JSON.stringify(utf8OneByteOverPayload), 'utf8'), 65_537);
+await assert.rejects(
+  () => recordAuditEvent({ tenantId: 'tenant_a', eventType: 'candidate_created', payload: utf8OneByteOverPayload }),
+  /payload exceeds 65536 bytes/
+);
+
 console.log('Audit payload boundary regression passed.');
