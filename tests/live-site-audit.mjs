@@ -47,7 +47,7 @@ const securityHeaders = [
   ['x-content-type-options', 'nosniff'],
   ['x-frame-options', 'SAMEORIGIN'],
   ['referrer-policy', 'strict-origin-when-cross-origin'],
-  ['permissions-policy', 'camera=(), geolocation=(), payment=(self), microphone=()'],
+  ['permissions-policy', 'camera=(), geolocation=(), payment=(self), microphone=(self)'],
 ];
 for (const [name, expected] of securityHeaders) {
   const actual = String(health.headers.get(name) || '').trim();
