@@ -9,11 +9,15 @@ const requiredHeaders = {
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': /camera=\(\), geolocation=\(\), payment=\(self\), microphone=\(\)/,
 };
+const headerFailures = [];
 for (const [name, expected] of Object.entries(requiredHeaders)) {
   const actual = homepage.headers.get(name) || '';
   if (expected instanceof RegExp ? !expected.test(actual) : actual !== expected) {
-    throw new Error(`Missing/incorrect ${name}: ${actual}`);
+    headerFailures.push(`${name}=${actual || '<missing>'}`);
   }
+}
+if (headerFailures.length) {
+  throw new Error(`Security headers failed: ${headerFailures.join('; ')}`);
 }
 
 const health = await fetch(`${baseUrl}/api/recruiting/health`);
