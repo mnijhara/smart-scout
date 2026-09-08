@@ -14,17 +14,20 @@ assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1000), {
   limit: 2,
   remaining: 1,
   retryAfterSeconds: 0,
+  resetAtEpochSeconds: 2,
 });
 assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1100), {
   allowed: true,
   limit: 2,
   remaining: 0,
   retryAfterSeconds: 0,
+  resetAtEpochSeconds: 2,
 });
 const blocked = checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 1200);
 assert.equal(blocked.allowed, false);
 assert.equal(blocked.remaining, 0);
 assert.equal(blocked.retryAfterSeconds, 1);
+assert.equal(blocked.resetAtEpochSeconds, 2);
 
 // Keys are isolated so one tenant/user cannot consume another bucket.
 assert.equal(checkRateLimit('tenant_b:user_1:recruiting', 2, 1000, 1200).allowed, true);
@@ -36,6 +39,7 @@ assert.deepEqual(checkRateLimit('tenant_a:user_1:recruiting', 2, 1000, 2000), {
   limit: 2,
   remaining: 1,
   retryAfterSeconds: 0,
+  resetAtEpochSeconds: 3,
 });
 
 resetRateLimit('tenant_a:user_1:recruiting');
@@ -50,6 +54,7 @@ assert.deepEqual(afterClockRollback, {
   limit: 1,
   remaining: 0,
   retryAfterSeconds: 0,
+  resetAtEpochSeconds: 6,
 });
 
 // Reject malformed or unbounded rate-limit inputs before they can create unsafe buckets.
