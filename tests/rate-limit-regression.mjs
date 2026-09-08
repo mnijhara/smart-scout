@@ -70,4 +70,13 @@ assert.throws(() => checkRateLimit('key', 2, 1000, -1), /Rate limit timestamp mu
 assert.throws(() => checkRateLimit('key', 2, 1000, Number.MAX_SAFE_INTEGER + 1), /Rate limit timestamp must be a non-negative integer/);
 assert.throws(() => checkRateLimit('overflow:key', 1, 2, Number.MAX_SAFE_INTEGER - 1), /Rate limit timestamp\/window combination is too large/);
 
+// The in-process store must stay bounded: once MAX_KEYS is exceeded, the oldest
+// bucket is evicted rather than allowing unbounded attacker-controlled growth.
+clearRateLimits();
+assert.equal(checkRateLimit('eviction:0', 2, 60_000, 10_000).remaining, 1);
+for (let index = 1; index <= 10_000; index += 1) {
+  checkRateLimit(`eviction:${index}`, 2, 60_000, 10_000);
+}
+assert.equal(checkRateLimit('eviction:0', 2, 60_000, 10_000).remaining, 1, 'oldest rate-limit bucket should be evicted when the store exceeds MAX_KEYS');
+
 console.log('Rate-limit regression passed.');
