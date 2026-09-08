@@ -36,7 +36,17 @@ export function createApiRateLimitMiddleware(options: RateLimitMiddlewareOptions
       return;
     }
 
-    const key = scopedRateLimitKey(tenant, method, path, client);
+    let key: string;
+    try {
+      key = scopedRateLimitKey(tenant, method, path, client);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Rate limit key')) {
+        res.status(400).json({ error: 'Rate-limit identity is invalid' });
+        return;
+      }
+      throw error;
+    }
+
     const result = checkRateLimit(key, limit, windowMs);
     res.setHeader('RateLimit-Limit', String(result.limit));
     res.setHeader('RateLimit-Remaining', String(result.remaining));
