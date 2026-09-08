@@ -3,8 +3,9 @@ import { checkRateLimit, clearRateLimits, resetRateLimit, scopedRateLimitKey } f
 
 clearRateLimits();
 
-assert.equal(scopedRateLimitKey('tenant_a', 'user_1', 'recruiting'), 'tenant_a:user_1:recruiting');
-assert.equal(scopedRateLimitKey(' tenant_a ', 42, ' recruiting '), 'tenant_a:42:recruiting');
+assert.equal(scopedRateLimitKey('tenant_a', 'user_1', 'recruiting'), '8:tenant_a|6:user_1|10:recruiting');
+assert.equal(scopedRateLimitKey(' tenant_a ', 42, ' recruiting '), '8:tenant_a|2:42|10:recruiting');
+assert.notEqual(scopedRateLimitKey('tenant:a', 'user'), scopedRateLimitKey('tenant', 'a:user'), 'identity components must not collide across delimiters');
 assert.throws(() => scopedRateLimitKey(), /Rate limit key parts are required/);
 assert.throws(() => scopedRateLimitKey('tenant_a', ''), /Rate limit key parts are required/);
 assert.throws(() => scopedRateLimitKey('x'.repeat(257)), /Rate limit key is too long/);
