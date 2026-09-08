@@ -7,6 +7,7 @@ export type RateLimitResult = {
   limit: number;
   remaining: number;
   retryAfterSeconds: number;
+  resetAtEpochSeconds: number;
 };
 
 const buckets: RateLimitStore = new Map();
@@ -47,16 +48,24 @@ export function checkRateLimit(key: string, limit: number, windowMs: number, now
   if (!current || timestamp < current.windowStartedAt || timestamp - current.windowStartedAt >= window) {
     buckets.set(normalized, { windowStartedAt: timestamp, count: 1 });
     evictOldKeys(timestamp, window);
-    return { allowed: true, limit: max, remaining: Math.max(0, max - 1), retryAfterSeconds: 0 };
+    return {
+      allowed: true,
+      limit: max,
+      remaining: Math.max(0, max - 1),
+      retryAfterSeconds: 0,
+      resetAtEpochSeconds: Math.ceil((timestamp + window) / 1000),
+    };
   }
+
+  const resetAtEpochSeconds = Math.ceil((current.windowStartedAt + window) / 1000);
 
   if (current.count >= max) {
     const retryAfterSeconds = Math.max(1, Math.ceil((window - (timestamp - current.windowStartedAt)) / 1000));
-    return { allowed: false, limit: max, remaining: 0, retryAfterSeconds };
+    return { allowed: false, limit: max, remaining: 0, retryAfterSeconds, resetAtEpochSeconds };
   }
 
   current.count += 1;
-  return { allowed: true, limit: max, remaining: max - current.count, retryAfterSeconds: 0 };
+  return { allowed: true, limit: max, remaining: max - current.count, retryAfterSeconds: 0, resetAtEpochSeconds };
 }
 
 export function resetRateLimit(key: string): void {
