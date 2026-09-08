@@ -83,7 +83,13 @@ assert.equal(statusEvents[0].metadata.previousStatus, 'discovered');
 assert.equal(statusEvents[0].metadata.nextStatus, 'screening');
 assert.equal(statusEvents[0].metadata.status, undefined);
 
+const auditCountBeforeInvalidStatus = events.length;
 await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, '   '), /status is required/);
 await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, 'x'.repeat(65)), /status is too long/);
+assert.equal(
+  JSON.parse(await fs.readFile(auditPath, 'utf8')).length,
+  auditCountBeforeInvalidStatus,
+  'rejected candidate status mutations must not emit audit events'
+);
 
 console.log('candidate persistence audit regression: PASS');
