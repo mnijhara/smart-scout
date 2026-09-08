@@ -44,6 +44,9 @@ export function checkRateLimit(key: string, limit: number, windowMs: number, now
   const max = requiredPositiveInteger(limit, 'Rate limit');
   const window = requiredPositiveInteger(windowMs, 'Rate limit window');
   const timestamp = requiredTimestamp(now);
+  if (timestamp > Number.MAX_SAFE_INTEGER - window) {
+    throw new Error('Rate limit timestamp/window combination is too large');
+  }
   const current = buckets.get(normalized);
 
   // Wall clocks can move backwards (for example after NTP correction). Never let a
