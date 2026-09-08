@@ -40,4 +40,10 @@ const badResponse = { setHeader() {}, status(code) { this.statusCode = code; ret
 middleware(missingIdentity, badResponse, () => { throw new Error('next must not run'); });
 assert.equal(badResponse.statusCode, 400);
 
+const oversizedIdentity = { rateLimitTenant: 'workspace-a', method: 'POST', path: `/api/${'x'.repeat(260)}`, ip: '203.0.113.10' };
+const oversizedResponse = { setHeader() {}, status(code) { this.statusCode = code; return this; }, json(payload) { this.payload = payload; } };
+middleware(oversizedIdentity, oversizedResponse, () => { throw new Error('next must not run'); });
+assert.equal(oversizedResponse.statusCode, 400);
+assert.equal(oversizedResponse.payload.error, 'Rate-limit identity is invalid');
+
 console.log('Rate-limit middleware regression passed.');
