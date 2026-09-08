@@ -27,14 +27,20 @@ const unchanged = await updateCandidateStatus(tenantId, candidate.id, 'screening
 assert.equal(unchanged?.candidate?.status, 'screening');
 
 // A candidate identifier must never cross a tenant boundary in either reads or writes.
+const auditPath = path.join(dir, 'control-plane', 'audit.json');
+const auditCountBeforeCrossTenant = JSON.parse(await fs.readFile(auditPath, 'utf8')).length;
 assert.deepEqual(await listCandidates(otherTenantId, jobId), []);
 assert.equal(await updateCandidateStatus(otherTenantId, candidate.id, 'hired'), null);
 assert.equal(await updateCandidateScore(otherTenantId, candidate.id, { score: 100 }), null);
+assert.equal(
+  JSON.parse(await fs.readFile(auditPath, 'utf8')).length,
+  auditCountBeforeCrossTenant,
+  'cross-tenant candidate writes must not emit audit events'
+);
 const tenantScoped = await listCandidates(tenantId, jobId);
 assert.equal(tenantScoped[0]?.candidate?.status, 'screening');
 assert.deepEqual(tenantScoped[0]?.score, { score: 88 });
 
-const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const auditCountBeforeInvalidInputs = JSON.parse(await fs.readFile(auditPath, 'utf8')).length;
 
 // Persistence inputs are bounded at the boundary to prevent oversized lookup or write batches.
