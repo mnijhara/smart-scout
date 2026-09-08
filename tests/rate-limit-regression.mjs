@@ -59,7 +59,7 @@ assert.deepEqual(afterClockRollback, {
   resetAtEpochSeconds: 6,
 });
 
-// Reject malformed or unbounded rate-limit inputs before they can create unsafe buckets.
+// Reject malformed, unbounded, or overflow-prone rate-limit inputs before they can create unsafe buckets.
 assert.throws(() => checkRateLimit('', 2, 1000, 0), /Rate limit key is required/);
 assert.throws(() => checkRateLimit('key', 0, 1000, 0), /Rate limit must be a positive integer/);
 assert.throws(() => checkRateLimit('key', Number.MAX_SAFE_INTEGER + 1, 1000, 0), /Rate limit must be a positive integer/);
@@ -68,5 +68,6 @@ assert.throws(() => checkRateLimit('key', 2, Number.MAX_SAFE_INTEGER + 1, 0), /R
 assert.throws(() => checkRateLimit('x'.repeat(257), 2, 1000, 0), /Rate limit key is too long/);
 assert.throws(() => checkRateLimit('key', 2, 1000, -1), /Rate limit timestamp must be a non-negative integer/);
 assert.throws(() => checkRateLimit('key', 2, 1000, Number.MAX_SAFE_INTEGER + 1), /Rate limit timestamp must be a non-negative integer/);
+assert.throws(() => checkRateLimit('overflow:key', 1, 2, Number.MAX_SAFE_INTEGER - 1), /Rate limit timestamp\/window combination is too large/);
 
 console.log('Rate-limit regression passed.');
