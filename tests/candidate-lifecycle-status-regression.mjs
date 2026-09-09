@@ -5,8 +5,13 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = '';
 
 const { saveCandidates, updateCandidateStatus } = await import('../services/recruiting/candidateStore.ts');
 
-const candidateStorePath = process.env.SMARTSCOUT_CANDIDATE_STORE;
-assert.ok(candidateStorePath !== undefined || true);
+const saved = await saveCandidates('tenant-lifecycle-regression', 'job-lifecycle-regression', [
+  { name: 'Default candidate' },
+  { name: 'Explicit candidate', status: 'screened' }
+]);
+assert.equal(saved.length, 2);
+assert.equal(saved[0].candidate.status, undefined);
+assert.equal(saved[1].candidate.status, 'screened');
 
 await assert.rejects(
   () => saveCandidates('tenant-lifecycle-regression', 'job-lifecycle-regression', [{ name: 'Candidate', status: 'not-a-lifecycle-state' }]),
