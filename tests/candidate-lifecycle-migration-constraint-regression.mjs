@@ -20,10 +20,21 @@ const expectedStatuses = [
 ];
 
 assert.match(sql, /alter\s+table\s+public\.recruiting_candidates\s+\n?\s*add\s+constraint\s+recruiting_candidates_status_check/i);
-assert.match(sql, /check\s*\(\s*status\s+in\s*\(/i);
-for (const status of expectedStatuses) {
-  assert.match(sql, new RegExp(`['"]${status}['"]`), `migration must allow lifecycle status ${status}`);
-}
+const statusCheck = sql.match(/check\s*\(\s*status\s+in\s*\((.*?)\)\s*\)\s+not\s+valid/is)?.[1] ?? '';
+assert.ok(statusCheck, 'migration must define a staged status CHECK constraint');
+
+const persistedStatuses = [...statusCheck.matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
+assert.deepEqual(
+  persistedStatuses,
+  expectedStatuses,
+  'migration must allow exactly the application lifecycle states, in canonical order',
+);
+assert.equal(
+  new Set(persistedStatuses).size,
+  expectedStatuses.length,
+  'migration must not contain duplicate lifecycle states',
+);
+
 assert.match(sql, /\)\s+not\s+valid\s*;/i, 'migration must stage validation explicitly');
 assert.match(sql, /validate\s+constraint\s+recruiting_candidates_status_check\s*;/i, 'migration must validate the staged constraint');
 
