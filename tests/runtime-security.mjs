@@ -52,6 +52,27 @@ for (let i = 0; i < 190; i += 1) {
   }
 }
 if (!rateLimitResponse) throw new Error('API rate limiter did not return 429 after the configured threshold');
+
+const retryAfter = Number(rateLimitResponse.headers.get('retry-after'));
+const rateLimitLimit = Number(rateLimitResponse.headers.get('ratelimit-limit'));
+const rateLimitRemaining = Number(rateLimitResponse.headers.get('ratelimit-remaining'));
+const rateLimitReset = Number(rateLimitResponse.headers.get('ratelimit-reset'));
+if (!Number.isInteger(retryAfter) || retryAfter < 1) {
+  throw new Error('rate-limited API response must publish a positive integer Retry-After');
+}
+if (!Number.isInteger(rateLimitLimit) || rateLimitLimit < 1) {
+  throw new Error('rate-limited API response must publish a positive RateLimit-Limit');
+}
+if (!Number.isInteger(rateLimitRemaining) || rateLimitRemaining !== 0) {
+  throw new Error('rate-limited API response must publish zero RateLimit-Remaining');
+}
+const nowEpochSeconds = Math.floor(Date.now() / 1000);
+if (!Number.isInteger(rateLimitReset) || rateLimitReset < nowEpochSeconds) {
+  throw new Error('rate-limited API response must publish a future RateLimit-Reset timestamp');
+}
+if (rateLimitReset - nowEpochSeconds > retryAfter + 1) {
+  throw new Error('RateLimit-Reset must not outlive Retry-After beyond clock rounding');
+}
 if (!rateLimitResponse.headers.get('retry-after')) {
   throw new Error('rate-limited API response did not include Retry-After');
 }
