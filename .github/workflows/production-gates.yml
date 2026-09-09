@@ -93,6 +93,10 @@ jobs:
         run: npx tsx tests/candidate-score-write-serialization-regression.mjs
       - name: Store tenant identity regression
         run: npx tsx tests/store-tenant-identity-regression.mjs
+      - name: Candidate lifecycle tenant/update regression
+        run: npm run e2e:candidate-lifecycle-tenant-update
+      - name: Candidate lifecycle migration constraint regression
+        run: npm run e2e:candidate-lifecycle-migration-constraint
       - name: Interview state machine regression
         run: node tests/interview-state-machine-regression.mjs
       - name: Interview timestamp validation regression
