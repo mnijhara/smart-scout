@@ -9,6 +9,8 @@ const filePath=process.env.SMARTSCOUT_CANDIDATE_STORE||path.join(process.cwd(),'
 const MAX_CANDIDATES_PER_BATCH=5000;
 const MAX_IDENTIFIER_LENGTH=256;
 const MAX_SCORE_SERIALIZED_LENGTH=8192;
+const CANDIDATE_LIFECYCLE_STATUSES=['discovered','screened','shortlisted','interview','selected','rejected','offered','accepted','onboarded'] as const;
+const CANDIDATE_LIFECYCLE_STATUS_SET=new Set<string>(CANDIDATE_LIFECYCLE_STATUSES);
 let writeQueue=Promise.resolve();
 function db(){const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;return url&&key?createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}):null}
 function requireTenantId(tenantId:string){const normalized=String(tenantId??'').trim();if(!normalized)throw new Error('tenantId is required');if(normalized.length>MAX_IDENTIFIER_LENGTH)throw new Error('tenantId is too long');return normalized}
@@ -18,13 +20,14 @@ async function readAll():Promise<SavedCandidate[]>{try{return JSON.parse(await f
 function requiredJobId(jobId:string){const normalized=String(jobId??'').trim();if(!normalized)throw new Error('jobId is required');if(normalized.length>MAX_IDENTIFIER_LENGTH)throw new Error('jobId is too long');return normalized}
 function requiredCandidateBatch(candidates:any[]){if(!Array.isArray(candidates))throw new Error('candidates must be an array');if(candidates.length>MAX_CANDIDATES_PER_BATCH)throw new Error(`candidate batch is too large; maximum is ${MAX_CANDIDATES_PER_BATCH}`);if(candidates.some(candidate=>!candidate||typeof candidate!=='object'||Array.isArray(candidate)))throw new Error('candidate entries must be objects');return candidates}
 function requiredCandidateId(id:string){const normalized=String(id??'').trim();if(!normalized)throw new Error('candidateId is required');if(normalized.length>MAX_IDENTIFIER_LENGTH)throw new Error('candidateId is too long');return normalized}
-function requiredStatus(status:string){const normalized=String(status??'').trim();if(!normalized)throw new Error('status is required');if(normalized.length>64)throw new Error('status is too long');return normalized}
+function requiredStatus(status:string){const normalized=String(status??'').trim();if(!normalized)throw new Error('status is required');if(normalized.length>64)throw new Error('status is too long');if(!CANDIDATE_LIFECYCLE_STATUS_SET.has(normalized))throw new Error(`unsupported candidate lifecycle status: ${normalized}`);return normalized}
 function requiredScore(score:any){try{const serialized=JSON.stringify(score);if(typeof serialized==='string'&&serialized.length>MAX_SCORE_SERIALIZED_LENGTH)throw new Error('score is too large')}catch(error){if(error instanceof Error&&error.message==='score is too large')throw error;throw new Error('score is invalid')}return score}
 function sameScore(left:any,right:any){return JSON.stringify(left)===JSON.stringify(right)}
 export async function saveCandidates(tenantId:string,jobId:string,candidates:any[]):Promise<SavedCandidate[]>{
  tenantId=requireTenantId(tenantId);
  const normalizedJobId=requiredJobId(jobId);
  const normalizedCandidates=requiredCandidateBatch(candidates);
+ normalizedCandidates.forEach(candidate=>requiredStatus(candidate.status||'discovered'));
  const client=db();
  if(client){const workflowId=workflowUuid(normalizedJobId);const rows=normalizedCandidates.map(c=>({tenant_id:tenantId,workflow_id:workflowId,name:c.name||'Unknown candidate',email:c.email||null,phone:c.phone||null,profile_url:c.profileUrl||c.profile_url||null,source:c.source||'browser',resume_text:c.resumeText||c.resume_text||null,score:c.score||null,status:c.status||'discovered',evidence:c.evidence||[]}));const {data,error}=await client.from('recruiting_candidates').insert(rows).select('*');if(error)throw new Error(`Unable to persist candidates: ${error.message}`);const saved=(data||[]).map(publicCandidate);await audit({tenantId,jobId:normalizedJobId,action:'candidates_persisted',actor:'system',metadata:{count:saved.length,candidateIds:saved.map(c=>c.id)}});return saved}
  const now=new Date().toISOString();const saved=normalizedCandidates.map(candidate=>({id:`candidate_${crypto.randomUUID()}`,tenantId,jobId:normalizedJobId,candidate,createdAt:now,updatedAt:now}));writeQueue=writeQueue.then(async()=>{const all=await readAll(),kept=all.filter(x=>!(x.tenantId===tenantId&&x.jobId===normalizedJobId));await fs.writeFile(filePath,JSON.stringify([...saved,...kept].slice(0,5000),null,2),'utf8')});await writeQueue;await audit({tenantId,jobId:normalizedJobId,action:'candidates_persisted',actor:'system',metadata:{count:saved.length,candidateIds:saved.map(c=>c.id)}});return saved;
