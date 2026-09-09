@@ -10,6 +10,18 @@ process.env.SMARTSCOUT_CONTROL_PLANE_DIR = await mkdtemp(path.join(os.tmpdir(), 
 const { saveCandidates, updateCandidateStatus } = await import('../services/recruiting/candidateStore.ts');
 const { listAudit } = await import('../services/recruiting/controlPlane.ts');
 
+const lifecycleStatuses = [
+  'discovered',
+  'screened',
+  'shortlisted',
+  'interview',
+  'selected',
+  'rejected',
+  'offered',
+  'accepted',
+  'onboarded'
+];
+
 try {
   const saved = await saveCandidates('tenant-lifecycle-regression', 'job-lifecycle-regression', [
     { name: 'Default candidate' },
@@ -18,6 +30,13 @@ try {
   assert.equal(saved.length, 2);
   assert.equal(saved[0].candidate.status, 'discovered');
   assert.equal(saved[1].candidate.status, 'screened');
+
+  const allStates = await saveCandidates(
+    'tenant-lifecycle-regression',
+    'job-lifecycle-state-regression',
+    lifecycleStatuses.map(status => ({ name: `${status} candidate`, status }))
+  );
+  assert.deepEqual(allStates.map(candidate => candidate.candidate.status), lifecycleStatuses);
 
   await assert.rejects(
     () => saveCandidates('tenant-lifecycle-regression', 'job-lifecycle-regression', [{ name: 'Candidate', status: 'not-a-lifecycle-state' }]),
