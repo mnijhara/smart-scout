@@ -7,10 +7,10 @@ const { saveCandidates, updateCandidateStatus } = await import('../services/recr
 
 const saved = await saveCandidates('tenant-lifecycle-regression', 'job-lifecycle-regression', [
   { name: 'Default candidate' },
-  { name: 'Explicit candidate', status: 'screened' }
+  { name: 'Explicit candidate', status: ' screened ' }
 ]);
 assert.equal(saved.length, 2);
-assert.equal(saved[0].candidate.status, undefined);
+assert.equal(saved[0].candidate.status, 'discovered');
 assert.equal(saved[1].candidate.status, 'screened');
 
 await assert.rejects(
