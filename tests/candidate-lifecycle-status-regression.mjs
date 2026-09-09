@@ -51,6 +51,9 @@ try {
   const updated = await updateCandidateStatus('tenant-lifecycle-regression', saved[1].id, 'interview');
   assert.equal(updated?.candidate.status, 'interview');
 
+  const unchanged = await updateCandidateStatus('tenant-lifecycle-regression', saved[1].id, 'interview');
+  assert.equal(unchanged?.candidate.status, 'interview');
+
   const auditEvents = await listAudit('tenant-lifecycle-regression', 'job-lifecycle-regression', saved[1].id);
   assert.deepEqual(auditEvents.map(event => event.action), [
     'candidate_status_updated'
