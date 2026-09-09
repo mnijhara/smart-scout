@@ -12,6 +12,9 @@ assert.match(source, /id:'calendar'.*configured:configured\(env\.CALENDAR_API_UR
 assert.match(source, /const MAX_INTEGRATION_RESPONSE_BYTES = 1024 \* 1024;/, 'integration responses must have a bounded memory budget');
 assert.match(source, /response\.headers\.get\('content-length'\)/, 'declared provider response size must be rejected before buffering');
 assert.match(source, /new TextEncoder\(\)\.encode\(text\)\.byteLength>MAX_INTEGRATION_RESPONSE_BYTES/, 'chunked provider responses must be bounded after buffering');
+assert.match(source, /redirect:'error'/, 'integration providers must not be allowed to silently follow redirects');
+assert.match(source, /const safeTimeoutMs=Math\.min\(Math\.max\(Number\.isFinite\(timeoutMs\)\?timeoutMs:15000,1000\),30000\)/, 'integration transport timeout must be finite and bounded');
+assert.match(source, /signal:controller\.signal/, 'integration transport timeout must abort the underlying request');
 
 // Keep the contract test executable without requiring production credentials.
 const module = await import('../services/recruiting/productionIntegrations.ts');
