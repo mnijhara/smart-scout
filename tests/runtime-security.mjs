@@ -26,6 +26,9 @@ if (!aiStatusResponse.headers.get('content-type')?.includes('application/json'))
 }
 
 await expectStatus('/api/control-plane/approvals', 401);
+await expectStatus('/api/control-plane/approvals', 401, {
+  headers: { authorization: 'Bearer invalid-test-token' },
+});
 
 const requestId = 'runtime-security-fixed-request-id';
 const requestIdResponse = await expectStatus('/api/recruiting/health', 200, { headers: { 'x-request-id': requestId } });
