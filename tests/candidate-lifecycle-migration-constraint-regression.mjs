@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const migrationPath = path.resolve('supabase/migrations/004_candidate_lifecycle_status_constraint.sql');
+const schemaPath = path.resolve('supabase/migrations/002_recruiting_os_core.sql');
 const sql = fs.readFileSync(migrationPath, 'utf8');
+const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
 const expectedStatuses = [
   'discovered',
@@ -28,5 +30,8 @@ assert.match(sql, /validate\s+constraint\s+recruiting_candidates_status_check\s*
 const addIndex = sql.indexOf('add constraint recruiting_candidates_status_check');
 const validateIndex = sql.indexOf('validate constraint recruiting_candidates_status_check');
 assert.ok(addIndex >= 0 && validateIndex > addIndex, 'constraint validation must occur after the constraint is added');
+
+const candidatesTable = schemaSql.match(/create table if not exists public\.recruiting_candidates\s*\((.*?)\n\);/is)?.[1] ?? '';
+assert.match(candidatesTable, /status\s+text\s+not\s+null\s+default\s+'discovered'/i, 'base schema must keep lifecycle status non-null with a safe default');
 
 console.log('Candidate lifecycle migration constraint regression passed');
