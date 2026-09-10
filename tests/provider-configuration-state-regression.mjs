@@ -9,9 +9,20 @@ if (!/healthStatus\(true,true\)/.test(source)) throw new Error('Browser sourcing
 if (!/const healthStatus =/.test(source)) throw new Error('Integration readiness status must be derived centrally');
 
 const credentialProviders = ['resend','supabase','linkedin','naukri','calendar','transcription','compensation','hris'];
+const integrationRows = [...source.matchAll(/\{id:'([a-z-]+)',provider:/g)];
+const rowById = new Map();
+for (let index = 0; index < integrationRows.length; index += 1) {
+  const match = integrationRows[index];
+  const start = match.index;
+  const end = integrationRows[index + 1]?.index ?? source.length;
+  rowById.set(match[1], source.slice(start, end));
+}
+
 for (const id of credentialProviders) {
-  const row = new RegExp(`id:'${id}'[\\s\\S]*?configurationMode:'credentials'[\\s\\S]*?status:healthStatus`).test(source);
-  if (!row) throw new Error(`Provider ${id} must declare credentials configuration mode and explicit readiness status`);
+  const row = rowById.get(id);
+  if (!row) throw new Error(`Provider ${id} integration health row is missing`);
+  if (!/configurationMode:'credentials'/.test(row)) throw new Error(`Provider ${id} must declare credentials configuration mode`);
+  if (!/status:healthStatus/.test(row)) throw new Error(`Provider ${id} must expose the centrally derived readiness status`);
 }
 
 console.log('provider-configuration-state-regression: ok');
