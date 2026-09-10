@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const migrationPath = path.resolve('supabase/migrations/027_candidate_lifecycle_status_constraint.sql');
+const migrationPath = path.resolve('supabase/migrations/028_candidate_lifecycle_status_constraint.sql');
 const schemaPath = path.resolve('supabase/migrations/002_recruiting_os_core.sql');
 const sql = fs.readFileSync(migrationPath, 'utf8');
 const schemaSql = fs.readFileSync(schemaPath, 'utf8');
