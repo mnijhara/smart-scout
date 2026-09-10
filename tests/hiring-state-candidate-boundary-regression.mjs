@@ -18,7 +18,7 @@ const tenantId = 'tenant-hiring-boundary';
 const otherTenantId = 'tenant-hiring-boundary-other';
 const jobId = 'job_hiring-boundary';
 const otherJobId = 'job_hiring-boundary-other';
-const [candidate] = await saveCandidates(tenantId, jobId, [{ name: 'Lifecycle Candidate', status: 'screening' }]);
+const [candidate] = await saveCandidates(tenantId, jobId, [{ name: 'Lifecycle Candidate', status: 'screened' }]);
 assert.ok(candidate?.id);
 
 const saved = await saveHiringState(tenantId, jobId, 'decision', { decision: 'advance' }, candidate.id);
