@@ -1,0 +1,29 @@
+name: SmartScout Hiring State Migration Regressions
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hiring-state-migration-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Hiring state migration contract
+        run: node tests/hiring-state-migration-regression.mjs
+      - name: Atomic hiring state and audit migration contract
+        run: node tests/hiring-state-atomic-audit-migration-regression.mjs
