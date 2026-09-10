@@ -21,16 +21,16 @@ await updateCandidateScore(tenantId, candidate.id, { score: 88 });
 const unchangedScore = await updateCandidateScore(tenantId, candidate.id, { score: 88 });
 assert.deepEqual(unchangedScore?.score, { score: 88 });
 
-const updated = await updateCandidateStatus(tenantId, candidate.id, 'screening');
-assert.equal(updated?.candidate?.status, 'screening');
-const unchanged = await updateCandidateStatus(tenantId, candidate.id, 'screening');
-assert.equal(unchanged?.candidate?.status, 'screening');
+const updated = await updateCandidateStatus(tenantId, candidate.id, 'screened');
+assert.equal(updated?.candidate?.status, 'screened');
+const unchanged = await updateCandidateStatus(tenantId, candidate.id, 'screened');
+assert.equal(unchanged?.candidate?.status, 'screened');
 
 // A candidate identifier must never cross a tenant boundary in either reads or writes.
 const auditPath = path.join(dir, 'control-plane', 'audit.json');
 const auditCountBeforeCrossTenant = JSON.parse(await fs.readFile(auditPath, 'utf8')).length;
 assert.deepEqual(await listCandidates(otherTenantId, jobId), []);
-assert.equal(await updateCandidateStatus(otherTenantId, candidate.id, 'hired'), null);
+assert.equal(await updateCandidateStatus(otherTenantId, candidate.id, 'rejected'), null);
 assert.equal(await updateCandidateScore(otherTenantId, candidate.id, { score: 100 }), null);
 assert.equal(
   JSON.parse(await fs.readFile(auditPath, 'utf8')).length,
@@ -38,7 +38,7 @@ assert.equal(
   'cross-tenant candidate writes must not emit audit events'
 );
 const tenantScoped = await listCandidates(tenantId, jobId);
-assert.equal(tenantScoped[0]?.candidate?.status, 'screening');
+assert.equal(tenantScoped[0]?.candidate?.status, 'screened');
 assert.deepEqual(tenantScoped[0]?.score, { score: 88 });
 
 const auditCountBeforeInvalidInputs = JSON.parse(await fs.readFile(auditPath, 'utf8')).length;
@@ -46,7 +46,7 @@ const auditCountBeforeInvalidInputs = JSON.parse(await fs.readFile(auditPath, 'u
 // Persistence inputs are bounded at the boundary to prevent oversized lookup or write batches.
 const oversizedCandidateId = `candidate_${'x'.repeat(300)}`;
 const oversizedJobId = `job_${'x'.repeat(300)}`;
-await assert.rejects(() => updateCandidateStatus(tenantId, oversizedCandidateId, 'hired'), /candidateId is too long/);
+await assert.rejects(() => updateCandidateStatus(tenantId, oversizedCandidateId, 'rejected'), /candidateId is too long/);
 await assert.rejects(() => updateCandidateScore(tenantId, oversizedCandidateId, { score: 100 }), /candidateId is too long/);
 await assert.rejects(() => saveCandidates(tenantId, oversizedJobId, [{ name: 'Candidate' }]), /jobId is too long/);
 await assert.rejects(() => saveCandidates(tenantId, jobId, Array.from({ length: 5001 }, () => ({ name: 'Candidate' }))), /candidate batch is too large/);
@@ -58,7 +58,7 @@ await assert.rejects(() => saveCandidates(tenantId, jobId, [[]]), /candidate ent
 // Empty/whitespace identifiers must fail before any persistence lookup or mutation.
 await assert.rejects(() => saveCandidates('   ', jobId, [{ name: 'Candidate' }]), /tenantId is required/);
 await assert.rejects(() => listCandidates(tenantId, '   '), /jobId is required/);
-await assert.rejects(() => updateCandidateStatus(tenantId, '   ', 'hired'), /candidateId is required/);
+await assert.rejects(() => updateCandidateStatus(tenantId, '   ', 'rejected'), /candidateId is required/);
 await assert.rejects(() => updateCandidateScore(tenantId, '   ', { score: 100 }), /candidateId is required/);
 
 // Score payloads are bounded before any database or file mutation.
@@ -80,7 +80,7 @@ assert.deepEqual(scoreEvents[0].metadata.nextScore, { score: 88 });
 const statusEvents = lifecycle.filter(event => event.action === 'candidate_status_updated');
 assert.equal(statusEvents.length, 1);
 assert.equal(statusEvents[0].metadata.previousStatus, 'discovered');
-assert.equal(statusEvents[0].metadata.nextStatus, 'screening');
+assert.equal(statusEvents[0].metadata.nextStatus, 'screened');
 assert.equal(statusEvents[0].metadata.status, undefined);
 
 const auditCountBeforeInvalidStatus = events.length;
