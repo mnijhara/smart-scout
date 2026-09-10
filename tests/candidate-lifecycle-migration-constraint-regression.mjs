@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const migrationPath = path.resolve('supabase/migrations/024_candidate_lifecycle_status_constraint.sql');
+const migrationPath = path.resolve('supabase/migrations/027_candidate_lifecycle_status_constraint.sql');
 const schemaPath = path.resolve('supabase/migrations/002_recruiting_os_core.sql');
 const sql = fs.readFileSync(migrationPath, 'utf8');
 const schemaSql = fs.readFileSync(schemaPath, 'utf8');
@@ -23,7 +23,7 @@ assert.match(sql, /alter\s+table\s+public\.recruiting_candidates\s+\n?\s*add\s+c
 const statusCheck = sql.match(/check\s*\(\s*status\s+in\s*\((.*?)\)\s*\)\s+not\s+valid/is)?.[1] ?? '';
 assert.ok(statusCheck, 'migration must define a staged status CHECK constraint');
 
-const persistedStatuses = [...statusCheck.matchAll(/['"]([^'"]+)['"]/g)].map(match => match[1]);
+const persistedStatuses = [...statusCheck.matchAll(/['\"]([^'\"]+)['\"]/g)].map(match => match[1]);
 assert.deepEqual(
   persistedStatuses,
   expectedStatuses,
