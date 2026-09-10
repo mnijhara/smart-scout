@@ -1,8 +1,6 @@
 name: SmartScout Live Public E2E
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
