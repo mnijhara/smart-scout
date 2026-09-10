@@ -9,15 +9,20 @@ const requiredRegressions = [
   'candidate-lifecycle-score-tenant-guard-regression.mjs',
 ];
 
-for (const regression of requiredRegressions) {
-  if (!workflow.includes(`tests/${regression}`)) {
-    throw new Error(`candidate score CI workflow is missing ${regression}`);
-  }
+const steps = [...workflow.matchAll(/run: node tests\/(candidate-lifecycle-score-[^\s]+\.mjs)/g)].map((match) => match[1]);
+
+if (steps.length !== requiredRegressions.length) {
+  throw new Error(`candidate score CI workflow must run exactly ${requiredRegressions.length} node regression steps; found ${steps.length}`);
 }
 
-const steps = [...workflow.matchAll(/run: node tests\/(candidate-lifecycle-score-[^\s]+\.mjs)/g)].map((match) => match[1]);
-if (new Set(steps).size !== requiredRegressions.length) {
-  throw new Error(`candidate score CI workflow must run exactly ${requiredRegressions.length} node regression steps`);
+if (new Set(steps).size !== steps.length) {
+  throw new Error('candidate score CI workflow contains duplicate lifecycle regression steps');
+}
+
+for (const [index, regression] of requiredRegressions.entries()) {
+  if (steps[index] !== regression) {
+    throw new Error(`candidate score CI workflow regression order drifted at step ${index + 1}: expected ${regression}, found ${steps[index] ?? 'missing'}`);
+  }
 }
 
 console.log('Candidate score CI coverage regression passed.');
