@@ -26,6 +26,11 @@ for (const route of sensitiveRoutes) {
     /res\.status\(\d+\)\.json\([^\n]*error:\s*(?:err|error)\.message/,
     `${route} must not expose raw caught error messages`
   );
+  assert.doesNotMatch(
+    handler,
+    /(?:res|return).*\b(?:stack|cause|rawError)\b/,
+    `${route} must not expose provider error internals`
+  );
 }
 
-console.log('Sensitive provider-backed routes do not expose raw caught error messages.');
+console.log('Sensitive provider-backed routes do not expose raw provider error details.');
