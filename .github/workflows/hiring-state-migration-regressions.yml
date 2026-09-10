@@ -23,6 +23,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Verify migration ordering and production guards
+        run: npm run verify:migrations
       - name: Hiring state migration contract
         run: node tests/hiring-state-migration-regression.mjs
       - name: Atomic hiring state and audit migration contract
