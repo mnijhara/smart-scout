@@ -2,6 +2,11 @@ name: SmartScout Live Public E2E
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_release_sha:
+        description: 'Deployed SmartScout commit SHA to verify'
+        required: false
+        type: string
   schedule:
     - cron: '17 * * * *'
 
@@ -11,6 +16,9 @@ permissions:
 concurrency:
   group: smartscout-live-public-e2e
   cancel-in-progress: true
+
+env:
+  EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha || github.sha }}
 
 jobs:
   live-public-e2e:
@@ -30,7 +38,6 @@ jobs:
       - name: Verify live release identity
         env:
           LIVE_URL: https://smartscout.online/
-          EXPECTED_RELEASE_SHA: ${{ github.sha }}
         run: |
           set -e
           code=$(curl -sS -o /tmp/live.html -w '%{http_code}' --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 "$LIVE_URL")
@@ -44,14 +51,12 @@ jobs:
       - name: Exercise live public hiring journey with Playwright Chromium
         env:
           SMARTSCOUT_BASE_URL: https://smartscout.online
-          EXPECTED_RELEASE_SHA: ${{ github.sha }}
-          LIVE_E2E_DIAGNOSTICS_DIR: artifacts/live-public-e2e
         run: node tests/live-public-e2e.mjs
       - name: Upload live Chromium diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: smartscout-live-public-e2e-diagnostics-${{ github.sha }}
+          name: smartscout-live-public-e2e-diagnostics-${{ env.EXPECTED_RELEASE_SHA }}
           path: artifacts/live-public-e2e
           if-no-files-found: ignore
           retention-days: 7
