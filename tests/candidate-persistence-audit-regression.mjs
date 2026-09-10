@@ -86,6 +86,8 @@ assert.equal(statusEvents[0].metadata.status, undefined);
 const auditCountBeforeInvalidStatus = events.length;
 await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, '   '), /status is required/);
 await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, 'x'.repeat(65)), /status is too long/);
+await assert.rejects(() => updateCandidateStatus(tenantId, candidate.id, 'screening'), /unsupported candidate lifecycle status/);
+await assert.rejects(() => saveCandidates(tenantId, jobId, [{ name: 'Candidate', status: 'hired' }]), /unsupported candidate lifecycle status/);
 assert.equal(
   JSON.parse(await fs.readFile(auditPath, 'utf8')).length,
   auditCountBeforeInvalidStatus,
