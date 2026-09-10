@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: smartscout-hiring-state-migration-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   hiring-state-migration-regressions:
     runs-on: ubuntu-latest
