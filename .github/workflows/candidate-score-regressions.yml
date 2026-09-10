@@ -23,6 +23,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Candidate score CI coverage regression
+        run: node tests/candidate-score-ci-coverage-regression.mjs
       - name: Candidate score no-op audit regression
         run: node tests/candidate-lifecycle-score-noop-regression.mjs
       - name: Candidate score size boundary regression
