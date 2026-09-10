@@ -1,0 +1,35 @@
+name: SmartScout Provider Configuration Regressions
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-configuration-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Provider configuration contract
+        run: node tests/provider-configuration-regression.mjs
+      - name: Provider configuration state honesty
+        run: node tests/provider-configuration-state-regression.mjs
+      - name: Integration health provider state
+        run: node tests/integration-health-provider-state-regression.mjs
+      - name: Integration health configuration safety
+        run: node tests/integration-health-configuration-regression.mjs
+      - name: AI provider status honesty
+        run: node tests/ai-status-honest-provider-state-regression.mjs
