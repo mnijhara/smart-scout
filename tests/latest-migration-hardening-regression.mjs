@@ -51,6 +51,26 @@ for (let index = 1; index < expectedVersions.length; index += 1) {
   }
 }
 
+const latestHiringMigrations = [
+  '028_recruiting_audit_candidate_workflow_index.sql',
+  '029_recruiting_candidates_tenant_email_uniqueness.sql',
+  '030_candidate_lifecycle_status_constraint.sql',
+];
+const latestVersions = latestHiringMigrations.map(file => Number(file.match(/^(\d+)_/)?.[1]));
+for (let index = 0; index < latestHiringMigrations.length; index += 1) {
+  if (!files.includes(latestHiringMigrations[index])) {
+    throw new Error(`Missing latest hiring migration: ${latestHiringMigrations[index]}`);
+  }
+  if (index > 0 && latestVersions[index] !== latestVersions[index - 1] + 1) {
+    throw new Error(`Latest hiring migrations must remain sequential: ${latestHiringMigrations.join(', ')}`);
+  }
+}
+
+const lifecycleConstraint = await readFile(path.join(root, latestHiringMigrations[2]), 'utf8');
+if (!/check\s*\(status\s+in\s*\(/i.test(lifecycleConstraint) || !/discovered/i.test(lifecycleConstraint) || !/onboarded/i.test(lifecycleConstraint)) {
+  throw new Error('Candidate lifecycle migration must constrain status to the supported lifecycle values');
+}
+
 const integrationTenant = await readFile(path.join(root, expected[0]), 'utf8');
 for (const table of ['recruiting_documents', 'recruiting_knockout_results']) {
   const force = new RegExp(`alter\\s+table\\s+${table}\\s+force\\s+row\\s+level\\s+security`, 'i');
