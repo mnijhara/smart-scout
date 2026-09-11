@@ -23,17 +23,6 @@ for (let index = 1; index < versions.length; index += 1) {
   }
 }
 
-const verifier = await readFile(path.resolve('scripts/verify-migrations.mjs'), 'utf8');
-if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier)) {
-  throw new Error('Migration verifier must reject non-positive or unsafe migration versions');
-}
-if (!/Invalid migration filenames/.test(verifier) || !/name\.endsWith\('\.sql'\)/.test(verifier)) {
-  throw new Error('Migration verifier must reject malformed SQL migration filenames');
-}
-if (!verifier.includes('Destructive protected-table drop found')) {
-  throw new Error('Migration verifier must reject destructive protected-table drops');
-}
-
 const expected = [
   '020_recruiting_integration_tenant_integrity.sql',
   '021_recruiting_comparison_tenant_integrity.sql',
@@ -49,6 +38,21 @@ const expected = [
 ];
 for (const file of expected) {
   if (!files.includes(file)) throw new Error(`Missing recruiting migration: ${file}`);
+}
+const expectedVersions = expected.map((file) => Number(file.match(/^(\d+)_/)?.[1]));
+if (Math.max(...versions) !== expectedVersions.at(-1)) {
+  throw new Error(`Expected recruiting migration chain to end at version ${expectedVersions.at(-1)}, found ${Math.max(...versions)}`);
+}
+
+const verifier = await readFile(path.resolve('scripts/verify-migrations.mjs'), 'utf8');
+if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier)) {
+  throw new Error('Migration verifier must reject non-positive or unsafe migration versions');
+}
+if (!/Invalid migration filenames/.test(verifier) || !/name\.endsWith\('\.sql'\)/.test(verifier)) {
+  throw new Error('Migration verifier must reject malformed SQL migration filenames');
+}
+if (!verifier.includes('Destructive protected-table drop found')) {
+  throw new Error('Migration verifier must reject destructive protected-table drops');
 }
 
 const rlsDefense = await readFile(path.join(root, '028_recruiting_core_rls_defense_in_depth.sql'), 'utf8');
