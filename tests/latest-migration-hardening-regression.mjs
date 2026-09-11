@@ -70,6 +70,9 @@ const lifecycleConstraint = await readFile(path.join(root, latestHiringMigration
 if (!/check\s*\(status\s+in\s*\(/i.test(lifecycleConstraint) || !/discovered/i.test(lifecycleConstraint) || !/onboarded/i.test(lifecycleConstraint)) {
   throw new Error('Candidate lifecycle migration must constrain status to the supported lifecycle values');
 }
+if (!/validate\s+constraint\s+recruiting_candidates_status_check/i.test(lifecycleConstraint)) {
+  throw new Error('Candidate lifecycle migration must validate the new status constraint rather than leaving it permanently NOT VALID');
+}
 
 const integrationTenant = await readFile(path.join(root, expected[0]), 'utf8');
 for (const table of ['recruiting_documents', 'recruiting_knockout_results']) {
