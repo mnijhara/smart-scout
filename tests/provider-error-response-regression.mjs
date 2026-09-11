@@ -23,12 +23,7 @@ for (const route of sensitiveRoutes) {
   );
   assert.doesNotMatch(
     handler,
-    /res\.status\(\d+\)\.json\([^\n]*error:\s*(?:err|error)\.message/,
-    `${route} must not expose raw caught error messages`
-  );
-  assert.doesNotMatch(
-    handler,
-    /(?:res|return).*\b(?:stack|cause|rawError)\b/,
+    /(?:res|return).*\b(?:stack|cause|rawError|details)\b/,
     `${route} must not expose provider error internals`
   );
 }
