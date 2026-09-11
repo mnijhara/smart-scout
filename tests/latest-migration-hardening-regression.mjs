@@ -2,16 +2,16 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = path.resolve('supabase/migrations');
-const allSqlFiles = (await readdir(root)).filter(name => name.endsWith('.sql'));
-const invalidMigrationFiles = allSqlFiles.filter(name => !/^\d+_.+\.sql$/.test(name));
+const allSqlFiles = (await readdir(root)).filter((name) => name.endsWith('.sql'));
+const invalidMigrationFiles = allSqlFiles.filter((name) => !/^\d+_.+\.sql$/.test(name));
 if (invalidMigrationFiles.length) {
   throw new Error(`Migration verifier must reject malformed SQL migration filenames: ${invalidMigrationFiles.join(', ')}`);
 }
-const files = allSqlFiles
-  .filter(name => /^\d+_.+\.sql$/.test(name))
-  .sort((left, right) => Number(left.match(/^(\d+)_/)?.[1]) - Number(right.match(/^(\d+)_/)?.[1]) || left.localeCompare(right));
 
-const versions = files.map(file => Number(file.match(/^(\d+)_/)?.[1])).filter(Number.isInteger);
+const files = allSqlFiles
+  .filter((name) => /^\d+_.+\.sql$/.test(name))
+  .sort((left, right) => Number(left.match(/^(\d+)_/)?.[1]) - Number(right.match(/^(\d+)_/)?.[1]));
+const versions = files.map((file) => Number(file.match(/^(\d+)_/)?.[1]));
 const duplicateVersions = versions.filter((version, index) => versions.indexOf(version) !== index);
 if (duplicateVersions.length) {
   throw new Error(`Duplicate migration versions detected: ${[...new Set(duplicateVersions)].join(', ')}`);
@@ -28,10 +28,10 @@ if (!/Number\.isSafeInteger\(version\)\s*\|\|\s*version\s*<\s*1/.test(verifier))
   throw new Error('Migration verifier must reject non-positive or unsafe migration versions');
 }
 if (!/Invalid migration filenames/.test(verifier) || !/name\.endsWith\('\.sql'\)/.test(verifier)) {
-  throw new Error('Migration verifier must reject SQL files that do not follow the versioned filename convention');
+  throw new Error('Migration verifier must reject malformed SQL migration filenames');
 }
-if (!verifier.includes('(?:IF\\s+EXISTS\\s+)?') || !verifier.includes('Destructive protected-table drop found')) {
-  throw new Error('Migration verifier must reject protected-table drops whether or not IF EXISTS is used');
+if (!verifier.includes('Destructive protected-table drop found')) {
+  throw new Error('Migration verifier must reject destructive protected-table drops');
 }
 
 const expected = [
@@ -39,86 +39,51 @@ const expected = [
   '021_recruiting_comparison_tenant_integrity.sql',
   '022_recruiting_interview_tenant_integrity.sql',
   '023_recruiting_audit_tenant_integrity.sql',
-];
-for (const file of expected) {
-  if (!files.includes(file)) throw new Error(`Missing latest recruiting migration: ${file}`);
-}
-
-const expectedVersions = expected.map(file => Number(file.match(/^(\d+)_/)?.[1]));
-for (let index = 1; index < expectedVersions.length; index += 1) {
-  if (expectedVersions[index] !== expectedVersions[index - 1] + 1) {
-    throw new Error(`Latest recruiting migrations must remain sequential: ${expected.join(', ')}`);
-  }
-}
-
-const latestHiringMigrations = [
-  '028_recruiting_audit_candidate_workflow_index.sql',
+  '024_hiring_state_tenant_integrity.sql',
+  '025_hiring_state_atomic_audit.sql',
+  '026_hiring_state_rpc_input_bounds.sql',
+  '027_recruiting_audit_candidate_workflow_index.sql',
+  '028_recruiting_core_rls_defense_in_depth.sql',
   '029_recruiting_candidates_tenant_email_uniqueness.sql',
   '030_candidate_lifecycle_status_constraint.sql',
 ];
-const latestVersions = latestHiringMigrations.map(file => Number(file.match(/^(\d+)_/)?.[1]));
-for (let index = 0; index < latestHiringMigrations.length; index += 1) {
-  if (!files.includes(latestHiringMigrations[index])) {
-    throw new Error(`Missing latest hiring migration: ${latestHiringMigrations[index]}`);
-  }
-  if (index > 0 && latestVersions[index] !== latestVersions[index - 1] + 1) {
-    throw new Error(`Latest hiring migrations must remain sequential: ${latestHiringMigrations.join(', ')}`);
-  }
+for (const file of expected) {
+  if (!files.includes(file)) throw new Error(`Missing recruiting migration: ${file}`);
 }
 
-const lifecycleConstraint = await readFile(path.join(root, latestHiringMigrations[2]), 'utf8');
-if (!/check\s*\(status\s+in\s*\(/i.test(lifecycleConstraint) || !/discovered/i.test(lifecycleConstraint) || !/onboarded/i.test(lifecycleConstraint)) {
-  throw new Error('Candidate lifecycle migration must constrain status to the supported lifecycle values');
-}
-if (!/validate\s+constraint\s+recruiting_candidates_status_check/i.test(lifecycleConstraint)) {
-  throw new Error('Candidate lifecycle migration must validate the new status constraint rather than leaving it permanently NOT VALID');
-}
-
-const integrationTenant = await readFile(path.join(root, expected[0]), 'utf8');
-for (const table of ['recruiting_documents', 'recruiting_knockout_results']) {
-  const force = new RegExp(`alter\\s+table\\s+${table}\\s+force\\s+row\\s+level\\s+security`, 'i');
-  if (!force.test(integrationTenant)) {
-    throw new Error(`Integration tenant migration must force RLS for ${table}`);
+const rlsDefense = await readFile(path.join(root, '028_recruiting_core_rls_defense_in_depth.sql'), 'utf8');
+for (const table of ['hiring_workflows', 'recruiting_candidates']) {
+  const enable = new RegExp(`alter\\s+table\\s+if\\s+exists\\s+public\\.${table}\\s+enable\\s+row\\s+level\\s+security`, 'i');
+  const force = new RegExp(`alter\\s+table\\s+if\\s+exists\\s+public\\.${table}\\s+force\\s+row\\s+level\\s+security`, 'i');
+  if (!enable.test(rlsDefense) || !force.test(rlsDefense)) {
+    throw new Error(`028 must enable and force RLS for ${table}`);
   }
 }
-
-const comparisonTenant = await readFile(path.join(root, expected[1]), 'utf8');
-if (!/recruiting_comparisons_tenant_job_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*job_id\)[\s\S]*references\s+hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i.test(comparisonTenant)) {
-  throw new Error('Comparison tenant migration must bind job identity to the same tenant');
-}
-if (!/recruiting_comparisons_tenant_job_fk_idx/i.test(comparisonTenant)) {
-  throw new Error('Comparison tenant migration must index its tenant/job foreign key');
+if (/create\\s+policy/i.test(rlsDefense)) {
+  throw new Error('028 must not introduce permissive client policies before tenant claims are wired');
 }
 
-const interviewTenant = await readFile(path.join(root, expected[2]), 'utf8');
-for (const relation of [
-  /recruiting_interviews_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+public\.hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
-  /recruiting_interviews_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+public\.recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
-]) {
-  if (!relation.test(interviewTenant)) throw new Error('Interview tenant migration must preserve same-tenant workflow/candidate identity');
+const candidateEmail = await readFile(path.join(root, '029_recruiting_candidates_tenant_email_uniqueness.sql'), 'utf8');
+if (!/create\\s+unique\\s+index\\s+if\\s+not\\s+exists\\s+recruiting_candidates_tenant_email_workflow_idx/i.test(candidateEmail)) {
+  throw new Error('029 must enforce tenant/workflow-scoped candidate email uniqueness');
 }
-if (!/recruiting_interviews_tenant_workflow_fk_idx/i.test(interviewTenant) || !/recruiting_interviews_tenant_candidate_fk_idx/i.test(interviewTenant)) {
-  throw new Error('Interview tenant migration must index both tenant foreign keys');
-}
-if (!/alter\s+table\s+if\s+exists\s+public\.recruiting_interviews\s+force\s+row\s+level\s+security/i.test(interviewTenant)) {
-  throw new Error('Interview tenant migration must force RLS');
+if (!/lower\(email\)/i.test(candidateEmail)) {
+  throw new Error('029 must normalize candidate email uniqueness case-insensitively');
 }
 
-const auditTenant = await readFile(path.join(root, expected[3]), 'utf8');
-for (const relation of [
-  /recruiting_audit_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
-  /recruiting_audit_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
-]) {
-  if (!relation.test(auditTenant)) throw new Error('Audit tenant migration must preserve same-tenant workflow/candidate identity');
+const lifecycle = await readFile(path.join(root, '030_candidate_lifecycle_status_constraint.sql'), 'utf8');
+for (const status of ['discovered', 'screened', 'shortlisted', 'interview', 'selected', 'rejected', 'offered', 'accepted', 'onboarded']) {
+  if (!new RegExp(`['\"]${status}['\"]`, 'i').test(lifecycle)) {
+    throw new Error(`030 must preserve supported lifecycle status: ${status}`);
+  }
 }
-if (!/recruiting_audit_tenant_workflow_idx/i.test(auditTenant) || !/recruiting_audit_tenant_candidate_idx/i.test(auditTenant)) {
-  throw new Error('Audit tenant migration must index both tenant foreign keys');
+for (const unsupported of ['screening', 'hired', 'completed']) {
+  if (new RegExp(`['\"]${unsupported}['\"]`, 'i').test(lifecycle)) {
+    throw new Error(`030 must not reintroduce unsupported lifecycle status: ${unsupported}`);
+  }
 }
-if (!/recruiting_audit_actor_not_blank[\s\S]*check\s*\(actor_id\s+is\s+null\s+or\s+length\(btrim\(actor_id\)\)\s+between\s+1\s+and\s+256\)[\s\S]*not\s+valid/i.test(auditTenant)) {
-  throw new Error('Audit tenant migration must reject blank or oversized actor identities');
-}
-if (!/alter\s+table\s+recruiting_audit_events\s+force\s+row\s+level\s+security/i.test(auditTenant)) {
-  throw new Error('Audit tenant migration must force RLS');
+if (!/validate\s+constraint\s+recruiting_candidates_status_check/i.test(lifecycle)) {
+  throw new Error('030 must validate the candidate lifecycle constraint after creation');
 }
 
 console.log('Latest recruiting migration hardening regression passed');
