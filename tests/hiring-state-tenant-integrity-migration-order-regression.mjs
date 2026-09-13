@@ -18,10 +18,9 @@ for (const pattern of required) {
   if (!pattern.test(migration)) throw new Error(`Migration 024 dependency/readiness contract missing: ${pattern}`);
 }
 
-const workflowMigration = await readFile(path.join(root, '001_hiring_workflows.sql'), 'utf8');
-const candidateMigration = await readFile(path.join(root, '002_recruiting_candidates.sql'), 'utf8');
+const coreMigration = await readFile(path.join(root, '002_recruiting_os_core.sql'), 'utf8');
 const historyMigration = await readFile(path.join(root, '007_hiring_state_persistence.sql'), 'utf8');
-for (const [label, sql] of [['hiring_workflows', workflowMigration], ['recruiting_candidates', candidateMigration], ['hiring_state_history', historyMigration]]) {
+for (const [label, sql] of [['recruiting_core', coreMigration], ['hiring_state_history', historyMigration]]) {
   if (!sql.trim()) throw new Error(`Migration dependency ${label} is empty`);
 }
 

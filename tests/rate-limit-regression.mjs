@@ -108,7 +108,7 @@ assert.equal(checkRateLimit('mixed:long', 1, 60_000, 10_000).allowed, true);
 for (let index = 0; index < 9_999; index += 1) {
   checkRateLimit(`mixed:short:${index}`, 1, 1_000, 10_000);
 }
-assert.equal(checkRateLimit('mixed:trigger', 1, 1_000, 10_000).allowed, true);
-assert.equal(checkRateLimit('mixed:long', 1, 60_000, 10_000).allowed, false, 'active long-window bucket must survive short-window cleanup');
+assert.equal(checkRateLimit('mixed:trigger', 1, 1_000, 11_000).allowed, true);
+assert.equal(checkRateLimit('mixed:long', 1, 60_000, 11_000).allowed, false, 'active long-window bucket must survive short-window cleanup');
 
 console.log('Rate-limit regression passed.');

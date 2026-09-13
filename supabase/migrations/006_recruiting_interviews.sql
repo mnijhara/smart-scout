@@ -1,4 +1,4 @@
-create table if not exists recruiting_interviews (
+create table if not exists public.recruiting_interviews (
   id uuid primary key default gen_random_uuid(),
   tenant_id text not null,
   workflow_id uuid references hiring_workflows(id) on delete cascade,

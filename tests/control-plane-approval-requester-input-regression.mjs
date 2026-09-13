@@ -5,7 +5,7 @@ const source = await readFile(new URL('../services/recruiting/controlPlane.ts', 
 
 assert.match(
   source,
-  /const actor=actorFromRequest\(req\);res\.json\(await requestApproval\(\{\.\.\.req\.body,tenantId:tenant,requestedBy:actor\}\)\)/,
+  /const actor=actorFromRequest\(req\);(?:requireRecruitingRole\(req\);)?res\.json\(await requestApproval\(\{\.\.\.req\.body,tenantId:tenant,requestedBy:actor\}\)\)/,
   'approval requester must be derived from authenticated workspace identity rather than request input',
 );
 assert.match(

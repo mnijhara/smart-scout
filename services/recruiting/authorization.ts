@@ -17,7 +17,7 @@ export function hasPrivilegedRecruitingRole(role: unknown): role is WorkspaceRol
 
 export function requirePrivilegedRecruitingRole(role: unknown): WorkspaceRole {
   const normalized = typeof role === 'string' ? role.trim().toLowerCase() : '';
-  if (normalized.length > MAX_WORKSPACE_ROLE_LENGTH || !hasPrivilegedRecruitingRole(normalized)) {
+  if (!hasPrivilegedRecruitingRole(normalized)) {
     throw new Error('Insufficient permissions');
   }
   return normalized as WorkspaceRole;

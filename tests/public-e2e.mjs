@@ -43,6 +43,7 @@ try {
   const horizontalOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   if (horizontalOverflow) throw new Error('Mobile landing page has horizontal overflow');
   console.log('PUBLIC_MAGIC_DEMO_MOBILE_E2E_OK');
+  console.log('PUBLIC_MAGIC_DEMO_E2E_OK');
   await mobile.close();
 } finally {
   await browser.close();

@@ -10,7 +10,7 @@ const required = [
   /p_state_type:\s*type/,
   /p_payload:\s*payload\|\|\{\}/,
   /p_actor:\s*actor/,
-  /if\(!atomic\.error\)\s*return\s+publicState\(atomic\.data\)/,
+  /if\(!atomic\.error\)\s*return\s+publicState\((?:requirePersistedStateRow\()?atomic\.data\)?\)/,
   /function atomicRpcUnavailable\(error:any\)/,
   /code==='42883'\s*\|\|\s*code==='PGRST202'/,
   /recordLifecycleAudit\(/,

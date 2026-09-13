@@ -21,7 +21,7 @@ for (const route of ["r.post('/approvals'", "r.post('/approvals/:id/decision'"])
 
 for (const route of ["r.post('/schedules'", "r.post('/schedules/:id/status'", "r.post('/audit'", "r.post('/usage'"]) {
   const body = routeBody(route);
-  assert.match(body, /workspaceIdentity/, `${route} must derive request context from authenticated workspace identity`);
+  assert.match(body, /(?:workspaceIdentity|actorFromRequest)/, `${route} must derive request context from authenticated workspace identity`);
 }
 
 assert.match(

@@ -20,6 +20,35 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        chunkSizeWarningLimit: 1200,
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (id.includes('node_modules')) {
+                if (id.includes('react') || id.includes('scheduler')) {
+                  return 'vendor-react';
+                }
+                if (id.includes('firebase')) {
+                  return 'vendor-firebase';
+                }
+                if (id.includes('@google/genai')) {
+                  return 'vendor-genai';
+                }
+                if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('dompurify')) {
+                  return 'vendor-pdf-export';
+                }
+                if (id.includes('pdfjs-dist') || id.includes('mammoth') || id.includes('jszip')) {
+                  return 'vendor-doc-parsers';
+                }
+                if (id.includes('lucide-react')) {
+                  return 'vendor-icons';
+                }
+              }
+            }
+          }
+        }
       }
     };
 });

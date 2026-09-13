@@ -5,11 +5,15 @@ import assert from 'node:assert/strict';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartscout-audit-failure-'));
 const stateFile = path.join(dir, 'states.json');
+const candidateFile = path.join(dir, 'candidates.json');
 const controlPlaneDir = path.join(dir, 'control-plane');
 process.env.SMARTSCOUT_HIRING_STATE_STORE = stateFile;
+process.env.SMARTSCOUT_CANDIDATE_STORE = candidateFile;
 process.env.SMARTSCOUT_CONTROL_PLANE_DIR = controlPlaneDir;
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+fs.writeFileSync(candidateFile, JSON.stringify([{ id: 'candidate_1', tenantId: 'tenant_a', jobId: 'job_1', candidate: { id: 'candidate_1', name: 'Candidate 1' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]));
 
 const { saveHiringState, listHiringStates } = await import('../services/recruiting/hiringStateStore.ts');
 
@@ -20,6 +24,7 @@ assert.equal((await listHiringStates('tenant_a', 'job_1')).length, 1);
 
 // Make the audit destination itself a directory. Audit persistence must fail,
 // while the hiring-state file remains independently writable for rollback.
+fs.rmSync(path.join(controlPlaneDir, 'audit.json'), { recursive: true, force: true });
 fs.mkdirSync(path.join(controlPlaneDir, 'audit.json'));
 
 await assert.rejects(

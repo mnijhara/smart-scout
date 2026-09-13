@@ -6,10 +6,10 @@ const requiredBoundaries = [
   ['resolveTenant', /const resolveTenant=\(req:any\)=>requiredIdentity\(tenantId\(req\),'Tenant identity'\)/],
   ['approval decision tenant argument', /decideApproval\(String\(req\.params\.id\),req\.body\?\.status,actor,req\.body\?\.note,tenant\)/],
   ['schedule status tenant argument', /updateSchedule\(String\(req\.params\.id\),req\.body\?\.status,tenant,actor\)/],
-  ['audit write tenant argument', /audit\(\{\.\.\.req\.body,tenantId:resolveTenant\(req\)/],
-  ['approval creation tenant argument', /requestApproval\(\{\.\.\.req\.body,tenantId:resolveTenant\(req\)\}\)/],
+  ['audit write tenant argument', /audit\(\{\.\.\.req\.body,tenantId:(?:tenant|resolveTenant\(req\))/],
+  ['approval creation tenant argument', /requestApproval\(\{\.\.\.req\.body,tenantId:(?:tenant|resolveTenant\(req\))/],
   ['schedule creation tenant argument', /scheduleInterview\(\{\.\.\.req\.body,tenantId:tenant\},actor\)/],
-  ['usage write tenant argument', /recordUsage\(\{\.\.\.req\.body,tenantId:resolveTenant\(req\)\}\)/]
+  ['usage write tenant argument', /recordUsage\(\{\.\.\.req\.body,tenantId:(?:tenant|resolveTenant\(req\))/]
 ];
 
 const failures = requiredBoundaries

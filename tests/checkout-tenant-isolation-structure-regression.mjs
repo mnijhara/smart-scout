@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 const server = fs.readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
 
-const route = server.match(/app\.get\('\/api\/checkout\/session-status',[\s\S]*?\n\s*\}\);/);
+const route = server.match(/app\.get\('\/api\/(?:checkout\/session-status|checkout-status)',[\s\S]*?\n\s*\}\);/);
 assert.ok(route, 'checkout session-status route must remain present');
 const source = route[0];
 

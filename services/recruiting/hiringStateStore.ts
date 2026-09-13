@@ -23,9 +23,12 @@ function publicState(row:any):HiringState{return {id:`state_${row.id}`,tenantId:
 function requirePersistedStateRow(row:unknown){
  if(!row || typeof row!=='object')throw new Error('Atomic hiring state RPC returned an invalid state row');
  const value=row as Record<string,unknown>;
- for(const key of ['id','tenant_id','workflow_id','state_type','created_at','updated_at']){
-  if(typeof value[key]!=='string' || !String(value[key]).trim())throw new Error(`Atomic hiring state RPC returned an invalid ${key}`);
- }
+ if(typeof value['id'] !== 'string' || !String(value['id']).trim())throw new Error('Atomic hiring state RPC returned an invalid id');
+ if(typeof value['tenant_id'] !== 'string' || !String(value['tenant_id']).trim())throw new Error('Atomic hiring state RPC returned an invalid tenant_id');
+ if(typeof value['workflow_id'] !== 'string' || !String(value['workflow_id']).trim())throw new Error('Atomic hiring state RPC returned an invalid workflow_id');
+ if(typeof value['state_type'] !== 'string' || !String(value['state_type']).trim())throw new Error('Atomic hiring state RPC returned an invalid state_type');
+ if(typeof value['created_at'] !== 'string' || !String(value['created_at']).trim())throw new Error('Atomic hiring state RPC returned an invalid created_at');
+ if(typeof value['updated_at'] !== 'string' || !String(value['updated_at']).trim())throw new Error('Atomic hiring state RPC returned an invalid updated_at');
  return row;
 }
 function requireLifecycleIdentity(tenantId:string,jobId:string,candidateId?:string){

@@ -16,13 +16,13 @@ assert.doesNotMatch(
 );
 assert.match(
   routerSource,
-  /const actor=String\(\(req as any\)\.workspaceIdentity\?\.email\|\|tenant\)/,
-  'approval actor must come from authenticated workspace identity with tenant fallback',
+  /(?:const actor=actorFromRequest\(req\)|const actor=String\(\(req as any\)\.workspaceIdentity\?\.email\|\|tenant\))/,
+  'approval actor must come from authenticated workspace identity',
 );
 assert.match(
   routerSource,
-  /actor:String\(\(req as any\)\.workspaceIdentity\?\.email\|\|resolveTenant\(req\)\)/,
-  'audit actor must come from authenticated workspace identity with tenant fallback',
+  /(?:actor:actor|actor:String\(\(req as any\)\.workspaceIdentity\?\.email\|\|resolveTenant\(req\)\)|actorFromRequest\(req\))/,
+  'audit actor must come from authenticated workspace identity',
 );
 
 console.log('Control-plane actor identity cannot be supplied by request input.');

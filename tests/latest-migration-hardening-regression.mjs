@@ -63,12 +63,12 @@ for (const table of ['hiring_workflows', 'recruiting_candidates']) {
     throw new Error(`028 must enable and force RLS for ${table}`);
   }
 }
-if (/create\\s+policy/i.test(rlsDefense)) {
+if (/create\s+policy/i.test(rlsDefense)) {
   throw new Error('028 must not introduce permissive client policies before tenant claims are wired');
 }
 
 const candidateEmail = await readFile(path.join(root, '029_recruiting_candidates_tenant_email_uniqueness.sql'), 'utf8');
-if (!/create\\s+unique\\s+index\\s+if\\s+not\\s+exists\\s+recruiting_candidates_tenant_email_workflow_idx/i.test(candidateEmail)) {
+if (!/create\s+unique\s+index\s+if\s+not\s+exists\s+recruiting_candidates_tenant_email_workflow_idx/i.test(candidateEmail)) {
   throw new Error('029 must enforce tenant/workflow-scoped candidate email uniqueness');
 }
 if (!/lower\(email\)/i.test(candidateEmail)) {

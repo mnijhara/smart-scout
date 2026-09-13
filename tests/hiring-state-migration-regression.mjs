@@ -10,10 +10,10 @@ const [storageBounds, identityBounds, candidateIndex] = await Promise.all([
 
 const required = [
   [storageBounds, /hiring_state_history_payload_size_check/i, 'payload size constraint'],
-  [storageBounds, /hiring_state_history_type_length_check/i, 'state type length constraint'],
+  [storageBounds, /hiring_state_history_(?:state_)?type_length_check/i, 'state type length constraint'],
   [identityBounds, /hiring_state_history_workflow_id_length_check/i, 'workflow identity length constraint'],
   [identityBounds, /hiring_state_history_candidate_id_length_check/i, 'candidate identity length constraint'],
-  [candidateIndex, /create\s+index\s+if\s+not\s+exists\s+hiring_state_history_tenant_workflow_type_candidate_idx/i, 'candidate query index'],
+  [candidateIndex, /create\s+index\s+if\s+not\s+exists\s+hiring_state_history_(?:candidate_lookup|tenant_workflow_type_candidate)_idx/i, 'candidate query index'],
   [candidateIndex, /\(tenant_id,\s*workflow_id,\s*state_type,\s*candidate_id,\s*created_at\s+desc\)/i, 'candidate query index column order'],
 ];
 

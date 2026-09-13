@@ -14,7 +14,7 @@ if (process.env.CI === 'true' && process.env.GITHUB_SHA) {
 if (!commit) commit = process.env.HOSTINGER_GIT_COMMIT_SHA || '';
 if (!commit) {
   try {
-    commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL || '/dev/null' } }).trim();
   } catch {
     // Some deployment environments omit git metadata.
   }

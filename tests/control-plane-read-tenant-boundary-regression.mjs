@@ -8,7 +8,7 @@ function requirePattern(pattern, message) {
 
 // Read endpoints must derive the tenant from the authenticated request context.
 // They must never accept a caller-supplied tenant id as an authorization boundary.
-requirePattern(/const resolveTenant=\(req\)=>requiredIdentity\(tenantId\(req\),'Tenant identity'\)/,
+requirePattern(/const resolveTenant=\(req(?::any)?\)=>requiredIdentity\(tenantId\(req\),'Tenant identity'\)/,
   'Control-plane reads must resolve tenant identity from the authenticated request');
 requirePattern(/r\.get\('\/approvals',[\s\S]*?listApprovals\(resolveTenant\(req\)/,
   'Approval reads must use the resolved authenticated tenant');

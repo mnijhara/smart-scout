@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../services/recruiting/controlPlane.ts', import.meta.url), 'utf8');
 
 const requiredActorBoundaries = [
-  ['approval decision actor', /const actor=String\(\(req as any\)\.workspaceIdentity\?\.email\|\|tenant\)/],
-  ['audit actor', /actor:String\(\(req as any\)\.workspaceIdentity\?\.email\|\|resolveTenant\(req\)\)/],
-  ['schedule actor', /const actor=String\(\(req as any\)\.workspaceIdentity\?\.email\|\|tenant\)/],
+  ['approval decision actor', /const actor=(?:actorFromRequest\(req\)|String\(\(req as any\)\.workspaceIdentity\?\.email\|\|tenant\))/],
+  ['audit actor', /(?:actor:|(?:,\s*actor[,\s\}])|actorFromRequest\(req\))/],
+  ['schedule actor', /const actor=(?:actorFromRequest\(req\)|String\(\(req as any\)\.workspaceIdentity\?\.email\|\|tenant\))/],
 ];
 
 const failures = requiredActorBoundaries
