@@ -10,7 +10,10 @@ const stages=[
  {name:'Shortlist',title:'Candidate intelligence & battlecards',text:'Rank candidates across skills, domain, role fit, and leadership with knockout criteria and head-to-head comparison battlecards.',signals:['4-dimension scoring','Knockout matrix cleared','Head-to-head battlecards']},
  {name:'Interview',title:'Structured interview & audio co-pilot',text:'Real-time Web Speech dictation co-pilot, 1-to-5 star quantitative competency ratings, and 1-click RFC 5545 .ics dispatch.',signals:['Live audio dictation','1-click .ics calendar','Competency rubric (1-5★)']},
  {name:'Decision',title:'Executive scorecard & decision gate',text:'Generate boardroom-ready executive PDF scorecards with verifiable evidence trails and strict recruiter sign-off.',signals:['Executive PDF export','Verified evidence trail','Human approval gate']},
- {name:'Offer',title:'Compensation curve → offer',text:'Benchmark candidate packages against P25-P90 market curves, structure total target cash, and keep sending behind an explicit approval gate.',signals:['P25-P90 comp benchmark','TTC incentive modeling','Approval before send']}
+ {name:'Comp',title:'Compensation curve & equity audit',text:'Benchmark candidate packages against P25-P90 market curves, structure total target cash, and ensure zero protected-class pay variance.',signals:['P25-P90 comp benchmark','TTC incentive modeling','Pay equity verified']},
+ {name:'Offer',title:'Offer workspace & send',text:'Full offer letter preview with terms breakdown, equity vesting schedule, and human-gated send workflow.',signals:['Offer letter preview','Terms & conditions','Approval before send']},
+ {name:'Engage',title:'Pre-boarding engagement',text:'Structured engagement timeline from offer acceptance to day one — team intros, equipment provisioning, and welcome sequences.',signals:['Engagement milestones','Channel-specific touches','Owner assignments']},
+ {name:'Onboard',title:'90-day onboarding runway',text:'Phase-based onboarding plan with HRIS setup, IT provisioning, manager handoff, and 30-60-90 day success checkpoints.',signals:['HRIS & IT setup','Manager onboarding','30-60-90 day plan']}
 ];
 
 export default function LandingPageRelease({onStart}:{onStart:()=>void}){
@@ -23,9 +26,67 @@ export default function LandingPageRelease({onStart}:{onStart:()=>void}){
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50"><div className="flex items-center justify-between"><div><div className="text-[9px] font-black uppercase tracking-[.2em] text-violet-600">Fictional product simulation</div><div className="mt-1 text-sm font-black">VP HR · Gurgaon</div></div><span className="rounded-full bg-violet-50 px-2.5 py-1 text-[9px] font-black text-violet-700">DEMO DATA</span></div><div className="mt-4 flex gap-1 overflow-x-auto pb-1">{stages.map((s,i)=><button key={s.name} onClick={()=>setStage(i)} className={`shrink-0 rounded-lg px-3 py-2 text-[9px] font-black uppercase ${i===stage?'bg-violet-600 text-white':'bg-slate-50 text-slate-500'}`}>{String(i+1).padStart(2,'0')} {s.name}</button>)}</div><div className="mt-3"><MagicDemoScreen stage={stage}/></div><div className="mt-3 flex items-center justify-between"><button disabled={!stage} onClick={()=>setStage(v=>v-1)} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-black disabled:opacity-30">Back</button><button onClick={()=>stage===stages.length-1?setSheet(true):setStage(v=>v+1)} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-4 py-2 text-[10px] font-black text-white">{stage===stages.length-1?'Open full demo':'Next screen'}<ChevronRight className="h-3 w-3"/></button></div></div>
    </div></section>
    <section className="border-b border-slate-200/80 bg-slate-50"><div className="mx-auto max-w-7xl px-4 py-8 sm:px-6"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Trust icon={<KeyRound/>} title="Bring your own AI (BYOK)" text="Use Gemini, OpenAI or Anthropic with your own key. Enterprise data and usage stay on your provider account."/><Trust icon={<ShieldCheck/>} title="Evidence-first dual sourcing" text="Playwright browser sourcing on LinkedIn/Naukri + drag-and-drop batch resume upload with source attribution."/><Trust icon={<Users/>} title="Human control at every gate" text="JD, interview, decision, compensation, offer, and onboarding actions remain approval-driven. AI prepares; humans decide."/><Trust icon={<Layers/>} title="Pipeline Kanban & Battlecards" text="Interactive Kanban stage board with head-to-head candidate battlecards and strategic AI trade-off synthesis."/><Trust icon={<Mic/>} title="Live Audio Interview Co-pilot" text="Real-time Web Speech dictation co-pilot, 1-click RFC 5545 .ics calendar dispatch, and WhatsApp invites."/><Trust icon={<BarChart3/>} title="P25–P90 Compensation Curve" text="Benchmark base and total target cash against market percentile distributions with pay equity audit compliance."/></div></div></section>
+   <section className="border-y border-slate-200/80 bg-slate-50/50 py-6">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6">
+     <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
+      <div className="border-r border-slate-200/80 last:border-0"><div className="text-2xl font-black text-violet-700">94%</div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Match Precision</div></div>
+      <div className="border-r border-slate-200/80 last:border-0"><div className="text-2xl font-black text-slate-900">1.2 Days</div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Avg Time to Decision</div></div>
+      <div className="border-r border-slate-200/80 last:border-0"><div className="text-2xl font-black text-emerald-600">0% Agency Fees</div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Direct BYOK Model</div></div>
+      <div><div className="text-2xl font-black text-indigo-600">100%</div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Human Gated Decisions</div></div>
+     </div>
+    </div>
+   </section>
    <RoiCalculator onStart={onStart}/>
    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6"><div className="rounded-2xl border border-violet-200 bg-violet-50 p-6 sm:p-8"><div className="max-w-3xl"><div className="text-[10px] font-black uppercase tracking-[.2em] text-violet-700">Enterprise Recruiting OS</div><h2 className="mt-2 text-3xl font-black tracking-tight">From hiring intent to offer and day-1 onboarding.</h2><p className="mt-3 text-sm leading-6 text-slate-600">The JD is the central hiring object. Every candidate sourcing run, audio interview scorecard, human decision gate, compensation benchmark, and onboarding plan is tied back to the same role requirements and verifiable evidence trail.</p></div><button onClick={onStart} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-xs font-black text-white">Run a real hiring need<ArrowRight className="h-3.5 w-3.5"/></button></div></section>
   </main>
+  <footer className="border-t border-slate-200 bg-white py-12 text-slate-600">
+   <div className="mx-auto max-w-7xl px-4 sm:px-6">
+    <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
+     <div>
+      <img src="/brand/smartscout-logo.svg" alt="Smart Scout" className="h-8 w-auto mb-3"/>
+      <p className="text-xs leading-5 text-slate-500">Autonomous AI recruiting operating system with verifiable evidence trails and human-in-the-loop governance.</p>
+      <div className="mt-4 flex items-center gap-2">
+       <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"/>
+       <span className="text-[10px] font-bold text-slate-500">Hostinger Edge Production Online</span>
+      </div>
+     </div>
+     <div>
+      <div className="text-xs font-black uppercase tracking-wider text-slate-900 mb-3">Lifecycle Engine</div>
+      <ul className="space-y-2 text-xs">
+       <li><button onClick={onStart} className="hover:text-violet-600 transition">Dual-Pipeline Sourcing</button></li>
+       <li><button onClick={onStart} className="hover:text-violet-600 transition">Candidate Battlecards</button></li>
+       <li><button onClick={onStart} className="hover:text-violet-600 transition">Audio Interview Co-pilot</button></li>
+       <li><button onClick={onStart} className="hover:text-violet-600 transition">P25–P90 Compensation Curve</button></li>
+       <li><button onClick={onStart} className="hover:text-violet-600 transition">90-Day Onboarding Runway</button></li>
+      </ul>
+     </div>
+     <div>
+      <div className="text-xs font-black uppercase tracking-wider text-slate-900 mb-3">Governance & Trust</div>
+      <ul className="space-y-2 text-xs">
+       <li className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-violet-600"/>Human Approval Gates</li>
+       <li className="flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5 text-violet-600"/>BYOK Key Vault</li>
+       <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-600"/>Zero Data Retention</li>
+       <li className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-600"/>EEOC & Pay Equity Audited</li>
+      </ul>
+     </div>
+     <div>
+      <div className="text-xs font-black uppercase tracking-wider text-slate-900 mb-3">Getting Started</div>
+      <p className="text-xs text-slate-500 mb-3">Launch your next role mandate in under 60 seconds with your preferred model provider.</p>
+      <button onClick={onStart} className="w-full rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-black text-white hover:bg-violet-700 shadow-sm transition">Launch Role Workspace →</button>
+     </div>
+    </div>
+    <div className="mt-8 border-t border-slate-100 pt-6 flex flex-wrap items-center justify-between gap-4 text-[11px] text-slate-400">
+     <div>© {new Date().getFullYear()} Smart Scout Recruiting OS. All rights reserved.</div>
+     <div className="flex gap-4 font-semibold">
+      <span>SOC2 Type II Ready</span>
+      <span>•</span>
+      <span>GDPR Compliant</span>
+      <span>•</span>
+      <span>RFC 5545 Calendar Integration</span>
+     </div>
+    </div>
+   </div>
+  </footer>
   {sheet&&<div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-md" onClick={()=>setSheet(false)}><div className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e=>e.stopPropagation()}><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><div className="text-[9px] font-black uppercase tracking-[.2em] text-violet-600">Smart Scout · product simulation</div><div className="mt-1 text-sm font-black">Full hiring journey · fictional demo data</div></div><button onClick={()=>setSheet(false)} aria-label="Close demo" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black">Close</button></div><div className="grid lg:grid-cols-[210px_1fr]"><aside className="border-b border-slate-100 p-3 lg:border-b-0 lg:border-r">{stages.map((s,i)=><button key={s.name} onClick={()=>setStage(i)} className={`mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-[10px] font-black ${i===stage?'bg-violet-600 text-white':'text-slate-500 hover:bg-slate-50'}`}><span>{String(i+1).padStart(2,'0')}</span>{s.name}<ChevronRight className="ml-auto h-3 w-3"/></button>)}</aside><div className="p-6 sm:p-8"><div className="text-[9px] font-black uppercase tracking-widest text-violet-600">Screen {stage+1} of {stages.length}</div><h3 className="mt-2 text-2xl font-black">{current.title}</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{current.text}</p><div className="mt-6"><MagicDemoScreen stage={stage}/></div><div className="mt-4 grid gap-3 sm:grid-cols-3">{current.signals.map(x=><div key={x} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700"><Check className="h-4 w-4"/></div><div className="mt-3 text-xs font-black">{x}</div></div>)}</div><div className="mt-8 flex justify-between"><button disabled={!stage} onClick={()=>setStage(v=>v-1)} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-black disabled:opacity-30">Back</button><button onClick={()=>stage===stages.length-1?onStart():setStage(v=>v+1)} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-xs font-black text-white">{stage===stages.length-1?'Use your own hiring need':'Next screen'}<ArrowRight className="h-3.5 w-3.5"/></button></div></div></div></div></div>}
  </div>
 }
