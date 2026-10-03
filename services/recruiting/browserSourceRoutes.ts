@@ -24,8 +24,9 @@ async function handleBrowserSourceSearch(req: any, res: any) {
     if (!jobId) return res.status(400).json({ error: 'jobId is required' });
     if (!['linkedin', 'naukri'].includes(source)) return res.status(400).json({ error: 'source must be linkedin or naukri' });
     if (!query) return res.status(400).json({ error: 'query is required' });
+    const cookie = String(req.body?.cookie || req.body?.sessionCookie || '').trim();
     await requireJDApproval(tenantId, jobId);
-    const candidates = await searchBrowserCandidates(tenantId, source, query, limit);
+    const candidates = await searchBrowserCandidates(tenantId, source, query, limit, cookie);
     const savedCandidates = await saveCandidates(tenantId, jobId, candidates);
     res.json({ jobId, source, query, candidates, savedCandidates });
   } catch (error: any) {
