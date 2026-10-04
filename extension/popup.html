@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      color: #0f172a;
+      background: #fafbff;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .title {
+      font-weight: 800;
+      font-size: 15px;
+      color: #7c3aed;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: #ede9fe;
+      color: #6d28d9;
+      padding: 2px 6px;
+      border-radius: 6px;
+      margin-left: auto;
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+    }
+    input:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+    }
+    .btn {
+      width: 100%;
+      background: #7c3aed;
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+    }
+    .btn:hover {
+      background: #6d28d9;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 8px;
+      background: #ecfdf5;
+      color: #065f46;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      display: none;
+    }
+    .help {
+      margin-top: 12px;
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.4;
+      background: #ffffff;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.5">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+    </svg>
+    <div class="title">Smart Scout</div>
+    <span class="badge">Co-pilot</span>
+  </div>
+
+  <div class="field">
+    <label>Workspace Web URL</label>
+    <input id="apiUrl" type="text" placeholder="https://smartscout.online" />
+  </div>
+
+  <div class="field">
+    <label>Active Job Requisition ID (Optional)</label>
+    <input id="jobId" type="text" placeholder="e.g. job_123 or leave blank for default" />
+  </div>
+
+  <button id="saveBtn" class="btn">Save Configuration</button>
+  <div id="status" class="status">Settings saved!</div>
+
+  <div class="help">
+    <b>How it works:</b>
+    <div style="margin-top:4px;">1. Open any profile or search results on <b>LinkedIn</b> or <b>Naukri</b>.</div>
+    <div>2. The Smart Scout dock appears in the bottom right corner.</div>
+    <div>3. Click <b>1-Click Add to Pipeline</b> to instantly sync candidates.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

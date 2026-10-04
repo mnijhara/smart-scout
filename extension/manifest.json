@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Scout - AI Talent Sourcing Co-pilot",
+  "version": "1.0.0",
+  "description": "Capture candidates from LinkedIn and Naukri directly into your Smart Scout AI recruitment pipeline with 1-click.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.linkedin.com/*",
+    "*://*.naukri.com/*",
+    "https://smartscout.online/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.linkedin.com/*",
+        "*://*.naukri.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://smartscout.online/*",
+        "http://localhost:*/*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -99,9 +99,622 @@ var init_aiGateway = __esm({
   }
 });
 
+// services/recruiting/auditStore.ts
+import { createClient as createClient3 } from "@supabase/supabase-js";
+function db2() {
+  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return url && key ? createClient3(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
+}
+function uuid(value) {
+  if (!value) return null;
+  const normalized = value.trim();
+  return normalized.startsWith("job_") || normalized.startsWith("candidate_") ? normalized.slice(normalized.indexOf("_") + 1) : normalized;
+}
+function requireAuditIdentity(input) {
+  if (!input.tenantId?.trim()) throw new Error("Audit event tenantId is required");
+  if (input.tenantId.trim().length > MAX_AUDIT_TENANT_ID_LENGTH) throw new Error(`Audit event tenantId exceeds ${MAX_AUDIT_TENANT_ID_LENGTH} characters`);
+  if (!input.eventType?.trim()) throw new Error("Audit event eventType is required");
+  if (input.eventType.trim().length > MAX_AUDIT_EVENT_TYPE_LENGTH) throw new Error(`Audit event eventType exceeds ${MAX_AUDIT_EVENT_TYPE_LENGTH} characters`);
+}
+function requireOptionalIdentity(name, value) {
+  if (value !== void 0 && value !== null) {
+    if (value.length > MAX_AUDIT_IDENTITY_LENGTH) throw new Error(`Audit event ${name} exceeds ${MAX_AUDIT_IDENTITY_LENGTH} characters`);
+    if (!value.trim()) throw new Error(`Audit event ${name} is required when provided`);
+  }
+}
+function serializeWithinBoundary(name, value, maxBytes) {
+  let serialized;
+  try {
+    serialized = JSON.stringify(value) ?? "";
+  } catch {
+    throw new Error(`Audit event ${name} must be JSON serializable`);
+  }
+  if (Buffer.byteLength(serialized, "utf8") > maxBytes) throw new Error(`Audit event ${name} exceeds ${maxBytes} bytes`);
+}
+function requirePayloadBoundary(payload) {
+  if (payload === void 0 || payload === null) return;
+  serializeWithinBoundary("payload", payload, MAX_AUDIT_PAYLOAD_BYTES);
+}
+function requireEvidenceBoundary(evidence) {
+  if (evidence === void 0 || evidence === null) return;
+  if (!Array.isArray(evidence)) throw new Error("Audit event evidence must be an array");
+  serializeWithinBoundary("evidence", evidence, MAX_AUDIT_EVIDENCE_BYTES);
+}
+async function recordAuditEvent(input) {
+  requireAuditIdentity(input);
+  requireOptionalIdentity("workflowId", input.workflowId);
+  requireOptionalIdentity("candidateId", input.candidateId);
+  requireOptionalIdentity("actorId", input.actorId);
+  requireOptionalIdentity("actorType", input.actorType);
+  requireOptionalIdentity("provider", input.provider);
+  requireOptionalIdentity("model", input.model);
+  requirePayloadBoundary(input.payload);
+  requireEvidenceBoundary(input.evidence);
+  const client = db2();
+  if (!client) return { persisted: false };
+  const { data, error } = await client.from("recruiting_audit_events").insert({ tenant_id: input.tenantId.trim(), workflow_id: uuid(input.workflowId), candidate_id: uuid(input.candidateId), event_type: input.eventType.trim(), actor_type: input.actorType?.trim() || "system", actor_id: input.actorId?.trim() || null, provider: input.provider?.trim() || null, model: input.model?.trim() || null, evidence: input.evidence || [], payload: input.payload || {} }).select("*").single();
+  if (error) throw auditPersistenceError();
+  return { persisted: true, event: data };
+}
+async function listAuditEvents(tenantId2, workflowId, candidateId) {
+  if (!tenantId2?.trim()) throw new Error("Audit event tenantId is required");
+  if (tenantId2.trim().length > MAX_AUDIT_TENANT_ID_LENGTH) throw new Error(`Audit event tenantId exceeds ${MAX_AUDIT_TENANT_ID_LENGTH} characters`);
+  requireOptionalIdentity("workflowId", workflowId);
+  requireOptionalIdentity("candidateId", candidateId);
+  const normalizedTenantId = tenantId2.trim();
+  const normalizedWorkflowId = workflowId?.trim() || null;
+  const normalizedCandidateId = candidateId?.trim() || null;
+  const client = db2();
+  if (!client) return [];
+  let query = client.from("recruiting_audit_events").select("*").eq("tenant_id", normalizedTenantId).order("created_at", { ascending: false }).limit(500);
+  if (normalizedWorkflowId) query = query.eq("workflow_id", uuid(normalizedWorkflowId));
+  if (normalizedCandidateId) query = query.eq("candidate_id", uuid(normalizedCandidateId));
+  const { data, error } = await query;
+  if (error) throw auditQueryError();
+  return data || [];
+}
+async function countAuditEvents(tenantId2, workflowId, candidateId) {
+  if (!tenantId2?.trim()) throw new Error("Audit event tenantId is required");
+  if (tenantId2.trim().length > MAX_AUDIT_TENANT_ID_LENGTH) throw new Error(`Audit event tenantId exceeds ${MAX_AUDIT_TENANT_ID_LENGTH} characters`);
+  requireOptionalIdentity("workflowId", workflowId);
+  requireOptionalIdentity("candidateId", candidateId);
+  const normalizedTenantId = tenantId2.trim();
+  const normalizedWorkflowId = workflowId?.trim() || null;
+  const normalizedCandidateId = candidateId?.trim() || null;
+  const client = db2();
+  if (!client) return { configured: false, count: 0 };
+  let query = client.from("recruiting_audit_events").select("id", { count: "exact", head: true }).eq("tenant_id", normalizedTenantId);
+  if (normalizedWorkflowId) query = query.eq("workflow_id", uuid(normalizedWorkflowId));
+  if (normalizedCandidateId) query = query.eq("candidate_id", uuid(normalizedCandidateId));
+  const { count, error } = await query;
+  if (error) throw new Error("Unable to count audit events");
+  return { configured: true, count: count || 0 };
+}
+var MAX_AUDIT_PAYLOAD_BYTES, MAX_AUDIT_EVIDENCE_BYTES, MAX_AUDIT_EVENT_TYPE_LENGTH, MAX_AUDIT_IDENTITY_LENGTH, MAX_AUDIT_TENANT_ID_LENGTH, auditPersistenceError, auditQueryError;
+var init_auditStore = __esm({
+  "services/recruiting/auditStore.ts"() {
+    MAX_AUDIT_PAYLOAD_BYTES = 64 * 1024;
+    MAX_AUDIT_EVIDENCE_BYTES = 64 * 1024;
+    MAX_AUDIT_EVENT_TYPE_LENGTH = 128;
+    MAX_AUDIT_IDENTITY_LENGTH = 128;
+    MAX_AUDIT_TENANT_ID_LENGTH = 256;
+    auditPersistenceError = () => new Error("Unable to persist audit event");
+    auditQueryError = () => new Error("Unable to load audit events");
+  }
+});
+
+// services/recruiting/authorization.ts
+function hasPrivilegedRecruitingRole(role) {
+  if (typeof role !== "string") return false;
+  const normalized = role.trim().toLowerCase();
+  if (normalized.length === 0 || normalized.length > MAX_WORKSPACE_ROLE_LENGTH) return false;
+  return PRIVILEGED_ROLES.has(normalized);
+}
+function requirePrivilegedRecruitingRole(role) {
+  const normalized = typeof role === "string" ? role.trim().toLowerCase() : "";
+  if (!hasPrivilegedRecruitingRole(normalized)) {
+    throw new Error("Insufficient permissions");
+  }
+  return normalized;
+}
+var PRIVILEGED_ROLES, MAX_WORKSPACE_ROLE_LENGTH;
+var init_authorization = __esm({
+  "services/recruiting/authorization.ts"() {
+    PRIVILEGED_ROLES = /* @__PURE__ */ new Set(["admin", "recruiter", "hiring_manager"]);
+    MAX_WORKSPACE_ROLE_LENGTH = 64;
+  }
+});
+
+// services/recruiting/controlPlane.ts
+import { promises as fs2 } from "node:fs";
+import path2 from "node:path";
+import crypto3 from "node:crypto";
+import { Router } from "express";
+async function read(name) {
+  try {
+    return JSON.parse(await fs2.readFile(path2.join(root, name), "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function append(name, value) {
+  await fs2.mkdir(root, { recursive: true });
+  const prior = queues[name] || Promise.resolve();
+  const operation = prior.then(async () => {
+    const all = await read(name);
+    all.unshift(value);
+    await fs2.writeFile(path2.join(root, name), JSON.stringify(all.slice(0, 1e4), null, 2), "utf8");
+  });
+  queues[name] = operation.catch(() => {
+  });
+  await operation;
+  return value;
+}
+async function mutate(name, fn) {
+  await fs2.mkdir(root, { recursive: true });
+  const prior = queues[name] || Promise.resolve();
+  let result;
+  const operation = prior.then(async () => {
+    const all = await read(name);
+    result = await fn(all);
+    await fs2.writeFile(path2.join(root, name), JSON.stringify(all, null, 2), "utf8");
+  });
+  queues[name] = operation.catch(() => {
+  });
+  await operation;
+  return result;
+}
+function isAllowedScheduleTransition(from, to) {
+  return allowedScheduleTransitions[from].includes(to);
+}
+function isValidInterviewWindow(startsAt, endsAt) {
+  const start = Date.parse(startsAt);
+  const end = Date.parse(endsAt);
+  return Number.isFinite(start) && Number.isFinite(end) && end > start;
+}
+async function audit(input) {
+  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
+  const actor = requiredIdentity(input.actor, "Audit actor");
+  const action = requiredIdentity(input.action, "Audit action");
+  const t = now();
+  const persisted = await recordAuditEvent({ tenantId: tenantId2, workflowId: input.jobId || null, candidateId: input.candidateId || null, eventType: action, actorType: actor, actorId: actor, payload: input.metadata || {} });
+  const persistence = persisted.persisted ? "database" : "local-fallback";
+  const value = { ...input, tenantId: tenantId2, actor, action, id: `audit_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t, persistence };
+  if (!persisted.persisted) await append(files.audit, value);
+  return value;
+}
+async function requestApproval(input) {
+  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
+  const jobId = requiredIdentity(input.jobId, "Job identity");
+  const requestedBy = requiredIdentity(input.requestedBy, "Requester identity");
+  const t = now();
+  const value = { ...input, tenantId: tenantId2, jobId, requestedBy, id: `approval_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t, status: "pending" };
+  await append(files.approvals, value);
+  await audit({ tenantId: tenantId2, jobId, candidateId: input.candidateId, action: "approval_requested", actor: requestedBy, metadata: { approvalId: value.id, approvalAction: value.action } });
+  return value;
+}
+async function decideApproval(id, status, actor, note, tenantId2) {
+  if (!["approved", "rejected"].includes(status)) throw new Error("Invalid approval status");
+  const tenant = requiredIdentity(tenantId2 || "", "Tenant identity");
+  const decisionActor = requiredIdentity(actor, "Decision actor");
+  const approvalId = requiredIdentity(id, "Approval identity");
+  const item = await mutate(files.approvals, async (all) => {
+    const item2 = all.find((x) => x.id === approvalId && x.tenantId === tenant);
+    if (!item2) return null;
+    if (item2.status !== "pending") throw new Error("Approval is already decided");
+    item2.status = status;
+    item2.decidedBy = decisionActor;
+    item2.note = note;
+    item2.updatedAt = now();
+    return item2;
+  });
+  if (!item) return null;
+  await audit({ tenantId: item.tenantId, jobId: item.jobId, candidateId: item.candidateId, action: `approval_${status}`, actor: decisionActor, metadata: { approvalId, note: note || "" } });
+  return item;
+}
+async function listApprovals(tenantId2, jobId) {
+  const tenant = requiredIdentity(tenantId2, "Tenant identity");
+  return (await read(files.approvals)).filter((x) => x.tenantId === tenant && (!jobId || x.jobId === jobId));
+}
+function auditDatabaseConfigured() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+function mapDatabaseAuditEvent(event) {
+  const createdAt = String(event.created_at || now());
+  return { id: `audit_${event.id}`, tenantId: String(event.tenant_id), jobId: event.workflow_id ? `job_${event.workflow_id}` : void 0, candidateId: event.candidate_id ? `candidate_${event.candidate_id}` : void 0, action: String(event.event_type), actor: String(event.actor_id || event.actor_type || "system"), metadata: event.payload && typeof event.payload === "object" ? event.payload : void 0, createdAt, updatedAt: createdAt, persistence: "database" };
+}
+async function listAudit(tenantId2, jobId, candidateId) {
+  const tenant = requiredIdentity(tenantId2, "Tenant identity");
+  const normalizedJobId = jobId === void 0 ? void 0 : requiredIdentity(jobId, "Job identity");
+  const normalizedCandidateId = candidateId === void 0 ? void 0 : requiredIdentity(candidateId, "Candidate identity");
+  if (auditDatabaseConfigured()) {
+    const events = await listAuditEvents(tenant, normalizedJobId, normalizedCandidateId);
+    return events.map(mapDatabaseAuditEvent);
+  }
+  return (await read(files.audit)).filter((x) => x.tenantId === tenant && (!normalizedJobId || x.jobId === normalizedJobId) && (!normalizedCandidateId || x.candidateId === normalizedCandidateId));
+}
+async function countAudit(tenantId2, jobId, candidateId) {
+  const tenant = requiredIdentity(tenantId2, "Tenant identity");
+  const normalizedJobId = jobId === void 0 ? void 0 : requiredIdentity(jobId, "Job identity");
+  const normalizedCandidateId = candidateId === void 0 ? void 0 : requiredIdentity(candidateId, "Candidate identity");
+  if (auditDatabaseConfigured()) return countAuditEvents(tenant, normalizedJobId, normalizedCandidateId);
+  return { configured: false, count: (await read(files.audit)).filter((x) => x.tenantId === tenant && (!normalizedJobId || x.jobId === normalizedJobId) && (!normalizedCandidateId || x.candidateId === normalizedCandidateId)).length };
+}
+async function scheduleInterview(input, actor = "system") {
+  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
+  const jobId = requiredIdentity(input.jobId, "Job identity");
+  const candidateId = requiredIdentity(input.candidateId, "Candidate identity");
+  const timezone = requiredIdentity(input.timezone, "Interview timezone");
+  const auditActor = requiredIdentity(actor, "Interview actor");
+  validateScheduleState(input.status, input.mode);
+  if (!isValidInterviewWindow(input.startsAt, input.endsAt)) throw new Error("Interview window must contain valid timestamps with end after start");
+  const t = now();
+  const value = await mutate(files.schedules, (all) => {
+    if (all.find((x) => x.tenantId === tenantId2 && x.status !== "cancelled" && new Date(input.startsAt) < new Date(x.endsAt) && new Date(input.endsAt) > new Date(x.startsAt))) throw new Error("Interview time overlaps an existing booking");
+    const item = { ...input, tenantId: tenantId2, jobId, candidateId, timezone, id: `schedule_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t };
+    all.push(item);
+    return item;
+  });
+  await audit({ tenantId: tenantId2, jobId, candidateId, action: "interview_scheduled", actor: auditActor, metadata: { scheduleId: value.id, status: value.status, startsAt: value.startsAt, endsAt: value.endsAt, mode: value.mode } });
+  return value;
+}
+async function updateSchedule(id, status, tenantId2, actor) {
+  if (!["proposed", "confirmed", "cancelled"].includes(status)) throw new Error("Invalid schedule status");
+  const tenant = requiredIdentity(tenantId2, "Tenant identity");
+  const auditActor = requiredIdentity(actor || tenant, "Interview actor");
+  const scheduleId = requiredIdentity(id, "Schedule identity");
+  let previousStatus;
+  const item = await mutate(files.schedules, async (all) => {
+    const item2 = all.find((x) => x.id === scheduleId && x.tenantId === tenant);
+    if (!item2) return null;
+    if (!isAllowedScheduleTransition(item2.status, status)) throw new Error(`Invalid interview status transition: ${item2.status} -> ${status}`);
+    if (status === "confirmed") {
+      const overlaps = all.some((x) => x.id !== item2.id && x.tenantId === tenant && x.status !== "cancelled" && new Date(item2.startsAt) < new Date(x.endsAt) && new Date(item2.endsAt) > new Date(x.startsAt));
+      if (overlaps) throw new Error("Interview time overlaps an existing booking");
+    }
+    previousStatus = item2.status;
+    item2.status = status;
+    item2.updatedAt = now();
+    return item2;
+  });
+  if (!item) return null;
+  if (previousStatus !== status) await audit({ tenantId: item.tenantId, jobId: item.jobId, candidateId: item.candidateId, action: "interview_status_changed", actor: auditActor, metadata: { scheduleId, previousStatus, status } });
+  return item;
+}
+async function listSchedules(tenantId2, jobId) {
+  const tenant = requiredIdentity(tenantId2, "Tenant identity");
+  return (await read(files.schedules)).filter((x) => x.tenantId === tenant && (!jobId || x.jobId === jobId));
+}
+async function recordUsage(input, actor = "system") {
+  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
+  const feature = requiredIdentity(input.feature, "Usage feature");
+  const auditActor = requiredIdentity(actor, "Usage actor");
+  const t = now();
+  const value = await append(files.usage, { ...input, tenantId: tenantId2, feature, id: `usage_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t });
+  await audit({ tenantId: tenantId2, action: "usage_recorded", actor: auditActor, metadata: { usageId: value.id, period: value.period, feature: value.feature, units: value.units } });
+  return value;
+}
+async function usageSummary(tenantId2, period) {
+  const tenant = requiredIdentity(tenantId2, "Tenant identity");
+  return (await read(files.usage)).filter((x) => x.tenantId === tenant && (!period || x.period === period)).reduce((a, x) => (a[x.feature] = (a[x.feature] || 0) + x.units, a), {});
+}
+function createControlPlaneRouter(tenantId2) {
+  const r = Router();
+  const resolveTenant = (req) => requiredIdentity(tenantId2(req), "Tenant identity");
+  const actorFromRequest2 = (req) => requiredIdentity(String(req.workspaceIdentity?.email || req.workspaceIdentity?.id || ""), "Authenticated actor");
+  const requireRecruitingRole = (req) => requirePrivilegedRecruitingRole(req.workspaceIdentity?.role);
+  r.post("/approvals", async (req, res) => {
+    try {
+      const tenant = resolveTenant(req);
+      const actor = actorFromRequest2(req);
+      requireRecruitingRole(req);
+      res.json(await requestApproval({ ...req.body, tenantId: tenant, requestedBy: actor }));
+    } catch (e) {
+      const forbidden = e?.message === "Insufficient permissions";
+      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
+    }
+  });
+  r.get("/approvals", async (req, res) => res.json({ approvals: await listApprovals(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
+  r.post("/approvals/:id/decision", async (req, res) => {
+    try {
+      const tenant = resolveTenant(req);
+      const actor = actorFromRequest2(req);
+      requireRecruitingRole(req);
+      const out = await decideApproval(String(req.params.id), req.body?.status, actor, req.body?.note, tenant);
+      if (!out) return res.status(404).json({ error: "Approval not found" });
+      res.json(out);
+    } catch (e) {
+      const forbidden = e?.message === "Insufficient permissions";
+      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
+    }
+  });
+  r.get("/audit", async (req, res) => res.json({ events: await listAudit(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0, req.query.candidateId ? String(req.query.candidateId) : void 0) }));
+  r.get("/audit/count", async (req, res) => res.json(await countAudit(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0, req.query.candidateId ? String(req.query.candidateId) : void 0)));
+  r.post("/audit", async (req, res) => {
+    try {
+      const tenant = resolveTenant(req);
+      requireRecruitingRole(req);
+      res.json(await audit({ ...req.body, tenantId: tenant, actor: actorFromRequest2(req) }));
+    } catch (e) {
+      const forbidden = e?.message === "Insufficient permissions";
+      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
+    }
+  });
+  r.post("/schedules", async (req, res) => {
+    try {
+      const tenant = resolveTenant(req);
+      const actor = actorFromRequest2(req);
+      requireRecruitingRole(req);
+      res.json(await scheduleInterview({ ...req.body, tenantId: tenant }, actor));
+    } catch (e) {
+      const forbidden = e?.message === "Insufficient permissions";
+      res.status(forbidden ? 403 : 409).json({ error: forbidden ? "Insufficient permissions" : e.message });
+    }
+  });
+  r.get("/schedules", async (req, res) => res.json({ schedules: await listSchedules(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
+  r.post("/schedules/:id/status", async (req, res) => {
+    try {
+      const tenant = resolveTenant(req);
+      const actor = actorFromRequest2(req);
+      requireRecruitingRole(req);
+      const out = await updateSchedule(String(req.params.id), req.body?.status, tenant, actor);
+      if (!out) return res.status(404).json({ error: "Schedule not found" });
+      res.json(out);
+    } catch (e) {
+      const forbidden = e?.message === "Insufficient permissions";
+      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
+    }
+  });
+  r.post("/usage", async (req, res) => {
+    try {
+      const tenant = resolveTenant(req);
+      const actor = actorFromRequest2(req);
+      requireRecruitingRole(req);
+      res.json(await recordUsage({ ...req.body, tenantId: tenant }, actor));
+    } catch (e) {
+      const forbidden = e?.message === "Insufficient permissions";
+      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
+    }
+  });
+  r.get("/usage", async (req, res) => res.json({ usage: await usageSummary(resolveTenant(req), req.query.period ? String(req.query.period) : void 0) }));
+  return r;
+}
+var root, files, queues, now, requiredIdentity, allowedScheduleTransitions, validateScheduleState;
+var init_controlPlane = __esm({
+  "services/recruiting/controlPlane.ts"() {
+    init_auditStore();
+    init_authorization();
+    root = process.env.SMARTSCOUT_CONTROL_PLANE_DIR || path2.join(process.cwd(), ".smartscout-control-plane");
+    files = { approvals: "approvals.json", audit: "audit.json", schedules: "schedules.json", usage: "usage.json" };
+    queues = {};
+    now = () => (/* @__PURE__ */ new Date()).toISOString();
+    requiredIdentity = (value, name) => {
+      const normalized = String(value ?? "").trim();
+      if (!normalized) throw new Error(`${name} is required`);
+      if (normalized.length > 256) throw new Error(`${name} is too long`);
+      return normalized;
+    };
+    allowedScheduleTransitions = { proposed: ["proposed", "confirmed", "cancelled"], confirmed: ["confirmed", "cancelled"], cancelled: ["cancelled"] };
+    validateScheduleState = (status, mode) => {
+      if (!["proposed", "confirmed", "cancelled"].includes(status)) throw new Error("Invalid schedule status");
+      if (!["ai_audio", "human", "panel"].includes(mode)) throw new Error("Invalid interview mode");
+      return { status, mode };
+    };
+  }
+});
+
+// services/recruiting/candidateStore.ts
+var candidateStore_exports = {};
+__export(candidateStore_exports, {
+  listCandidates: () => listCandidates,
+  saveCandidates: () => saveCandidates,
+  updateCandidateScore: () => updateCandidateScore,
+  updateCandidateStatus: () => updateCandidateStatus
+});
+import { promises as fs3 } from "node:fs";
+import path3 from "node:path";
+import crypto4 from "node:crypto";
+import { createClient as createClient4 } from "@supabase/supabase-js";
+function db3() {
+  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return url && key ? createClient4(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
+}
+function requireTenantId2(tenantId2) {
+  const normalized = String(tenantId2 ?? "").trim();
+  if (!normalized) throw new Error("tenantId is required");
+  if (normalized.length > MAX_IDENTIFIER_LENGTH) throw new Error("tenantId is too long");
+  return normalized;
+}
+function workflowUuid2(id) {
+  return id.startsWith("job_") ? id.slice(4) : id;
+}
+function publicCandidate(row) {
+  return { id: `candidate_${row.id}`, tenantId: row.tenant_id, jobId: `job_${row.workflow_id}`, candidate: { id: `candidate_${row.id}`, name: row.name, email: row.email, phone: row.phone, profileUrl: row.profile_url, source: row.source, resumeText: row.resume_text, evidence: row.evidence, status: row.status }, score: row.score, createdAt: row.created_at, updatedAt: row.updated_at };
+}
+async function readAll2() {
+  try {
+    return JSON.parse(await fs3.readFile(filePath2, "utf8"));
+  } catch {
+    return [];
+  }
+}
+function requiredJobId(jobId) {
+  const normalized = String(jobId ?? "").trim();
+  if (!normalized) throw new Error("jobId is required");
+  if (normalized.length > MAX_IDENTIFIER_LENGTH) throw new Error("jobId is too long");
+  return normalized;
+}
+function requiredCandidateBatch(candidates) {
+  if (!Array.isArray(candidates)) throw new Error("candidates must be an array");
+  if (candidates.length > MAX_CANDIDATES_PER_BATCH) throw new Error(`candidate batch is too large; maximum is ${MAX_CANDIDATES_PER_BATCH}`);
+  if (candidates.some((candidate) => !candidate || typeof candidate !== "object" || Array.isArray(candidate))) throw new Error("candidate entries must be objects");
+  return candidates;
+}
+function requiredCandidateId(id) {
+  const normalized = String(id ?? "").trim();
+  if (!normalized) throw new Error("candidateId is required");
+  if (normalized.length > MAX_IDENTIFIER_LENGTH) throw new Error("candidateId is too long");
+  return normalized;
+}
+function requiredStatus(status) {
+  const normalized = String(status ?? "").trim();
+  if (!normalized) throw new Error("status is required");
+  if (normalized.length > 64) throw new Error("status is too long");
+  if (!CANDIDATE_LIFECYCLE_STATUS_SET.has(normalized)) throw new Error(`unsupported candidate lifecycle status: ${normalized}`);
+  return normalized;
+}
+function requiredScore(score) {
+  if (score === void 0) throw new Error("score is invalid");
+  try {
+    const serialized = JSON.stringify(score);
+    if (typeof serialized !== "string") throw new Error("score is invalid");
+    if (serialized.length > MAX_SCORE_SERIALIZED_LENGTH) throw new Error("score is too large");
+  } catch (error) {
+    if (error instanceof Error && (error.message === "score is too large" || error.message === "score is invalid")) throw error;
+    throw new Error("score is invalid");
+  }
+  return score;
+}
+function sameScore(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+async function saveCandidates(tenantId2, jobId, candidates) {
+  tenantId2 = requireTenantId2(tenantId2);
+  const normalizedJobId = requiredJobId(jobId);
+  const normalizedCandidates = requiredCandidateBatch(candidates).map((candidate) => ({ ...candidate, status: requiredStatus(candidate.status || "discovered") }));
+  const client = db3();
+  if (client) {
+    const workflowId = workflowUuid2(normalizedJobId);
+    const rows = normalizedCandidates.map((c) => ({ tenant_id: tenantId2, workflow_id: workflowId, name: c.name || "Unknown candidate", email: c.email || null, phone: c.phone || null, profile_url: c.profileUrl || c.profile_url || null, source: c.source || "browser", resume_text: c.resumeText || c.resume_text || null, score: c.score || null, status: c.status, evidence: c.evidence || [] }));
+    const { data, error } = await client.from("recruiting_candidates").insert(rows).select("*");
+    if (error) throw new Error(`Unable to persist candidates: ${error.message}`);
+    const saved2 = (data || []).map(publicCandidate);
+    await audit({ tenantId: tenantId2, jobId: normalizedJobId, action: "candidates_persisted", actor: "system", metadata: { count: saved2.length, candidateIds: saved2.map((c) => c.id) } });
+    return saved2;
+  }
+  const now2 = (/* @__PURE__ */ new Date()).toISOString();
+  const saved = normalizedCandidates.map((candidate) => ({ id: `candidate_${crypto4.randomUUID()}`, tenantId: tenantId2, jobId: normalizedJobId, candidate, createdAt: now2, updatedAt: now2 }));
+  writeQueue2 = writeQueue2.then(async () => {
+    const all = await readAll2(), kept = all.filter((x) => !(x.tenantId === tenantId2 && x.jobId === normalizedJobId));
+    await fs3.writeFile(filePath2, JSON.stringify([...saved, ...kept].slice(0, 5e3), null, 2), "utf8");
+  });
+  await writeQueue2;
+  await audit({ tenantId: tenantId2, jobId: normalizedJobId, action: "candidates_persisted", actor: "system", metadata: { count: saved.length, candidateIds: saved.map((c) => c.id) } });
+  return saved;
+}
+async function listCandidates(tenantId2, jobId) {
+  tenantId2 = requireTenantId2(tenantId2);
+  const normalizedJobId = requiredJobId(jobId);
+  const client = db3();
+  if (client) {
+    const { data, error } = await client.from("recruiting_candidates").select("*").eq("tenant_id", tenantId2).eq("workflow_id", workflowUuid2(normalizedJobId)).order("updated_at", { ascending: false });
+    if (error) throw new Error(`Unable to list candidates: ${error.message}`);
+    return (data || []).map(publicCandidate);
+  }
+  return (await readAll2()).filter((x) => x.tenantId === tenantId2 && x.jobId === normalizedJobId);
+}
+async function updateCandidateStatus(tenantId2, id, status) {
+  tenantId2 = requireTenantId2(tenantId2);
+  const candidateId = requiredCandidateId(id);
+  const normalizedStatus = requiredStatus(status);
+  const client = db3();
+  if (client) {
+    const databaseId = candidateId.startsWith("candidate_") ? candidateId.slice(10) : candidateId;
+    const { data: before, error: beforeError } = await client.from("recruiting_candidates").select("*").eq("tenant_id", tenantId2).eq("id", databaseId).maybeSingle();
+    if (beforeError) throw new Error(`Unable to read candidate status: ${beforeError.message}`);
+    if (!before) return null;
+    const previousStatus2 = before.status;
+    if (previousStatus2 === normalizedStatus) return publicCandidate(before);
+    const { data, error } = await client.from("recruiting_candidates").update({ status: normalizedStatus, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("tenant_id", tenantId2).eq("id", databaseId).eq("status", previousStatus2).select("*").maybeSingle();
+    if (error) throw new Error(`Unable to update candidate status: ${error.message}`);
+    if (!data) {
+      const { data: current, error: currentError } = await client.from("recruiting_candidates").select("*").eq("tenant_id", tenantId2).eq("id", databaseId).maybeSingle();
+      if (currentError) throw new Error(`Unable to re-read candidate status: ${currentError.message}`);
+      if (!current) return null;
+      if (current.status === normalizedStatus) return publicCandidate(current);
+      return publicCandidate(current);
+    }
+    const updated = publicCandidate(data);
+    await audit({ tenantId: tenantId2, jobId: updated.jobId, candidateId: updated.id, action: "candidate_status_updated", actor: "system", metadata: { previousStatus: previousStatus2, nextStatus: normalizedStatus } });
+    return updated;
+  }
+  let result = null;
+  let previousStatus;
+  writeQueue2 = writeQueue2.then(async () => {
+    const all = await readAll2(), index = all.findIndex((x) => x.tenantId === tenantId2 && x.id === candidateId);
+    if (index < 0) {
+      result = null;
+      return;
+    }
+    previousStatus = all[index].candidate?.status;
+    if (previousStatus === normalizedStatus) {
+      result = all[index];
+      return;
+    }
+    result = { ...all[index], candidate: { ...all[index].candidate, status: normalizedStatus }, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+    all[index] = result;
+    await fs3.writeFile(filePath2, JSON.stringify(all, null, 2), "utf8");
+  });
+  await writeQueue2;
+  if (result && previousStatus !== normalizedStatus) await audit({ tenantId: tenantId2, jobId: result.jobId, candidateId: result.id, action: "candidate_status_updated", actor: "system", metadata: { previousStatus, nextStatus: normalizedStatus } });
+  return result;
+}
+async function updateCandidateScore(tenantId2, id, score) {
+  tenantId2 = requireTenantId2(tenantId2);
+  const candidateId = requiredCandidateId(id);
+  const normalizedScore = requiredScore(score);
+  const client = db3();
+  if (client) {
+    const databaseId = candidateId.startsWith("candidate_") ? candidateId.slice(10) : candidateId;
+    const { data: before, error: beforeError } = await client.from("recruiting_candidates").select("*").eq("tenant_id", tenantId2).eq("id", databaseId).maybeSingle();
+    if (beforeError) throw new Error(`Unable to read candidate score: ${beforeError.message}`);
+    if (!before) return null;
+    const previousScore2 = before.score;
+    if (sameScore(previousScore2, normalizedScore)) return publicCandidate(before);
+    const { data, error } = await client.from("recruiting_candidates").update({ score: normalizedScore, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("tenant_id", tenantId2).eq("id", databaseId).select("*").maybeSingle();
+    if (error) throw new Error(`Unable to update candidate score: ${error.message}`);
+    const updated = data ? publicCandidate(data) : null;
+    if (updated) await audit({ tenantId: tenantId2, jobId: updated.jobId, candidateId: updated.id, action: "candidate_score_updated", actor: "system", metadata: { previousScore: previousScore2, nextScore: normalizedScore } });
+    return updated;
+  }
+  let result = null;
+  let previousScore;
+  writeQueue2 = writeQueue2.then(async () => {
+    const all = await readAll2(), index = all.findIndex((x) => x.tenantId === tenantId2 && x.id === candidateId);
+    if (index < 0) {
+      result = null;
+      return;
+    }
+    previousScore = all[index].score;
+    if (sameScore(previousScore, normalizedScore)) {
+      result = all[index];
+      return;
+    }
+    result = { ...all[index], score: normalizedScore, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+    all[index] = result;
+    await fs3.writeFile(filePath2, JSON.stringify(all, null, 2), "utf8");
+  });
+  await writeQueue2;
+  if (result && !sameScore(previousScore, normalizedScore)) await audit({ tenantId: tenantId2, jobId: result.jobId, candidateId: result.id, action: "candidate_score_updated", actor: "system", metadata: { previousScore, nextScore: normalizedScore } });
+  return result;
+}
+var filePath2, MAX_CANDIDATES_PER_BATCH, MAX_IDENTIFIER_LENGTH, MAX_SCORE_SERIALIZED_LENGTH, CANDIDATE_LIFECYCLE_STATUSES, CANDIDATE_LIFECYCLE_STATUS_SET, writeQueue2;
+var init_candidateStore = __esm({
+  "services/recruiting/candidateStore.ts"() {
+    init_controlPlane();
+    filePath2 = process.env.SMARTSCOUT_CANDIDATE_STORE || path3.join(process.cwd(), ".smartscout-candidates.json");
+    MAX_CANDIDATES_PER_BATCH = 5e3;
+    MAX_IDENTIFIER_LENGTH = 256;
+    MAX_SCORE_SERIALIZED_LENGTH = 8192;
+    CANDIDATE_LIFECYCLE_STATUSES = ["discovered", "screened", "shortlisted", "interview", "selected", "rejected", "offered", "accepted", "onboarded"];
+    CANDIDATE_LIFECYCLE_STATUS_SET = new Set(CANDIDATE_LIFECYCLE_STATUSES);
+    writeQueue2 = Promise.resolve();
+  }
+});
+
 // server.ts
 import express from "express";
-import path7 from "path";
+import path8 from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import { Resend } from "resend";
@@ -478,548 +1091,11 @@ async function listJobs(tenantId2) {
   return (await readAll()).filter((job) => job.tenantId === tenantId2);
 }
 
-// services/recruiting/candidateStore.ts
-import { promises as fs3 } from "node:fs";
-import path3 from "node:path";
-import crypto4 from "node:crypto";
-import { createClient as createClient4 } from "@supabase/supabase-js";
-
-// services/recruiting/controlPlane.ts
-import { promises as fs2 } from "node:fs";
-import path2 from "node:path";
-import crypto3 from "node:crypto";
-import { Router } from "express";
-
-// services/recruiting/auditStore.ts
-import { createClient as createClient3 } from "@supabase/supabase-js";
-var MAX_AUDIT_PAYLOAD_BYTES = 64 * 1024;
-var MAX_AUDIT_EVIDENCE_BYTES = 64 * 1024;
-var MAX_AUDIT_EVENT_TYPE_LENGTH = 128;
-var MAX_AUDIT_IDENTITY_LENGTH = 128;
-var MAX_AUDIT_TENANT_ID_LENGTH = 256;
-function db2() {
-  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return url && key ? createClient3(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
-}
-function uuid(value) {
-  if (!value) return null;
-  const normalized = value.trim();
-  return normalized.startsWith("job_") || normalized.startsWith("candidate_") ? normalized.slice(normalized.indexOf("_") + 1) : normalized;
-}
-function requireAuditIdentity(input) {
-  if (!input.tenantId?.trim()) throw new Error("Audit event tenantId is required");
-  if (input.tenantId.trim().length > MAX_AUDIT_TENANT_ID_LENGTH) throw new Error(`Audit event tenantId exceeds ${MAX_AUDIT_TENANT_ID_LENGTH} characters`);
-  if (!input.eventType?.trim()) throw new Error("Audit event eventType is required");
-  if (input.eventType.trim().length > MAX_AUDIT_EVENT_TYPE_LENGTH) throw new Error(`Audit event eventType exceeds ${MAX_AUDIT_EVENT_TYPE_LENGTH} characters`);
-}
-function requireOptionalIdentity(name, value) {
-  if (value !== void 0 && value !== null) {
-    if (value.length > MAX_AUDIT_IDENTITY_LENGTH) throw new Error(`Audit event ${name} exceeds ${MAX_AUDIT_IDENTITY_LENGTH} characters`);
-    if (!value.trim()) throw new Error(`Audit event ${name} is required when provided`);
-  }
-}
-function serializeWithinBoundary(name, value, maxBytes) {
-  let serialized;
-  try {
-    serialized = JSON.stringify(value) ?? "";
-  } catch {
-    throw new Error(`Audit event ${name} must be JSON serializable`);
-  }
-  if (Buffer.byteLength(serialized, "utf8") > maxBytes) throw new Error(`Audit event ${name} exceeds ${maxBytes} bytes`);
-}
-function requirePayloadBoundary(payload) {
-  if (payload === void 0 || payload === null) return;
-  serializeWithinBoundary("payload", payload, MAX_AUDIT_PAYLOAD_BYTES);
-}
-function requireEvidenceBoundary(evidence) {
-  if (evidence === void 0 || evidence === null) return;
-  if (!Array.isArray(evidence)) throw new Error("Audit event evidence must be an array");
-  serializeWithinBoundary("evidence", evidence, MAX_AUDIT_EVIDENCE_BYTES);
-}
-var auditPersistenceError = () => new Error("Unable to persist audit event");
-var auditQueryError = () => new Error("Unable to load audit events");
-async function recordAuditEvent(input) {
-  requireAuditIdentity(input);
-  requireOptionalIdentity("workflowId", input.workflowId);
-  requireOptionalIdentity("candidateId", input.candidateId);
-  requireOptionalIdentity("actorId", input.actorId);
-  requireOptionalIdentity("actorType", input.actorType);
-  requireOptionalIdentity("provider", input.provider);
-  requireOptionalIdentity("model", input.model);
-  requirePayloadBoundary(input.payload);
-  requireEvidenceBoundary(input.evidence);
-  const client = db2();
-  if (!client) return { persisted: false };
-  const { data, error } = await client.from("recruiting_audit_events").insert({ tenant_id: input.tenantId.trim(), workflow_id: uuid(input.workflowId), candidate_id: uuid(input.candidateId), event_type: input.eventType.trim(), actor_type: input.actorType?.trim() || "system", actor_id: input.actorId?.trim() || null, provider: input.provider?.trim() || null, model: input.model?.trim() || null, evidence: input.evidence || [], payload: input.payload || {} }).select("*").single();
-  if (error) throw auditPersistenceError();
-  return { persisted: true, event: data };
-}
-async function listAuditEvents(tenantId2, workflowId, candidateId) {
-  if (!tenantId2?.trim()) throw new Error("Audit event tenantId is required");
-  if (tenantId2.trim().length > MAX_AUDIT_TENANT_ID_LENGTH) throw new Error(`Audit event tenantId exceeds ${MAX_AUDIT_TENANT_ID_LENGTH} characters`);
-  requireOptionalIdentity("workflowId", workflowId);
-  requireOptionalIdentity("candidateId", candidateId);
-  const normalizedTenantId = tenantId2.trim();
-  const normalizedWorkflowId = workflowId?.trim() || null;
-  const normalizedCandidateId = candidateId?.trim() || null;
-  const client = db2();
-  if (!client) return [];
-  let query = client.from("recruiting_audit_events").select("*").eq("tenant_id", normalizedTenantId).order("created_at", { ascending: false }).limit(500);
-  if (normalizedWorkflowId) query = query.eq("workflow_id", uuid(normalizedWorkflowId));
-  if (normalizedCandidateId) query = query.eq("candidate_id", uuid(normalizedCandidateId));
-  const { data, error } = await query;
-  if (error) throw auditQueryError();
-  return data || [];
-}
-async function countAuditEvents(tenantId2, workflowId, candidateId) {
-  if (!tenantId2?.trim()) throw new Error("Audit event tenantId is required");
-  if (tenantId2.trim().length > MAX_AUDIT_TENANT_ID_LENGTH) throw new Error(`Audit event tenantId exceeds ${MAX_AUDIT_TENANT_ID_LENGTH} characters`);
-  requireOptionalIdentity("workflowId", workflowId);
-  requireOptionalIdentity("candidateId", candidateId);
-  const normalizedTenantId = tenantId2.trim();
-  const normalizedWorkflowId = workflowId?.trim() || null;
-  const normalizedCandidateId = candidateId?.trim() || null;
-  const client = db2();
-  if (!client) return { configured: false, count: 0 };
-  let query = client.from("recruiting_audit_events").select("id", { count: "exact", head: true }).eq("tenant_id", normalizedTenantId);
-  if (normalizedWorkflowId) query = query.eq("workflow_id", uuid(normalizedWorkflowId));
-  if (normalizedCandidateId) query = query.eq("candidate_id", uuid(normalizedCandidateId));
-  const { count, error } = await query;
-  if (error) throw new Error("Unable to count audit events");
-  return { configured: true, count: count || 0 };
-}
-
-// services/recruiting/authorization.ts
-var PRIVILEGED_ROLES = /* @__PURE__ */ new Set(["admin", "recruiter", "hiring_manager"]);
-var MAX_WORKSPACE_ROLE_LENGTH = 64;
-function hasPrivilegedRecruitingRole(role) {
-  if (typeof role !== "string") return false;
-  const normalized = role.trim().toLowerCase();
-  if (normalized.length === 0 || normalized.length > MAX_WORKSPACE_ROLE_LENGTH) return false;
-  return PRIVILEGED_ROLES.has(normalized);
-}
-function requirePrivilegedRecruitingRole(role) {
-  const normalized = typeof role === "string" ? role.trim().toLowerCase() : "";
-  if (!hasPrivilegedRecruitingRole(normalized)) {
-    throw new Error("Insufficient permissions");
-  }
-  return normalized;
-}
-
-// services/recruiting/controlPlane.ts
-var root = process.env.SMARTSCOUT_CONTROL_PLANE_DIR || path2.join(process.cwd(), ".smartscout-control-plane");
-var files = { approvals: "approvals.json", audit: "audit.json", schedules: "schedules.json", usage: "usage.json" };
-var queues = {};
-async function read(name) {
-  try {
-    return JSON.parse(await fs2.readFile(path2.join(root, name), "utf8"));
-  } catch {
-    return [];
-  }
-}
-async function append(name, value) {
-  await fs2.mkdir(root, { recursive: true });
-  const prior = queues[name] || Promise.resolve();
-  const operation = prior.then(async () => {
-    const all = await read(name);
-    all.unshift(value);
-    await fs2.writeFile(path2.join(root, name), JSON.stringify(all.slice(0, 1e4), null, 2), "utf8");
-  });
-  queues[name] = operation.catch(() => {
-  });
-  await operation;
-  return value;
-}
-async function mutate(name, fn) {
-  await fs2.mkdir(root, { recursive: true });
-  const prior = queues[name] || Promise.resolve();
-  let result;
-  const operation = prior.then(async () => {
-    const all = await read(name);
-    result = await fn(all);
-    await fs2.writeFile(path2.join(root, name), JSON.stringify(all, null, 2), "utf8");
-  });
-  queues[name] = operation.catch(() => {
-  });
-  await operation;
-  return result;
-}
-var now = () => (/* @__PURE__ */ new Date()).toISOString();
-var requiredIdentity = (value, name) => {
-  const normalized = String(value ?? "").trim();
-  if (!normalized) throw new Error(`${name} is required`);
-  if (normalized.length > 256) throw new Error(`${name} is too long`);
-  return normalized;
-};
-var allowedScheduleTransitions = { proposed: ["proposed", "confirmed", "cancelled"], confirmed: ["confirmed", "cancelled"], cancelled: ["cancelled"] };
-function isAllowedScheduleTransition(from, to) {
-  return allowedScheduleTransitions[from].includes(to);
-}
-function isValidInterviewWindow(startsAt, endsAt) {
-  const start = Date.parse(startsAt);
-  const end = Date.parse(endsAt);
-  return Number.isFinite(start) && Number.isFinite(end) && end > start;
-}
-var validateScheduleState = (status, mode) => {
-  if (!["proposed", "confirmed", "cancelled"].includes(status)) throw new Error("Invalid schedule status");
-  if (!["ai_audio", "human", "panel"].includes(mode)) throw new Error("Invalid interview mode");
-  return { status, mode };
-};
-async function audit(input) {
-  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
-  const actor = requiredIdentity(input.actor, "Audit actor");
-  const action = requiredIdentity(input.action, "Audit action");
-  const t = now();
-  const persisted = await recordAuditEvent({ tenantId: tenantId2, workflowId: input.jobId || null, candidateId: input.candidateId || null, eventType: action, actorType: actor, actorId: actor, payload: input.metadata || {} });
-  const persistence = persisted.persisted ? "database" : "local-fallback";
-  const value = { ...input, tenantId: tenantId2, actor, action, id: `audit_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t, persistence };
-  if (!persisted.persisted) await append(files.audit, value);
-  return value;
-}
-async function requestApproval(input) {
-  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
-  const jobId = requiredIdentity(input.jobId, "Job identity");
-  const requestedBy = requiredIdentity(input.requestedBy, "Requester identity");
-  const t = now();
-  const value = { ...input, tenantId: tenantId2, jobId, requestedBy, id: `approval_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t, status: "pending" };
-  await append(files.approvals, value);
-  await audit({ tenantId: tenantId2, jobId, candidateId: input.candidateId, action: "approval_requested", actor: requestedBy, metadata: { approvalId: value.id, approvalAction: value.action } });
-  return value;
-}
-async function decideApproval(id, status, actor, note, tenantId2) {
-  if (!["approved", "rejected"].includes(status)) throw new Error("Invalid approval status");
-  const tenant = requiredIdentity(tenantId2 || "", "Tenant identity");
-  const decisionActor = requiredIdentity(actor, "Decision actor");
-  const approvalId = requiredIdentity(id, "Approval identity");
-  const item = await mutate(files.approvals, async (all) => {
-    const item2 = all.find((x) => x.id === approvalId && x.tenantId === tenant);
-    if (!item2) return null;
-    if (item2.status !== "pending") throw new Error("Approval is already decided");
-    item2.status = status;
-    item2.decidedBy = decisionActor;
-    item2.note = note;
-    item2.updatedAt = now();
-    return item2;
-  });
-  if (!item) return null;
-  await audit({ tenantId: item.tenantId, jobId: item.jobId, candidateId: item.candidateId, action: `approval_${status}`, actor: decisionActor, metadata: { approvalId, note: note || "" } });
-  return item;
-}
-async function listApprovals(tenantId2, jobId) {
-  const tenant = requiredIdentity(tenantId2, "Tenant identity");
-  return (await read(files.approvals)).filter((x) => x.tenantId === tenant && (!jobId || x.jobId === jobId));
-}
-function auditDatabaseConfigured() {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
-function mapDatabaseAuditEvent(event) {
-  const createdAt = String(event.created_at || now());
-  return { id: `audit_${event.id}`, tenantId: String(event.tenant_id), jobId: event.workflow_id ? `job_${event.workflow_id}` : void 0, candidateId: event.candidate_id ? `candidate_${event.candidate_id}` : void 0, action: String(event.event_type), actor: String(event.actor_id || event.actor_type || "system"), metadata: event.payload && typeof event.payload === "object" ? event.payload : void 0, createdAt, updatedAt: createdAt, persistence: "database" };
-}
-async function listAudit(tenantId2, jobId, candidateId) {
-  const tenant = requiredIdentity(tenantId2, "Tenant identity");
-  const normalizedJobId = jobId === void 0 ? void 0 : requiredIdentity(jobId, "Job identity");
-  const normalizedCandidateId = candidateId === void 0 ? void 0 : requiredIdentity(candidateId, "Candidate identity");
-  if (auditDatabaseConfigured()) {
-    const events = await listAuditEvents(tenant, normalizedJobId, normalizedCandidateId);
-    return events.map(mapDatabaseAuditEvent);
-  }
-  return (await read(files.audit)).filter((x) => x.tenantId === tenant && (!normalizedJobId || x.jobId === normalizedJobId) && (!normalizedCandidateId || x.candidateId === normalizedCandidateId));
-}
-async function countAudit(tenantId2, jobId, candidateId) {
-  const tenant = requiredIdentity(tenantId2, "Tenant identity");
-  const normalizedJobId = jobId === void 0 ? void 0 : requiredIdentity(jobId, "Job identity");
-  const normalizedCandidateId = candidateId === void 0 ? void 0 : requiredIdentity(candidateId, "Candidate identity");
-  if (auditDatabaseConfigured()) return countAuditEvents(tenant, normalizedJobId, normalizedCandidateId);
-  return { configured: false, count: (await read(files.audit)).filter((x) => x.tenantId === tenant && (!normalizedJobId || x.jobId === normalizedJobId) && (!normalizedCandidateId || x.candidateId === normalizedCandidateId)).length };
-}
-async function scheduleInterview(input, actor = "system") {
-  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
-  const jobId = requiredIdentity(input.jobId, "Job identity");
-  const candidateId = requiredIdentity(input.candidateId, "Candidate identity");
-  const timezone = requiredIdentity(input.timezone, "Interview timezone");
-  const auditActor = requiredIdentity(actor, "Interview actor");
-  validateScheduleState(input.status, input.mode);
-  if (!isValidInterviewWindow(input.startsAt, input.endsAt)) throw new Error("Interview window must contain valid timestamps with end after start");
-  const t = now();
-  const value = await mutate(files.schedules, (all) => {
-    if (all.find((x) => x.tenantId === tenantId2 && x.status !== "cancelled" && new Date(input.startsAt) < new Date(x.endsAt) && new Date(input.endsAt) > new Date(x.startsAt))) throw new Error("Interview time overlaps an existing booking");
-    const item = { ...input, tenantId: tenantId2, jobId, candidateId, timezone, id: `schedule_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t };
-    all.push(item);
-    return item;
-  });
-  await audit({ tenantId: tenantId2, jobId, candidateId, action: "interview_scheduled", actor: auditActor, metadata: { scheduleId: value.id, status: value.status, startsAt: value.startsAt, endsAt: value.endsAt, mode: value.mode } });
-  return value;
-}
-async function updateSchedule(id, status, tenantId2, actor) {
-  if (!["proposed", "confirmed", "cancelled"].includes(status)) throw new Error("Invalid schedule status");
-  const tenant = requiredIdentity(tenantId2, "Tenant identity");
-  const auditActor = requiredIdentity(actor || tenant, "Interview actor");
-  const scheduleId = requiredIdentity(id, "Schedule identity");
-  let previousStatus;
-  const item = await mutate(files.schedules, async (all) => {
-    const item2 = all.find((x) => x.id === scheduleId && x.tenantId === tenant);
-    if (!item2) return null;
-    if (!isAllowedScheduleTransition(item2.status, status)) throw new Error(`Invalid interview status transition: ${item2.status} -> ${status}`);
-    if (status === "confirmed") {
-      const overlaps = all.some((x) => x.id !== item2.id && x.tenantId === tenant && x.status !== "cancelled" && new Date(item2.startsAt) < new Date(x.endsAt) && new Date(item2.endsAt) > new Date(x.startsAt));
-      if (overlaps) throw new Error("Interview time overlaps an existing booking");
-    }
-    previousStatus = item2.status;
-    item2.status = status;
-    item2.updatedAt = now();
-    return item2;
-  });
-  if (!item) return null;
-  if (previousStatus !== status) await audit({ tenantId: item.tenantId, jobId: item.jobId, candidateId: item.candidateId, action: "interview_status_changed", actor: auditActor, metadata: { scheduleId, previousStatus, status } });
-  return item;
-}
-async function listSchedules(tenantId2, jobId) {
-  const tenant = requiredIdentity(tenantId2, "Tenant identity");
-  return (await read(files.schedules)).filter((x) => x.tenantId === tenant && (!jobId || x.jobId === jobId));
-}
-async function recordUsage(input, actor = "system") {
-  const tenantId2 = requiredIdentity(input.tenantId, "Tenant identity");
-  const feature = requiredIdentity(input.feature, "Usage feature");
-  const auditActor = requiredIdentity(actor, "Usage actor");
-  const t = now();
-  const value = await append(files.usage, { ...input, tenantId: tenantId2, feature, id: `usage_${crypto3.randomUUID()}`, createdAt: t, updatedAt: t });
-  await audit({ tenantId: tenantId2, action: "usage_recorded", actor: auditActor, metadata: { usageId: value.id, period: value.period, feature: value.feature, units: value.units } });
-  return value;
-}
-async function usageSummary(tenantId2, period) {
-  const tenant = requiredIdentity(tenantId2, "Tenant identity");
-  return (await read(files.usage)).filter((x) => x.tenantId === tenant && (!period || x.period === period)).reduce((a, x) => (a[x.feature] = (a[x.feature] || 0) + x.units, a), {});
-}
-function createControlPlaneRouter(tenantId2) {
-  const r = Router();
-  const resolveTenant = (req) => requiredIdentity(tenantId2(req), "Tenant identity");
-  const actorFromRequest2 = (req) => requiredIdentity(String(req.workspaceIdentity?.email || req.workspaceIdentity?.id || ""), "Authenticated actor");
-  const requireRecruitingRole = (req) => requirePrivilegedRecruitingRole(req.workspaceIdentity?.role);
-  r.post("/approvals", async (req, res) => {
-    try {
-      const tenant = resolveTenant(req);
-      const actor = actorFromRequest2(req);
-      requireRecruitingRole(req);
-      res.json(await requestApproval({ ...req.body, tenantId: tenant, requestedBy: actor }));
-    } catch (e) {
-      const forbidden = e?.message === "Insufficient permissions";
-      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
-    }
-  });
-  r.get("/approvals", async (req, res) => res.json({ approvals: await listApprovals(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
-  r.post("/approvals/:id/decision", async (req, res) => {
-    try {
-      const tenant = resolveTenant(req);
-      const actor = actorFromRequest2(req);
-      requireRecruitingRole(req);
-      const out = await decideApproval(String(req.params.id), req.body?.status, actor, req.body?.note, tenant);
-      if (!out) return res.status(404).json({ error: "Approval not found" });
-      res.json(out);
-    } catch (e) {
-      const forbidden = e?.message === "Insufficient permissions";
-      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
-    }
-  });
-  r.get("/audit", async (req, res) => res.json({ events: await listAudit(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0, req.query.candidateId ? String(req.query.candidateId) : void 0) }));
-  r.get("/audit/count", async (req, res) => res.json(await countAudit(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0, req.query.candidateId ? String(req.query.candidateId) : void 0)));
-  r.post("/audit", async (req, res) => {
-    try {
-      const tenant = resolveTenant(req);
-      requireRecruitingRole(req);
-      res.json(await audit({ ...req.body, tenantId: tenant, actor: actorFromRequest2(req) }));
-    } catch (e) {
-      const forbidden = e?.message === "Insufficient permissions";
-      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
-    }
-  });
-  r.post("/schedules", async (req, res) => {
-    try {
-      const tenant = resolveTenant(req);
-      const actor = actorFromRequest2(req);
-      requireRecruitingRole(req);
-      res.json(await scheduleInterview({ ...req.body, tenantId: tenant }, actor));
-    } catch (e) {
-      const forbidden = e?.message === "Insufficient permissions";
-      res.status(forbidden ? 403 : 409).json({ error: forbidden ? "Insufficient permissions" : e.message });
-    }
-  });
-  r.get("/schedules", async (req, res) => res.json({ schedules: await listSchedules(resolveTenant(req), req.query.jobId ? String(req.query.jobId) : void 0) }));
-  r.post("/schedules/:id/status", async (req, res) => {
-    try {
-      const tenant = resolveTenant(req);
-      const actor = actorFromRequest2(req);
-      requireRecruitingRole(req);
-      const out = await updateSchedule(String(req.params.id), req.body?.status, tenant, actor);
-      if (!out) return res.status(404).json({ error: "Schedule not found" });
-      res.json(out);
-    } catch (e) {
-      const forbidden = e?.message === "Insufficient permissions";
-      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
-    }
-  });
-  r.post("/usage", async (req, res) => {
-    try {
-      const tenant = resolveTenant(req);
-      const actor = actorFromRequest2(req);
-      requireRecruitingRole(req);
-      res.json(await recordUsage({ ...req.body, tenantId: tenant }, actor));
-    } catch (e) {
-      const forbidden = e?.message === "Insufficient permissions";
-      res.status(forbidden ? 403 : 400).json({ error: forbidden ? "Insufficient permissions" : e.message });
-    }
-  });
-  r.get("/usage", async (req, res) => res.json({ usage: await usageSummary(resolveTenant(req), req.query.period ? String(req.query.period) : void 0) }));
-  return r;
-}
-
-// services/recruiting/candidateStore.ts
-var filePath2 = process.env.SMARTSCOUT_CANDIDATE_STORE || path3.join(process.cwd(), ".smartscout-candidates.json");
-var MAX_CANDIDATES_PER_BATCH = 5e3;
-var MAX_IDENTIFIER_LENGTH = 256;
-var MAX_SCORE_SERIALIZED_LENGTH = 8192;
-var CANDIDATE_LIFECYCLE_STATUSES = ["discovered", "screened", "shortlisted", "interview", "selected", "rejected", "offered", "accepted", "onboarded"];
-var CANDIDATE_LIFECYCLE_STATUS_SET = new Set(CANDIDATE_LIFECYCLE_STATUSES);
-var writeQueue2 = Promise.resolve();
-function db3() {
-  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return url && key ? createClient4(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
-}
-function requireTenantId2(tenantId2) {
-  const normalized = String(tenantId2 ?? "").trim();
-  if (!normalized) throw new Error("tenantId is required");
-  if (normalized.length > MAX_IDENTIFIER_LENGTH) throw new Error("tenantId is too long");
-  return normalized;
-}
-function workflowUuid2(id) {
-  return id.startsWith("job_") ? id.slice(4) : id;
-}
-function publicCandidate(row) {
-  return { id: `candidate_${row.id}`, tenantId: row.tenant_id, jobId: `job_${row.workflow_id}`, candidate: { id: `candidate_${row.id}`, name: row.name, email: row.email, phone: row.phone, profileUrl: row.profile_url, source: row.source, resumeText: row.resume_text, evidence: row.evidence, status: row.status }, score: row.score, createdAt: row.created_at, updatedAt: row.updated_at };
-}
-async function readAll2() {
-  try {
-    return JSON.parse(await fs3.readFile(filePath2, "utf8"));
-  } catch {
-    return [];
-  }
-}
-function requiredJobId(jobId) {
-  const normalized = String(jobId ?? "").trim();
-  if (!normalized) throw new Error("jobId is required");
-  if (normalized.length > MAX_IDENTIFIER_LENGTH) throw new Error("jobId is too long");
-  return normalized;
-}
-function requiredCandidateBatch(candidates) {
-  if (!Array.isArray(candidates)) throw new Error("candidates must be an array");
-  if (candidates.length > MAX_CANDIDATES_PER_BATCH) throw new Error(`candidate batch is too large; maximum is ${MAX_CANDIDATES_PER_BATCH}`);
-  if (candidates.some((candidate) => !candidate || typeof candidate !== "object" || Array.isArray(candidate))) throw new Error("candidate entries must be objects");
-  return candidates;
-}
-function requiredCandidateId(id) {
-  const normalized = String(id ?? "").trim();
-  if (!normalized) throw new Error("candidateId is required");
-  if (normalized.length > MAX_IDENTIFIER_LENGTH) throw new Error("candidateId is too long");
-  return normalized;
-}
-function requiredStatus(status) {
-  const normalized = String(status ?? "").trim();
-  if (!normalized) throw new Error("status is required");
-  if (normalized.length > 64) throw new Error("status is too long");
-  if (!CANDIDATE_LIFECYCLE_STATUS_SET.has(normalized)) throw new Error(`unsupported candidate lifecycle status: ${normalized}`);
-  return normalized;
-}
-function requiredScore(score) {
-  if (score === void 0) throw new Error("score is invalid");
-  try {
-    const serialized = JSON.stringify(score);
-    if (typeof serialized !== "string") throw new Error("score is invalid");
-    if (serialized.length > MAX_SCORE_SERIALIZED_LENGTH) throw new Error("score is too large");
-  } catch (error) {
-    if (error instanceof Error && (error.message === "score is too large" || error.message === "score is invalid")) throw error;
-    throw new Error("score is invalid");
-  }
-  return score;
-}
-function sameScore(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-async function saveCandidates(tenantId2, jobId, candidates) {
-  tenantId2 = requireTenantId2(tenantId2);
-  const normalizedJobId = requiredJobId(jobId);
-  const normalizedCandidates = requiredCandidateBatch(candidates).map((candidate) => ({ ...candidate, status: requiredStatus(candidate.status || "discovered") }));
-  const client = db3();
-  if (client) {
-    const workflowId = workflowUuid2(normalizedJobId);
-    const rows = normalizedCandidates.map((c) => ({ tenant_id: tenantId2, workflow_id: workflowId, name: c.name || "Unknown candidate", email: c.email || null, phone: c.phone || null, profile_url: c.profileUrl || c.profile_url || null, source: c.source || "browser", resume_text: c.resumeText || c.resume_text || null, score: c.score || null, status: c.status, evidence: c.evidence || [] }));
-    const { data, error } = await client.from("recruiting_candidates").insert(rows).select("*");
-    if (error) throw new Error(`Unable to persist candidates: ${error.message}`);
-    const saved2 = (data || []).map(publicCandidate);
-    await audit({ tenantId: tenantId2, jobId: normalizedJobId, action: "candidates_persisted", actor: "system", metadata: { count: saved2.length, candidateIds: saved2.map((c) => c.id) } });
-    return saved2;
-  }
-  const now2 = (/* @__PURE__ */ new Date()).toISOString();
-  const saved = normalizedCandidates.map((candidate) => ({ id: `candidate_${crypto4.randomUUID()}`, tenantId: tenantId2, jobId: normalizedJobId, candidate, createdAt: now2, updatedAt: now2 }));
-  writeQueue2 = writeQueue2.then(async () => {
-    const all = await readAll2(), kept = all.filter((x) => !(x.tenantId === tenantId2 && x.jobId === normalizedJobId));
-    await fs3.writeFile(filePath2, JSON.stringify([...saved, ...kept].slice(0, 5e3), null, 2), "utf8");
-  });
-  await writeQueue2;
-  await audit({ tenantId: tenantId2, jobId: normalizedJobId, action: "candidates_persisted", actor: "system", metadata: { count: saved.length, candidateIds: saved.map((c) => c.id) } });
-  return saved;
-}
-async function listCandidates(tenantId2, jobId) {
-  tenantId2 = requireTenantId2(tenantId2);
-  const normalizedJobId = requiredJobId(jobId);
-  const client = db3();
-  if (client) {
-    const { data, error } = await client.from("recruiting_candidates").select("*").eq("tenant_id", tenantId2).eq("workflow_id", workflowUuid2(normalizedJobId)).order("updated_at", { ascending: false });
-    if (error) throw new Error(`Unable to list candidates: ${error.message}`);
-    return (data || []).map(publicCandidate);
-  }
-  return (await readAll2()).filter((x) => x.tenantId === tenantId2 && x.jobId === normalizedJobId);
-}
-async function updateCandidateScore(tenantId2, id, score) {
-  tenantId2 = requireTenantId2(tenantId2);
-  const candidateId = requiredCandidateId(id);
-  const normalizedScore = requiredScore(score);
-  const client = db3();
-  if (client) {
-    const databaseId = candidateId.startsWith("candidate_") ? candidateId.slice(10) : candidateId;
-    const { data: before, error: beforeError } = await client.from("recruiting_candidates").select("*").eq("tenant_id", tenantId2).eq("id", databaseId).maybeSingle();
-    if (beforeError) throw new Error(`Unable to read candidate score: ${beforeError.message}`);
-    if (!before) return null;
-    const previousScore2 = before.score;
-    if (sameScore(previousScore2, normalizedScore)) return publicCandidate(before);
-    const { data, error } = await client.from("recruiting_candidates").update({ score: normalizedScore, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("tenant_id", tenantId2).eq("id", databaseId).select("*").maybeSingle();
-    if (error) throw new Error(`Unable to update candidate score: ${error.message}`);
-    const updated = data ? publicCandidate(data) : null;
-    if (updated) await audit({ tenantId: tenantId2, jobId: updated.jobId, candidateId: updated.id, action: "candidate_score_updated", actor: "system", metadata: { previousScore: previousScore2, nextScore: normalizedScore } });
-    return updated;
-  }
-  let result = null;
-  let previousScore;
-  writeQueue2 = writeQueue2.then(async () => {
-    const all = await readAll2(), index = all.findIndex((x) => x.tenantId === tenantId2 && x.id === candidateId);
-    if (index < 0) {
-      result = null;
-      return;
-    }
-    previousScore = all[index].score;
-    if (sameScore(previousScore, normalizedScore)) {
-      result = all[index];
-      return;
-    }
-    result = { ...all[index], score: normalizedScore, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
-    all[index] = result;
-    await fs3.writeFile(filePath2, JSON.stringify(all, null, 2), "utf8");
-  });
-  await writeQueue2;
-  if (result && !sameScore(previousScore, normalizedScore)) await audit({ tenantId: tenantId2, jobId: result.jobId, candidateId: result.id, action: "candidate_score_updated", actor: "system", metadata: { previousScore, nextScore: normalizedScore } });
-  return result;
-}
+// services/recruiting/api.ts
+init_candidateStore();
 
 // services/recruiting/interviewStore.ts
+init_candidateStore();
 import { promises as fs4 } from "node:fs";
 import path4 from "node:path";
 import crypto5 from "node:crypto";
@@ -1119,6 +1195,8 @@ async function completeInterview(tenantId2, interviewId, evidence) {
 }
 
 // services/recruiting/hiringStateStore.ts
+init_controlPlane();
+init_candidateStore();
 import { promises as fs5 } from "node:fs";
 import path5 from "node:path";
 import crypto6 from "node:crypto";
@@ -1279,6 +1357,9 @@ async function listHiringStates(tenantId2, jobId, type, candidateId) {
   const all = await readAll4();
   return all.filter((x) => x.tenantId === normalizedTenantId && x.jobId === normalizedJobId && (!normalizedType || x.type === normalizedType) && (!normalizedCandidateId || x.candidateId === normalizedCandidateId)).slice(0, MAX_HIRING_STATE_LIST_ROWS);
 }
+
+// services/recruiting/api.ts
+init_controlPlane();
 
 // services/recruiting/productionIntegrations.ts
 var normalize = (value) => value.toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim();
@@ -2019,6 +2100,8 @@ var documentRoutes_default = router2;
 
 // services/recruiting/browserSourceRoutes.ts
 import { Router as Router4 } from "express";
+import path7 from "node:path";
+import fs7 from "node:fs";
 
 // services/recruiting/browserSourcing.ts
 import { chromium } from "playwright";
@@ -2396,6 +2479,8 @@ async function searchBrowserCandidates(tenantId2, source, query, limit = 8, cook
 }
 
 // services/recruiting/browserSourceRoutes.ts
+init_controlPlane();
+init_candidateStore();
 var router3 = Router4();
 async function requireJDApproval(tenantId2, jobId) {
   const approvals = await listApprovals(tenantId2, jobId);
@@ -2424,9 +2509,60 @@ async function handleBrowserSourceSearch(req, res) {
     res.status(400).json({ error: error?.message || "Browser sourcing failed" });
   }
 }
+async function handleExtensionImport(req, res) {
+  try {
+    const tenantId2 = String(req.header("x-tenant-id") || req.body?.tenantId || "");
+    const jobId = String(req.body?.jobId || "");
+    const rawCandidates = req.body?.candidates;
+    if (!tenantId2) return res.status(400).json({ error: "Workspace identity is missing" });
+    if (!jobId) return res.status(400).json({ error: "jobId is required" });
+    if (!Array.isArray(rawCandidates) || !rawCandidates.length) {
+      return res.status(400).json({ error: "No candidates provided for import" });
+    }
+    await requireJDApproval(tenantId2, jobId);
+    const normalizedCandidates = rawCandidates.map((c) => ({
+      name: String(c.name || "Candidate").trim(),
+      headline: String(c.headline || "Professional").trim(),
+      location: String(c.location || "India").trim(),
+      profileUrl: String(c.profileUrl || c.profile_url || "").trim(),
+      source: String(c.source || "extension").trim(),
+      summary: String(c.summary || "").trim(),
+      evidence: Array.isArray(c.evidence) ? c.evidence : []
+    }));
+    const savedCandidates = await saveCandidates(tenantId2, jobId, normalizedCandidates);
+    res.json({ ok: true, jobId, imported: savedCandidates.length, candidates: savedCandidates });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Extension import failed" });
+  }
+}
 router3.post("/browser-source/search", handleBrowserSourceSearch);
 router3.post("/browser-sourcing/search", handleBrowserSourceSearch);
+router3.post("/extension/import", handleExtensionImport);
+router3.get("/candidates", async (req, res) => {
+  try {
+    const tenantId2 = String(req.header("x-tenant-id") || req.query?.tenantId || "");
+    const jobId = String(req.query?.jobId || "");
+    if (!tenantId2) return res.status(400).json({ error: "Workspace identity is missing" });
+    if (!jobId) return res.status(400).json({ error: "jobId is required" });
+    const { listCandidates: listCandidates2 } = await Promise.resolve().then(() => (init_candidateStore(), candidateStore_exports));
+    const candidates = await listCandidates2(tenantId2, jobId);
+    res.json({ jobId, candidates });
+  } catch (error) {
+    res.status(400).json({ error: error?.message || "Failed to list candidates" });
+  }
+});
+router3.get("/extension/download", (req, res) => {
+  const zipPath = path7.join(process.cwd(), "public", "extension", "smartscout-extension.zip");
+  if (fs7.existsSync(zipPath)) {
+    res.download(zipPath, "smartscout-extension.zip");
+  } else {
+    res.status(404).json({ error: "Extension package not found" });
+  }
+});
 var browserSourceRoutes_default = router3;
+
+// server.ts
+init_controlPlane();
 
 // services/recruiting/rateLimit.ts
 var buckets = /* @__PURE__ */ new Map();
@@ -2502,15 +2638,15 @@ function createApiRateLimitMiddleware(options = {}) {
   return (req, res, next) => {
     const tenant = String(req.rateLimitTenant || "").trim();
     const method = String(req.method || "").trim().toUpperCase();
-    const path8 = String(req.path || "").trim();
+    const path9 = String(req.path || "").trim();
     const client = String(req.ip || req.socket?.remoteAddress || "").trim();
-    if (!tenant || !method || !path8 || !client) {
+    if (!tenant || !method || !path9 || !client) {
       res.status(400).json({ error: "Rate-limit identity is unavailable" });
       return;
     }
     let key;
     try {
-      key = scopedRateLimitKey(tenant, method, path8, client);
+      key = scopedRateLimitKey(tenant, method, path9, client);
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("Rate limit key")) {
         res.status(400).json({ error: "Rate-limit identity is invalid" });
@@ -2533,7 +2669,7 @@ function createApiRateLimitMiddleware(options = {}) {
 
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path7.dirname(__filename);
+var __dirname = path8.dirname(__filename);
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>\"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] || char);
 }
@@ -2728,7 +2864,7 @@ ${String(emailBody || "").slice(0, 3e4)}`, location: "SmartScout AI Platform", u
     app.get("/release.json", (_req, res) => {
       res.type("application/json");
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-      res.sendFile(path7.join(process.cwd(), "dist", "release.json"));
+      res.sendFile(path8.join(process.cwd(), "dist", "release.json"));
     });
   }
   if (process.env.NODE_ENV !== "production") {
@@ -2736,7 +2872,7 @@ ${String(emailBody || "").slice(0, 3e4)}`, location: "SmartScout AI Platform", u
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path7.join(process.cwd(), "dist");
+    const distPath = path8.join(process.cwd(), "dist");
     app.use(express.static(distPath, { setHeaders: (res, filePath5) => {
       if (filePath5.endsWith(".html")) {
         res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -2748,7 +2884,7 @@ ${String(emailBody || "").slice(0, 3e4)}`, location: "SmartScout AI Platform", u
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
-      res.sendFile(path7.join(distPath, "index.html"));
+      res.sendFile(path8.join(distPath, "index.html"));
     });
   }
   app.use((err, req, res, _next) => {
