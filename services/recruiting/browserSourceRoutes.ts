@@ -87,6 +87,74 @@ router.get('/candidates', async (req, res) => {
   }
 });
 
+// Autonomous browser-use Talent Agent Sourcing
+router.post('/browser-use/scout', async (req: any, res: any) => {
+  try {
+    const tenantId = String(req.header('x-tenant-id') || '');
+    const jobId = String(req.body?.jobId || '');
+    const roleTitle = String(req.body?.roleTitle || '').trim();
+    const location = String(req.body?.location || 'Gurgaon').trim();
+    const companies = Array.isArray(req.body?.companies) ? req.body.companies : undefined;
+    const mustHaves = Array.isArray(req.body?.mustHaves) ? req.body.mustHaves : undefined;
+    const limit = Math.min(Math.max(Number(req.body?.limit) || 6, 1), 15);
+
+    if (!tenantId) return res.status(400).json({ error: 'Workspace identity is missing' });
+    if (!jobId) return res.status(400).json({ error: 'jobId is required' });
+    if (!roleTitle) return res.status(400).json({ error: 'roleTitle is required' });
+
+    await requireJDApproval(tenantId, jobId);
+
+    const { runBrowserUseAgent } = await import('./browserUseAgent.js');
+    const { getAICredential, listAIProviders } = await import('./credentialStore.js');
+
+    let aiConfig: any = undefined;
+    if (process.env.GEMINI_API_KEY) {
+      aiConfig = { provider: 'gemini', apiKey: process.env.GEMINI_API_KEY, model: 'gemini-3.6-flash' };
+    } else {
+      const providers = await listAIProviders(tenantId).catch(() => []);
+      if (providers[0]) {
+        const apiKey = await getAICredential(tenantId, providers[0]);
+        if (apiKey) aiConfig = { provider: providers[0], apiKey };
+      }
+    }
+
+    const discovered = await runBrowserUseAgent({ roleTitle, location, companies, mustHaves, limit }, aiConfig);
+    const savedCandidates = await saveCandidates(tenantId, jobId, discovered);
+
+    res.json({ ok: true, jobId, count: savedCandidates.length, candidates: savedCandidates });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Autonomous browser agent sourcing failed' });
+  }
+});
+
+// Crawlee Production Market & Comp Intelligence
+router.get('/crawlee/market-benchmark', async (req: any, res: any) => {
+  try {
+    const tenantId = String(req.header('x-tenant-id') || req.query?.tenantId || '');
+    const role = String(req.query?.role || 'VP HR').trim();
+    const location = String(req.query?.location || 'Gurgaon').trim();
+
+    const { crawlMarketIntelligence } = await import('./crawleeIntelligence.js');
+    const { getAICredential, listAIProviders } = await import('./credentialStore.js');
+
+    let aiConfig: any = undefined;
+    if (process.env.GEMINI_API_KEY) {
+      aiConfig = { provider: 'gemini', apiKey: process.env.GEMINI_API_KEY, model: 'gemini-3.6-flash' };
+    } else if (tenantId) {
+      const providers = await listAIProviders(tenantId).catch(() => []);
+      if (providers[0]) {
+        const apiKey = await getAICredential(tenantId, providers[0]);
+        if (apiKey) aiConfig = { provider: providers[0], apiKey };
+      }
+    }
+
+    const benchmark = await crawlMarketIntelligence(role, location, aiConfig);
+    res.json({ ok: true, benchmark });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Crawlee market benchmark failed' });
+  }
+});
+
 // Direct extension bundle download
 router.get('/extension/download', (req, res) => {
   const zipPath = path.join(process.cwd(), 'public', 'extension', 'smartscout-extension.zip');
