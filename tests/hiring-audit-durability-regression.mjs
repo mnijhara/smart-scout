@@ -8,17 +8,19 @@ if (saveStateBlocks.length !== 1) {
 }
 
 const block = saveStateBlocks[0];
-const auditCalls = [...block.matchAll(/recordAuditEvent\(\{[\s\S]*?\}\)/g)];
+// The current implementation uses the imported recordLifecycleAudit alias.
+// Count awaited calls in the persistent fallback and local fallback paths.
+const auditCalls = [...block.matchAll(/recordLifecycleAudit\(\{/g)];
 if (auditCalls.length < 2) {
   throw new Error('Both persistent and fallback hiring-state paths must record an audit event');
 }
 
-if (/void\s+recordAuditEvent/.test(block)) {
+if (/void\s+recordLifecycleAudit/.test(block)) {
   throw new Error('Hiring lifecycle audit writes must not be fire-and-forget');
 }
 
 for (const call of auditCalls) {
-  const prefix = block.slice(Math.max(0, call.index - 20), call.index);
+  const prefix = block.slice(Math.max(0, call.index - 24), call.index);
   if (!/await\s*$/.test(prefix)) {
     throw new Error('Every hiring lifecycle audit write must be awaited');
   }
