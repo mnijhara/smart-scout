@@ -53,7 +53,13 @@ export function ensureGuestWorkspace(req:Request,res:Response):WorkspaceIdentity
   if(!existing){
     const expiresAt = Date.now() + SESSION_MAX_AGE * 1000;
     const payload = `${id}.${expiresAt}`;
-    res.setHeader('Set-Cookie',`${SESSION_COOKIE}=${encodeURIComponent(`${payload}.${signSession(payload)}`)}; Path=/; Max-Age=${SESSION_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`);
+    const host=String(req.headers.host||'').split(':')[0].replace(/^\[|\]$/g,'').toLowerCase();
+    const remote=String(req.socket.remoteAddress||'').replace(/^::ffff:/,'');
+    const loopbackHost=host==='localhost'||host==='127.0.0.1'||host==='::1';
+    const loopbackClient=remote==='127.0.0.1'||remote==='::1';
+    const forwardedProto=String(req.headers['x-forwarded-proto']||'').split(',')[0].trim().toLowerCase();
+    const secureCookie=req.secure||forwardedProto==='https'||!(loopbackHost&&loopbackClient);
+    res.setHeader('Set-Cookie',`${SESSION_COOKIE}=${encodeURIComponent(`${payload}.${signSession(payload)}`)}; Path=/; Max-Age=${SESSION_MAX_AGE}; HttpOnly;${secureCookie?' Secure;':''} SameSite=Lax`);
   }
   return {kind:'guest',id:`guest:${id}`};
 }
