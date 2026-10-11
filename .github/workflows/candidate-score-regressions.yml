@@ -26,7 +26,7 @@ jobs:
       - name: Candidate score CI coverage regression
         run: node tests/candidate-score-ci-coverage-regression.mjs
       - name: Candidate score no-op audit regression
-        run: node tests/candidate-lifecycle-score-noop-regression.mjs
+        run: npx tsx tests/candidate-lifecycle-score-noop-regression.mjs
       - name: Candidate score size boundary regression
         run: node tests/candidate-lifecycle-score-size-boundary-regression.mjs
       - name: Candidate score input boundary regression
