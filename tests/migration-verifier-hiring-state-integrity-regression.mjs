@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 
 const verifier = await fs.readFile('scripts/verify-migrations.mjs', 'utf8');
+const migration = await fs.readFile('supabase/migrations/024_hiring_state_tenant_integrity.sql', 'utf8');
 
 const required = [
   /024_hiring_state_tenant_integrity\.sql/i,
@@ -12,7 +13,7 @@ const required = [
 ];
 
 for (const pattern of required) {
-  if (!pattern.test(verifier)) throw new Error(`Migration verifier missing hiring-state tenant integrity coverage: ${pattern}`);
+  if (!pattern.test(verifier + '\\n' + migration)) throw new Error(`Migration verifier missing hiring-state tenant integrity coverage: ${pattern}`);
 }
 
 console.log('Migration verifier hiring-state tenant integrity coverage verified');
