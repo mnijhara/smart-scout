@@ -42,6 +42,16 @@ for (const pattern of requiredTenantIntegrityConstraints) if (!pattern.test(tena
 const tenantConstraintNames = [...tenantIntegrityMigration.matchAll(/add\s+constraint\s+(recruiting_[a-z_]+_fk)/gi)].map(match => match[1].toLowerCase());
 if (tenantConstraintNames.length !== 5 || new Set(tenantConstraintNames).size !== 5) throw new Error(`Expected five unique recruiting tenant FK constraints, found ${tenantConstraintNames.length}`);
 
+const hiringStateTenantMigration = await readFile(path.join(root, '024_hiring_state_tenant_integrity.sql'), 'utf8');
+const requiredHiringStateTenantGuards = [
+  /hiring_state_history_tenant_workflow_fk[\\s\\S]*foreign\\s+key\\s*\\(tenant_id\\s*,\\s*workflow_id\\)[\\s\\S]*references\\s+public\\.hiring_workflows\\s*\\(tenant_id\\s*,\\s*id\\)[\\s\\S]*not\\s+valid/i,
+  /hiring_state_history_tenant_candidate_fk[\\s\\S]*foreign\\s+key\\s*\\(tenant_id\\s*,\\s*candidate_id\\)[\\s\\S]*references\\s+public\\.recruiting_candidates\\s*\\(tenant_id\\s*,\\s*id\\)[\\s\\S]*not\\s+valid/i,
+  /create\\s+index\\s+if\\s+not\\s+exists\\s+hiring_state_history_tenant_workflow_fk_idx/i,
+  /create\\s+index\\s+if\\s+not\\s+exists\\s+hiring_state_history_tenant_candidate_fk_idx/i,
+  /alter\\s+table\\s+public\\.hiring_state_history\\s+force\\s+row\\s+level\\s+security/i,
+];
+for (const pattern of requiredHiringStateTenantGuards) if (!pattern.test(hiringStateTenantMigration)) throw new Error(`Hiring-state tenant integrity guard missing: ${pattern}`);
+
 const tenantIndexMigration = await readFile(path.join(root, '016_recruiting_tenant_fk_indexes.sql'), 'utf8');
 const requiredTenantIndexes = ['recruiting_candidates_tenant_workflow_fk_idx','recruiting_audit_events_tenant_workflow_fk_idx','recruiting_audit_events_tenant_candidate_fk_idx','recruiting_interviews_tenant_workflow_fk_idx','recruiting_interviews_tenant_candidate_fk_idx'];
 for (const indexName of requiredTenantIndexes) {
