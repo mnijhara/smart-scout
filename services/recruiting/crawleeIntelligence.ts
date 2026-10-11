@@ -19,6 +19,12 @@ export interface MarketCompBenchmark {
   };
 }
 
+type AICompensationResponse = Partial<MarketCompBenchmark> & {
+  activeListingsCount?: number;
+  competitionIndex?: MarketCompBenchmark['hiringVelocity']['competitionIndex'];
+  topHiringCompanies?: string[];
+};
+
 /**
  * Production Crawlee Engine for Market Compensation & Talent Velocity
  * Utilizes anti-blocking session pools, request queues, and resilient web parsing.
@@ -33,7 +39,7 @@ export async function crawlMarketIntelligence(
 
   // If AI credentials are available, synthesize live market data combined with calibrated benchmark data
   let aiInsights: string[] = [];
-  let parsedComp: Partial<MarketCompBenchmark> | null = null;
+  let parsedComp: AICompensationResponse | null = null;
 
   if (aiConfig?.apiKey) {
     try {
@@ -59,7 +65,7 @@ Return JSON format:
       });
 
       const cleaned = response.text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
-      parsedComp = JSON.parse(cleaned);
+      parsedComp = JSON.parse(cleaned) as AICompensationResponse;
       if (Array.isArray(parsedComp?.insights)) {
         aiInsights = parsedComp.insights;
       }
@@ -78,9 +84,9 @@ Return JSON format:
   const p75 = parsedComp?.marketP75 || Math.round(baseP50 * 1.18);
   const p90 = parsedComp?.marketP90 || Math.round(baseP50 * 1.38);
 
-  const activeListings = parsedComp?.hiringVelocity?.activeListingsCount || parsedComp?.activeListingsCount || Math.floor(28 + Math.random() * 45);
-  const compIndex = (parsedComp?.competitionIndex || (activeListings > 40 ? 'High' : 'Moderate')) as 'Low' | 'Moderate' | 'High' | 'Very High';
-  const companies = parsedComp?.topHiringCompanies || (isGurgaonOrBlr
+  const activeListings = parsedComp?.hiringVelocity?.activeListingsCount ?? parsedComp?.activeListingsCount ?? Math.floor(28 + Math.random() * 45);
+  const compIndex = parsedComp?.hiringVelocity?.competitionIndex ?? parsedComp?.competitionIndex ?? (activeListings > 40 ? 'High' : 'Moderate');
+  const companies = parsedComp?.hiringVelocity?.topHiringCompanies ?? parsedComp?.topHiringCompanies ?? (isGurgaonOrBlr
     ? ['Zomato', 'MakeMyTrip', 'Delhivery', 'Paytm', 'Tata 1mg', 'PolicyBazaar']
     : ['Swiggy', 'Flipkart', 'Razorpay', 'CRED', 'Ola']);
 
