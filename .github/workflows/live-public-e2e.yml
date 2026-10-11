@@ -7,8 +7,6 @@ on:
         description: 'Deployed SmartScout commit SHA to verify'
         required: false
         type: string
-  schedule:
-    - cron: '17 * * * *'
 
 permissions:
   contents: read
