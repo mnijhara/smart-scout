@@ -2,8 +2,6 @@ name: Live Security Smoke
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 * * * *'
 
 permissions:
   contents: read
