@@ -9,7 +9,7 @@ const requiredRegressions = [
   'candidate-lifecycle-score-tenant-guard-regression.mjs',
 ];
 
-const steps = [...workflow.matchAll(/run: node tests\/(candidate-lifecycle-score-[^\s]+\.mjs)/g)].map((match) => match[1]);
+const steps = [...workflow.matchAll(/run: (?:node|npx tsx) tests\/(candidate-lifecycle-score-[^\s]+\.mjs)/g)].map((match) => match[1]);
 
 if (steps.length !== requiredRegressions.length) {
   throw new Error(`candidate score CI workflow must run exactly ${requiredRegressions.length} node regression steps; found ${steps.length}`);
