@@ -44,11 +44,11 @@ if (tenantConstraintNames.length !== 5 || new Set(tenantConstraintNames).size !=
 
 const hiringStateTenantMigration = await readFile(path.join(root, '024_hiring_state_tenant_integrity.sql'), 'utf8');
 const requiredHiringStateTenantGuards = [
-  /hiring_state_history_tenant_workflow_fk[\\s\\S]*foreign\\s+key\\s*\\(tenant_id\\s*,\\s*workflow_id\\)[\\s\\S]*references\\s+public\\.hiring_workflows\\s*\\(tenant_id\\s*,\\s*id\\)[\\s\\S]*not\\s+valid/i,
-  /hiring_state_history_tenant_candidate_fk[\\s\\S]*foreign\\s+key\\s*\\(tenant_id\\s*,\\s*candidate_id\\)[\\s\\S]*references\\s+public\\.recruiting_candidates\\s*\\(tenant_id\\s*,\\s*id\\)[\\s\\S]*not\\s+valid/i,
-  /create\\s+index\\s+if\\s+not\\s+exists\\s+hiring_state_history_tenant_workflow_fk_idx/i,
-  /create\\s+index\\s+if\\s+not\\s+exists\\s+hiring_state_history_tenant_candidate_fk_idx/i,
-  /alter\\s+table\\s+public\\.hiring_state_history\\s+force\\s+row\\s+level\\s+security/i,
+  /hiring_state_history_tenant_workflow_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*workflow_id\)[\s\S]*references\s+public\.hiring_workflows\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /hiring_state_history_tenant_candidate_fk[\s\S]*foreign\s+key\s*\(tenant_id\s*,\s*candidate_id\)[\s\S]*references\s+public\.recruiting_candidates\s*\(tenant_id\s*,\s*id\)[\s\S]*not\s+valid/i,
+  /create\s+index\s+if\s+not\s+exists\s+hiring_state_history_tenant_workflow_fk_idx/i,
+  /create\s+index\s+if\s+not\s+exists\s+hiring_state_history_tenant_candidate_fk_idx/i,
+  /alter\s+table\s+public\.hiring_state_history\s+force\s+row\s+level\s+security/i,
 ];
 for (const pattern of requiredHiringStateTenantGuards) if (!pattern.test(hiringStateTenantMigration)) throw new Error(`Hiring-state tenant integrity guard missing: ${pattern}`);
 
